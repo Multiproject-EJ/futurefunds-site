@@ -1,0 +1,68 @@
+{
+  "tools": [
+    {
+      "id": "smart-watchlist",
+      "title": "Smart Stock Watchlist",
+      "subtitle": "Taggable, signal-aware watchlist that learns from your notes",
+      "access": "free",
+      "visibility": "public",
+      "comingSoon": false,
+      "description": [
+        "A clean Google Sheet with tickers, tags, catalysts, and AI summarize-on-click.",
+        "Imports market data + basic technicals; optional web search hook."
+      ],
+      "links": {
+        "demo": "https://docs.google.com/...", 
+        "sheet": "https://docs.google.com/..."
+      },
+      "notes": ["Best with your API keys."]
+    },
+    {
+      "id": "multi-portfolio-tracker",
+      "title": "Multi-Portfolio Tracker (Simple Backtester)",
+      "subtitle": "Track multiple strategies and quick compare returns",
+      "access": "patreon",
+      "patreon": { "minCents": 500, "currency": "USD" },
+      "visibility": "public",
+      "comingSoon": false,
+      "description": [
+        "Equal-weight weekly backtester & live tracker.",
+        "Exports JSON to the website for charts."
+      ]
+    },
+    {
+      "id": "strategy-ai-qa",
+      "title": "Strategy AI — Q&A",
+      "subtitle": "Ask how/why a rule exists; see citations to your Sheets data",
+      "access": "paid",
+      "price": "$29",
+      "license": { "provider": "lemonsqueezy", "sku": "FF-SAI-QA-001" },
+      "checkout": { "url": "https://checkout.lemonsqueezy.com/buy/XXXXX" },
+      "visibility": "public",
+      "comingSoon": true,
+      "description": [
+        "Explain strategy rules in plain English with sources.",
+        "Patreon perk: free after 24 months (email for unlock)."
+      ]
+    },
+    {
+      "id": "ai-analysis-engine",
+      "title": "AI Model — Analysis Engine",
+      "subtitle": "Breaks down a valuation into modular prompts & checks",
+      "access": "paid",
+      "price": "$79",
+      "license": { "provider": "gumroad", "sku": "ai-analysis-engine" },
+      "checkout": { "url": "https://gumroad.com/l/ai-analysis-engine" },
+      "visibility": "hidden",
+      "comingSoon": true
+    },
+    {
+      "id": "personal-budget",
+      "title": "Personal Budget (Privacy-First)",
+      "subtitle": "Local-only or AI-ready version; optional family/portfolio add-ons",
+      "access": "free",
+      "visibility": "public",
+      "comingSoon": false
+    }
+  ]
+}
