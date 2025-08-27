@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Portfolio — FutureFunds.ai</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="/assets/styles.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
+  <script src="/assets/app.js" defer></script>
+</head>
+<body>
+  <header class="site-header">
+    <a class="brand" href="/"><img src="/images/logo.svg" alt="" /><span>FutureFunds.ai</span></a>
+    <nav class="nav">
+      <a href="/blog.html">Commentary</a>
+      <a href="/disclaimer.html">Disclaimer</a>
+    </nav>
+  </header>
+
+  <main class="container">
+    <a class="backlink" href="/">← All portfolios</a>
+    <article id="portfolio-article">
+      <h1 id="p-title">Loading…</h1>
+      <p class="muted" id="p-subtitle"></p>
+
+      <div class="stats">
+        <div><span class="label">Inception</span><span id="p-inception">—</span></div>
+        <div><span class="label">Universe</span><span id="p-universe">—</span></div>
+        <div><span class="label">Holdings</span><span id="p-holdings-count">—</span></div>
+        <div><span class="label">Since Inception</span><span id="p-cumret">—</span></div>
+      </div>
+
+      <section>
+        <h2>The theory</h2>
+        <div id="p-theory"></div>
+      </section>
+
+      <section>
+        <h2>Rules (system)</h2>
+        <ul id="p-rules"></ul>
+      </section>
+
+      <section>
+        <h2>Current holdings</h2>
+        <table class="table" id="p-holdings">
+          <thead><tr><th>Ticker</th><th>Name</th><th>Weight</th><th>Note</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </section>
+
+      <section>
+        <h2>Performance</h2>
+        <canvas id="perfChart" width="900" height="420" aria-label="Performance chart"></canvas>
+        <div class="two-col">
+          <table class="table compact" id="p-metrics">
+            <thead><tr><th>Metric</th><th>Value</th></tr></thead>
+            <tbody></tbody>
+          </table>
+          <div class="note-box">
+            <strong>Methodology notes</strong>
+            <ul id="p-methodology"></ul>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <h2>Changelog</h2>
+        <ul id="p-changelog"></ul>
+      </section>
+    </article>
+  </main>
+
+  <footer class="site-footer">
+    <p>© <span id="year"></span> FutureFunds.ai — Educational, not advice.</p>
+  </footer>
+</body>
+</html>
