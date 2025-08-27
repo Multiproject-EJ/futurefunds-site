@@ -1,114 +1,64 @@
-/* util */
-const $ = (sel, root=document) => root.querySelector(sel);
-const $$ = (sel, root=document) => [...root.querySelectorAll(sel)];
-const fmtPct = n => (n==null ? '—' : (n>0?'+':'') + (n*100).toFixed(1) + '%');
-const fmtDate = iso => iso ? new Date(iso).toLocaleDateString() : '—';
-
-/* common footer year */
-document.addEventListener('DOMContentLoaded', () => {
-  const y = document.getElementById('year');
-  if (y) y.textContent = new Date().getFullYear();
+const $ = (s,r=document)=>r.querySelector(s);
+const fmt = {
+  pct: n => (n==null?'—':((n>0?'+':'')+(n*100).toFixed(1)+'%')),
+  date: iso => iso ? new Date(iso).toLocaleDateString() : '—'
+};
+document.addEventListener('DOMContentLoaded',()=>{
+  const y=$('#year'); if(y) y.textContent=new Date().getFullYear();
+  renderToolsIndex();
+  renderToolDetail();
 });
 
-/* home: render portfolio cards */
-async function loadPortfoliosIndex(){
-  const mount = document.getElementById('portfolio-grid');
-  if (!mount) return;
-  const data = await fetch('/data/portfolios.json').then(r => r.json()).catch(()=>({portfolios:[]}));
-  const list = data.portfolios || [];
-  mount.innerHTML = list.map(p => `
-    <article class="card">
-      <h3><a href="/portfolio.html?id=${encodeURIComponent(p.id)}">${p.title}</a></h3>
-      <div class="muted">${p.subtitle ?? ''}</div>
-      <div class="row"><span>Since inception</span><strong>${fmtPct(p.metrics?.cumulative_return)}</strong></div>
-      <div class="row"><span>Holdings</span><strong>${p.holdings?.length ?? 0}</strong></div>
-      <div class="row"><span>Inception</span><strong>${fmtDate(p.inception)}</strong></div>
-    </article>
-  `).join('');
+/* Tools Grid */
+async function renderToolsIndex(){
+  const grid = $('#toolsGrid'); if(!grid) return;
+  const data = await fetch('/data/tools.json').then(r=>r.json());
+  const list = (data.tools||[]).filter(t => t.visibility !== 'hidden'); // hide "off" items
+  grid.innerHTML = list.map(t => toolCardHTML(t)).join('');
+}
+function toolCardHTML(t){
+  const chips = `<div class="chips">
+    ${t.access==='free'?'<span class="chip free">Free</span>':''}
+    ${t.access==='patreon'?'<span class="chip patreon">Patreon</span>':''}
+    ${t.access==='paid'?`<span class="chip paid">Paid${t.price?' · '+t.price:''}</span>`:''}
+  </div>`;
+  const lock = (t.access!=='free')?'<div class="lock">🔒</div>':'';
+  const soon = t.comingSoon?'<div class="coming">COMING&nbsp;SOON</div>':'';
+  const href = t.comingSoon? '#': `/tool.html?id=${encodeURIComponent(t.id)}`;
+  return `<article class="card">
+    ${lock}${soon}
+    <h3><a href="${href}">${t.title}</a></h3>
+    <div class="muted">${t.subtitle||''}</div>
+    ${chips}
+  </article>`;
 }
 
-/* portfolio page */
-async function loadPortfolioDetail(){
-  const article = document.getElementById('portfolio-article');
-  if (!article) return;
+/* Tool Detail */
+async function renderToolDetail(){
+  const article = $('#toolArticle'); if(!article) return;
+  const id = new URLSearchParams(location.search).get('id');
+  const {tools=[]} = await fetch('/data/tools.json').then(r=>r.json());
+  const t = tools.find(x=>x.id===id);
+  if(!t){ article.innerHTML='<p>Tool not found.</p>'; return; }
 
-  const params = new URLSearchParams(location.search);
-  const id = params.get('id');
-  if (!id){ article.innerHTML = '<p>Portfolio not found.</p>'; return; }
-
-  const {portfolios=[]} = await fetch('/data/portfolios.json').then(r => r.json());
-  const p = portfolios.find(x => x.id === id);
-  if (!p){ article.innerHTML = '<p>Portfolio not found.</p>'; return; }
-
-  $('#p-title').textContent = p.title;
-  $('#p-subtitle').textContent = p.subtitle ?? '';
-  $('#p-inception').textContent = fmtDate(p.inception);
-  $('#p-universe').textContent = p.universe ?? '—';
-  $('#p-holdings-count').textContent = p.holdings?.length ?? 0;
-  $('#p-cumret').textContent = fmtPct(p.metrics?.cumulative_return);
-
-  /* theory */
-  $('#p-theory').innerHTML = (p.theory_paragraphs || []).map(t => `<p>${t}</p>`).join('');
-
-  /* rules */
-  $('#p-rules').innerHTML = (p.rules || []).map(r => `<li>${r}</li>`).join('');
-
-  /* holdings */
-  const body = $('#p-holdings tbody');
-  body.innerHTML = (p.holdings || []).map(h => `
-    <tr><td>${h.ticker}</td><td>${h.name}</td><td>${(h.weight*100).toFixed(1)}%</td><td>${h.note ?? ''}</td></tr>
-  `).join('');
-
-  /* performance chart */
-  if (p.performance?.dates && p.performance?.values){
-    const ctx = document.getElementById('perfChart').getContext('2d');
-    new Chart(ctx, {
-      type: 'line',
-      data: {
-        labels: p.performance.dates,
-        datasets: [{ label: 'Cumulative Return', data: p.performance.values }]
-      },
-      options: {
-        responsive: true,
-        interaction: { mode: 'index', intersect: false },
-        scales: { y: { ticks: { callback: v => (v*100).toFixed(0)+'%' } } }
-      }
-    });
+  // gate if needed
+  const gated = await gateToolAccess(t);
+  if(!gated.allowed){
+    article.innerHTML = gated.html; return;
   }
 
-  /* metrics */
-  const m = p.metrics || {};
-  const metrics = [
-    ['Cumulative return', fmtPct(m.cumulative_return)],
-    ['Ann. return', fmtPct(m.annualized_return)],
-    ['Volatility', fmtPct(m.annualized_vol)],
-    ['Sharpe (rf=0)', m.sharpe?.toFixed?.(2) ?? '—'],
-    ['Max drawdown', fmtPct(m.max_drawdown)]
-  ];
-  $('#p-metrics tbody').innerHTML = metrics.map(([k,v]) => `<tr><td>${k}</td><td>${v}</td></tr>`).join('');
+  // Render unlocked content (marketing + links to Sheet/template)
+  article.innerHTML = `
+    <h1>${t.title}</h1>
+    <p class="muted">${t.subtitle||''}</p>
+    <div class="chips">${t.access==='free'?'<span class="chip free">Free</span>':''}
+      ${t.access==='patreon'?'<span class="chip patreon">Patreon</span>':''}
+      ${t.access==='paid'?'<span class="chip paid">Paid</span>':''}</div>
 
-  /* methodology & changelog */
-  $('#p-methodology').innerHTML = (p.methodology_notes||[]).map(x=>`<li>${x}</li>`).join('');
-  $('#p-changelog').innerHTML   = (p.changelog||[]).map(x=>`<li><strong>${fmtDate(x.date)}</strong> — ${x.note}</li>`).join('');
+    <div>${(t.description||[]).map(p=>`<p>${p}</p>`).join('')}</div>
+
+    ${t.links?.demo ? `<p><a class="btn" href="${t.links.demo}" target="_blank" rel="noopener">Open Demo</a></p>`:''}
+    ${t.links?.sheet ? `<p><a class="btn primary" href="${t.links.sheet}" target="_blank" rel="noopener">Open Google Sheet</a></p>`:''}
+    ${t.notes?.length?`<div class="note-box"><strong>Notes</strong><ul>${t.notes.map(n=>`<li>${n}</li>`).join('')}</ul></div>`:''}
+  `;
 }
-
-/* blog index */
-async function loadBlog(){
-  const mount = document.getElementById('posts-list');
-  if (!mount) return;
-  const {posts=[]} = await fetch('/data/posts.json').then(r=>r.json()).catch(()=>({posts:[]}));
-  mount.innerHTML = posts.map(post => `
-    <div class="post-item">
-      <h3><a href="${post.url}">${post.title}</a></h3>
-      <div class="muted">${new Date(post.date).toLocaleDateString()} · ${post.tagline ?? ''}</div>
-      <p>${post.excerpt ?? ''}</p>
-    </div>
-  `).join('');
-}
-
-/* boot */
-document.addEventListener('DOMContentLoaded', () => {
-  loadPortfoliosIndex();
-  loadPortfolioDetail();
-  loadBlog();
-});
