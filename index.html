@@ -1,43 +1,58 @@
-<!doctype html><html lang="en"><head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>FutureFunds.ai — AI‑Assisted Investing</title>
-<meta name="description" content="Track AI-assisted strategies and portfolios, shop spreadsheet tools, and read clear explainers on the future economy.">
-<link rel="stylesheet" href="assets/styles.css">
-</head><body>
-<header class="header"><div class="container nav">
-  <a class="brand" href="/"><span class="dot"></span>FutureFunds.ai</a>
-  <nav class="menu">
-    <a href="/strategies/">Strategies</a>
-    <a href="/products/">Tools</a>
-    <a href="/insights/">Insights</a>
-    <a class="cta" href="mailto:hello@futurefunds.ai">Contact</a>
-  </nav>
-</div></header>
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>FutureFunds.ai — AI-driven portfolios, explained</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="Educational finance lab: theory → tools → AI-managed portfolios. Methods, results, wins and losses—openly documented." />
+  <meta property="og:title" content="FutureFunds.ai" />
+  <meta property="og:description" content="Educational finance lab with transparent AI portfolios." />
+  <meta property="og:image" content="/images/og-card.png" />
+  <link rel="preload" as="image" href="/images/og-card.png" />
+  <link rel="stylesheet" href="/assets/styles.css" />
+  <link rel="icon" href="/images/logo.svg" type="image/svg+xml" />
+</head>
+<body>
+  <header class="site-header">
+    <a class="brand" href="/"><img src="/images/logo.svg" alt="" /><span>FutureFunds.ai</span></a>
+    <nav class="nav">
+      <a href="/blog.html">Commentary</a>
+      <a href="/disclaimer.html">Disclaimer</a>
+    </nav>
+  </header>
 
-<main class="container">
-  <section class="hero">
-    <div>
-      <h1>Practical AI for Better Investing</h1>
-      <p class="lead">We run transparent, rule‑based strategies; build pro‑grade spreadsheet tools; and publish explainers on markets & the AI economy.</p>
-      <div class="badges">
-        <span class="badge">Strategy dashboards*</span>
-        <span class="badge">Spreadsheet tools</span>
-        <span class="badge">Deep‑dive insights</span>
+  <main>
+    <section class="hero">
+      <h1>AI-assisted portfolios, built in public</h1>
+      <p>We publish the <em>theory</em>, build <em>tools</em>, then run <em>live portfolios</em>—tracking both gains and losses.</p>
+      <div class="hero-ctas">
+        <a class="btn primary" href="#portfolios">Browse Portfolios</a>
+        <a class="btn" href="/blog.html">Read the latest notes</a>
       </div>
-      <div class="section"><a class="buy" href="/products/">Browse Tools</a></div>
-      <p class="notice">* Educational only. Not investment advice.</p>
-    </div>
-    <div class="media"><!-- optional hero chart/video --></div>
-  </section>
+      <small class="hero-note">Educational content for professionals & keen hobbyists. Not investment advice.</small>
+    </section>
 
-  <section class="section grid cards" style="grid-template-columns:repeat(12,1fr)">
-    <a class="card" style="grid-column:span 4" href="/strategies/"><h3>Strategies & Portfolios</h3><p>Methodology, rules, and performance tracking.</p></a>
-    <a class="card" style="grid-column:span 4" href="/products/"><h3>Spreadsheet Tools</h3><p>DCF, screeners, portfolio trackers, risk tools.</p></a>
-    <a class="card" style="grid-column:span 4" href="/insights/"><h3>Insights</h3><p>Explainers on AI, valuation, and the future economy.</p></a>
-  </section>
-</main>
+    <section id="portfolios" class="container">
+      <h2>Portfolios</h2>
+      <div id="portfolio-grid" class="grid"></div>
+    </section>
 
-<footer class="footer"><div class="container">© <span id="y"></span> FutureFunds.ai — Educational content only.</div></footer>
-<script>document.getElementById('y').textContent=new Date().getFullYear()</script>
-<script src="assets/main.js" defer></script>
-</body></html>
+    <section class="container">
+      <h2>The approach</h2>
+      <ol class="pillars">
+        <li><strong>Theory:</strong> Clear rules and hypotheses.</li>
+        <li><strong>Tools:</strong> AI filters & screeners codifying the rules.</li>
+        <li><strong>Portfolios:</strong> Managed using those tools; results shared.</li>
+      </ol>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <p>© <span id="year"></span> FutureFunds.ai — An educational finance experiment.</p>
+    <p><a href="/disclaimer.html">Disclaimer</a> · <a href="/sitemap.xml">Sitemap</a></p>
+  </footer>
+
+  <script src="/assets/app.js" defer></script>
+</body>
+</html>
+
