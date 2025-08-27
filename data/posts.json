@@ -1,0 +1,11 @@
+{
+  "posts": [
+    {
+      "title": "Why I’m building AI portfolios in public",
+      "date": "2025-08-26",
+      "url": "/posts/example-post.html",
+      "tagline": "Principles & guardrails",
+      "excerpt": "This project is an open notebook: rules first, code second, capital third. Here’s how I’ll keep it honest."
+    }
+  ]
+}
