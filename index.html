@@ -1,14 +1,13 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>FutureFunds.ai — AI-driven portfolios, explained</title>
+  <title>FutureFunds.ai — Build AI portfolios in public</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <meta name="description" content="Educational finance lab: theory → tools → AI-managed portfolios. Methods, results, wins and losses—openly documented." />
+  <meta name="description" content="An educational finance lab: publish the theory, codify the tools, run portfolios. Transparent wins and losses." />
   <meta property="og:title" content="FutureFunds.ai" />
-  <meta property="og:description" content="Educational finance lab with transparent AI portfolios." />
+  <meta property="og:description" content="Open, transparent, AI-assisted investing—built in public." />
   <meta property="og:image" content="/images/og-card.png" />
-  <link rel="preload" as="image" href="/images/og-card.png" />
   <link rel="stylesheet" href="/assets/styles.css" />
   <link rel="icon" href="/images/logo.svg" type="image/svg+xml" />
 </head>
@@ -16,43 +15,60 @@
   <header class="site-header">
     <a class="brand" href="/"><img src="/images/logo.svg" alt="" /><span>FutureFunds.ai</span></a>
     <nav class="nav">
-      <a href="/blog.html">Commentary</a>
-      <a href="/disclaimer.html">Disclaimer</a>
+      <a href="/tools.html" data-i18n="nav.tools">Tools</a>
+      <a href="/disclaimer.html" data-i18n="nav.disclaimer">Disclaimer</a>
+      <button id="langBtn" class="btn small">EN ▾</button>
+      <a id="patreonLogin" class="btn ghost" href="#" data-i18n="cta.connectPatreon">Connect Patreon</a>
     </nav>
   </header>
 
   <main>
     <section class="hero">
-      <h1>AI-assisted portfolios, built in public</h1>
-      <p>We publish the <em>theory</em>, build <em>tools</em>, then run <em>live portfolios</em>—tracking both gains and losses.</p>
+      <h1 data-i18n="hero.title">AI-assisted portfolios, built in public</h1>
+      <p class="muted" data-i18n="hero.tagline">
+        We publish the <em>theory</em>, build <em>tools</em>, then run <em>live portfolios</em>—tracking both gains and losses.
+      </p>
       <div class="hero-ctas">
-        <a class="btn primary" href="#portfolios">Browse Portfolios</a>
-        <a class="btn" href="/blog.html">Read the latest notes</a>
+        <a class="btn primary" href="/tools.html" data-i18n="cta.browseTools">Browse Tools</a>
+        <a class="btn" id="joinPatreon" href="https://www.patreon.com/" target="_blank" rel="noopener" data-i18n="cta.joinPatreon">Join on Patreon</a>
       </div>
-      <small class="hero-note">Educational content for professionals & keen hobbyists. Not investment advice.</small>
-    </section>
-
-    <section id="portfolios" class="container">
-      <h2>Portfolios</h2>
-      <div id="portfolio-grid" class="grid"></div>
+      <small class="hero-note" data-i18n="hero.note">Educational content. Not investment advice.</small>
     </section>
 
     <section class="container">
-      <h2>The approach</h2>
+      <h2 data-i18n="how.title">How it works</h2>
       <ol class="pillars">
-        <li><strong>Theory:</strong> Clear rules and hypotheses.</li>
-        <li><strong>Tools:</strong> AI filters & screeners codifying the rules.</li>
-        <li><strong>Portfolios:</strong> Managed using those tools; results shared.</li>
+        <li><strong data-i18n="how.p1.h">Theory</strong><br><span data-i18n="how.p1.b">Clear rules & hypotheses for each strategy.</span></li>
+        <li><strong data-i18n="how.p2.h">Tools</strong><br><span data-i18n="how.p2.b">Google Sheets + AI APIs turn rules into screeners.</span></li>
+        <li><strong data-i18n="how.p3.h">Portfolios</strong><br><span data-i18n="how.p3.b">We rebalance by the rules and publish results.</span></li>
       </ol>
+    </section>
+
+    <section class="container">
+      <h2 data-i18n="support.title">Support & Access</h2>
+      <div class="grid">
+        <article class="card">
+          <h3 data-i18n="support.free.h">Free Tools</h3>
+          <p class="muted" data-i18n="support.free.b">Open to all. Great for learning and testing ideas.</p>
+        </article>
+        <article class="card">
+          <h3 data-i18n="support.patreon.h">Patreon Unlocks</h3>
+          <p class="muted" data-i18n="support.patreon.b">Some tools unlock with active membership.</p>
+        </article>
+        <article class="card">
+          <h3 data-i18n="support.paid.h">Paid Tools</h3>
+          <p class="muted" data-i18n="support.paid.b">One-time purchase or included after 24 months on Patreon (email us to unlock).</p>
+        </article>
+      </div>
     </section>
   </main>
 
   <footer class="site-footer">
-    <p>© <span id="year"></span> FutureFunds.ai — An educational finance experiment.</p>
-    <p><a href="/disclaimer.html">Disclaimer</a> · <a href="/sitemap.xml">Sitemap</a></p>
+    <p>© <span id="year"></span> FutureFunds.ai — <a href="/disclaimer.html">Disclaimer</a></p>
   </footer>
 
   <script src="/assets/app.js" defer></script>
+  <script src="/assets/i18n.js" defer></script>
+  <script src="/assets/paywall.js" defer></script>
 </body>
 </html>
-
