@@ -1,0 +1,64 @@
+{
+  "portfolios": [
+    {
+      "id": "quality-moat-europe",
+      "title": "Quality Moat — Europe",
+      "subtitle": "High ROIC, conservative leverage, steady margins",
+      "inception": "2025-08-01",
+      "universe": "Europe (mid/large)",
+      "theory_paragraphs": [
+        "Hypothesis: sustained ROIC > WACC with stable gross margins signals durable advantage.",
+        "Filters codify accounting quality, leverage ceilings, and cash conversion."
+      ],
+      "rules": [
+        "ROIC > 12% (5y median), gross margin variance < 5pp",
+        "Net debt / EBITDA < 2.0, Interest cover > 6x",
+        "Positive FCF in 4 of 5 last years",
+        "Quarterly rebalance, 20–30 names, equal weight, replace broken theses"
+      ],
+      "holdings": [
+        { "ticker": "NOVO-B.CO", "name": "Novo Nordisk B", "weight": 0.05, "note": "Flag: valuation stretch" },
+        { "ticker": "HEI.DE", "name": "Heidelberg Materials", "weight": 0.05 },
+        { "ticker": "MC.PA", "name": "LVMH", "weight": 0.05 }
+      ],
+      "performance": {
+        "dates": ["2025-08-01","2025-08-08","2025-08-15","2025-08-22"],
+        "values": [0, 0.012, 0.009, 0.017]
+      },
+      "metrics": {
+        "cumulative_return": 0.017,
+        "annualized_return": 0.14,
+        "annualized_vol": 0.18,
+        "sharpe": 0.78,
+        "max_drawdown": -0.032
+      },
+      "methodology_notes": [
+        "Cumulative returns are log-compounded weekly based on equal weights.",
+        "Dividends assumed reinvested on ex-date; FX at WM 4pm close."
+      ],
+      "changelog": [
+        { "date": "2025-08-22", "note": "Initial seed weights posted." }
+      ]
+    },
+
+    {
+      "id": "value-turnaround-us",
+      "title": "Value Turnaround — US",
+      "subtitle": "Cash-rich, self-help catalysts, insider alignment",
+      "inception": "2025-08-10",
+      "universe": "US (all-cap)",
+      "theory_paragraphs": [
+        "Deep value screen with balance-sheet protection and identifiable catalysts.",
+        "Focus on buybacks, asset sales, margin recovery."
+      ],
+      "rules": [
+        "EV/EBITDA < sector 30th percentile",
+        "Net cash or ND/EBITDA < 1.0",
+        "Documented catalyst within 12–18 months"
+      ],
+      "holdings": [],
+      "performance": { "dates": [], "values": [] },
+      "metrics": { "cumulative_return": 0 }
+    }
+  ]
+}
