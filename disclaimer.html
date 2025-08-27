@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Disclaimer — FutureFunds.ai</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="/assets/styles.css">
+</head>
+<body>
+  <header class="site-header">
+    <a class="brand" href="/"><img src="/images/logo.svg" alt=""><span>FutureFunds.ai</span></a>
+    <nav class="nav">
+      <a href="/tools.html">Tools</a>
+      <a href="/blog.html">Blog</a>
+    </nav>
+  </header>
+
+  <main class="container narrow">
+    <h1>Disclaimer</h1>
+    <p><strong>Educational only.</strong> Nothing on this site is investment advice, an offer, or a solicitation to buy or sell any security.</p>
+    <p><strong>Risk.</strong> Investing involves risk, including the possible loss of capital.</p>
+    <p><strong>Accuracy.</strong> While I aim for accuracy, content may contain errors or be incomplete. Always do your own research.</p>
+  </main>
+
+  <footer class="site-footer">
+    <p>© <span id="year"></span> FutureFunds.ai</p>
+  </footer>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', ()=> {
+      document.getElementById('year').textContent = new Date().getFullYear();
+    });
+  </script>
+</body>
+</html>
