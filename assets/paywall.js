@@ -1,7 +1,8 @@
 // DEV MODES (toggle in the console while building)
 window.__DEV__ = {
   forcePatron: false,   // set true to simulate Patreon access
-  forceLicense: false   // set true to simulate valid purchase/license
+  forceLicense: false,  // set true to simulate valid purchase/license
+  forceSubscriber: false // set true to simulate free-subscriber access
 };
 
 /** Gatekeeper for a tool */
@@ -65,13 +66,7 @@ function lockedPaidHTML(t){
   `;
 }
 
-/* ---- Patreon: login + check (via serverless) ----
-   You’ll deploy two endpoints on Cloudflare Workers:
-   - GET /api/patreon/login   -> redirects to Patreon OAuth
-   - GET /api/patreon/cb      -> handles callback, sets a session cookie
-   - GET /api/patreon/me      -> returns { ok: boolean, amount_cents: number } for this user
-   Docs: OAuth + membership verification via Patreon v2 API. :contentReference[oaicite:1]{index=1}
-*/
+/* ---- Patreon: login + check (via serverless) ---- */
 function startPatreonOAuth(){ window.location.href = '/api/patreon/login'; }
 async function checkPatreonTier(minCents){
   try{
@@ -82,10 +77,7 @@ async function checkPatreonTier(minCents){
   }catch(_){ return false; }
 }
 
-/* ---- Paid licenses: Lemon Squeezy / Gumroad / Stripe ----
-   We verify licenses server-side and only then unlock the tool.
-   Lemon Squeezy and Gumroad both provide license key verification APIs. :contentReference[oaicite:2]{index=2}
-*/
+/* ---- Paid licenses: Lemon Squeezy / Gumroad / Stripe ---- */
 async function verifyLicenseForTool(provider, sku, key){
   if (window.__DEV__.forceLicense) return true;
   if (!key) return false;
@@ -97,7 +89,6 @@ async function verifyLicenseForTool(provider, sku, key){
     const j = await r.json();
     if (j.ok){ localStorage.setItem(`license:${sku}`, key); return true; }
   }catch(_){}
-  // fallback to any previously verified key in localStorage (optional)
   return !!localStorage.getItem(`license:${sku}`);
 }
 
@@ -106,3 +97,40 @@ document.addEventListener('DOMContentLoaded',()=>{
   const pat = document.getElementById('patreonLogin');
   if (pat) pat.onclick = (e)=>{ e.preventDefault(); startPatreonOAuth(); };
 });
+
+/* ==================================================
+   NEW: Portfolio gating (public | subscriber | patreon)
+   ================================================== */
+async function gatePortfolioAccess(p){
+  if (!p) return { allowed:false, reason:'Unknown portfolio', ctaHTML:'<a class="btn" href="/portfolio.html">Back</a>' };
+  if (p.comingSoon) {
+    return { allowed:false, reason:'Coming soon', ctaHTML:'<a class="btn" href="/portfolio.html">Back</a>' };
+  }
+
+  const access = p.access || 'public';
+  if (access === 'public') return { allowed:true };
+
+  // Dev overrides
+  if (window.__DEV__.forceSubscriber && access === 'subscriber') return { allowed:true };
+  if (window.__DEV__.forcePatron && access === 'patreon') return { allowed:true };
+
+  if (access === 'subscriber'){
+    return {
+      allowed:false,
+      reason:'Free subscription required',
+      ctaHTML:'<a class="btn primary" href="#" onclick="alert(\'Coming soon: free signup\')">Subscribe free</a> <a class="btn" href="/portfolio.html">Back</a>'
+    };
+  }
+
+  if (access === 'patreon'){
+    const ok = await checkPatreonTier(100); // default $1+
+    if (ok) return { allowed:true };
+    return {
+      allowed:false,
+      reason:'Patreon membership required',
+      ctaHTML:'<a class="btn primary" href="/api/patreon/login">Connect Patreon</a> <a class="btn" href="/portfolio.html">Back</a>'
+    };
+  }
+
+  return { allowed:false, reason:'Locked', ctaHTML:'<a class="btn" href="/portfolio.html">Back</a>' };
+}
