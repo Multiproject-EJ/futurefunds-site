@@ -1,68 +1,66 @@
 {
   "tools": [
     {
-      "id": "smart-watchlist",
-      "title": "Smart Stock Watchlist",
-      "subtitle": "Taggable, signal-aware watchlist that learns from your notes",
-      "access": "free",
-      "visibility": "public",
-      "comingSoon": false,
-      "description": [
-        "A clean Google Sheet with tickers, tags, catalysts, and AI summarize-on-click.",
-        "Imports market data + basic technicals; optional web search hook."
-      ],
-      "links": {
-        "demo": "https://docs.google.com/...", 
-        "sheet": "https://docs.google.com/..."
-      },
-      "notes": ["Best with your API keys."]
-    },
-    {
-      "id": "multi-portfolio-tracker",
-      "title": "Multi-Portfolio Tracker (Simple Backtester)",
-      "subtitle": "Track multiple strategies and quick compare returns",
+      "id": "ff-pms",
+      "title": "FutureFunds Portfolio Management System",
+      "subtitle": "Build, track, and iterate AI-driven strategies end-to-end",
       "access": "patreon",
       "patreon": { "minCents": 500, "currency": "USD" },
       "visibility": "public",
       "comingSoon": false,
       "description": [
-        "Equal-weight weekly backtester & live tracker.",
-        "Exports JSON to the website for charts."
+        "A rules-first portfolio OS: screeners, backtests, rebalancing, and performance exports.",
+        "Designed around Google Sheets + AI prompts so you can audit every decision.",
+        "Roadmap: live broker sync, rule diffing, and multi-strategy dashboards."
+      ],
+      "links": {
+        "site": "https://futurefunds.ai/portfolio.html"
+      },
+      "notes": [
+        "Full holdings & charts are gated for supporters while in beta.",
+        "Includes priority access to new strategies."
       ]
     },
     {
-      "id": "strategy-ai-qa",
-      "title": "Strategy AI — Q&A",
-      "subtitle": "Ask how/why a rule exists; see citations to your Sheets data",
-      "access": "paid",
-      "price": "$29",
-      "license": { "provider": "lemonsqueezy", "sku": "FF-SAI-QA-001" },
-      "checkout": { "url": "https://checkout.lemonsqueezy.com/buy/XXXXX" },
+      "id": "stockalpha-journal",
+      "title": "StockAlpha.ai — Investment Journal",
+      "subtitle": "A Journalytics-style journal: self-assess, tag biases, and follow through",
+      "access": "free",
       "visibility": "public",
       "comingSoon": true,
       "description": [
-        "Explain strategy rules in plain English with sources.",
-        "Patreon perk: free after 24 months (email for unlock)."
+        "Structured entries for theses, catalysts, checklists, confidence, and post-mortems.",
+        "Behavior analytics to surface patterns (premature sells, size errors, FOMO, etc.).",
+        "Private by default. Export to CSV/Sheets."
+      ],
+      "links": {
+        "site": "https://stockalpha.ai/"
+      },
+      "notes": [
+        "Early preview will open as a free web app; accounts optional."
       ]
     },
     {
-      "id": "ai-analysis-engine",
-      "title": "AI Model — Analysis Engine",
-      "subtitle": "Breaks down a valuation into modular prompts & checks",
+      "id": "valuebot",
+      "title": "ValueBot.ai — Valuation Tool",
+      "subtitle": "Pick a strategy and get a sourced, step-by-step valuation",
       "access": "paid",
-      "price": "$79",
-      "license": { "provider": "gumroad", "sku": "ai-analysis-engine" },
-      "checkout": { "url": "https://gumroad.com/l/ai-analysis-engine" },
-      "visibility": "hidden",
-      "comingSoon": true
-    },
-    {
-      "id": "personal-budget",
-      "title": "Personal Budget (Privacy-First)",
-      "subtitle": "Local-only or AI-ready version; optional family/portfolio add-ons",
-      "access": "free",
+      "price": "$39",
+      "license": { "provider": "lemonsqueezy", "sku": "VB-VAL-001" },
+      "checkout": { "url": "https://checkout.lemonsqueezy.com/buy/REPLACE" },
       "visibility": "public",
-      "comingSoon": false
+      "comingSoon": true,
+      "description": [
+        "Modular prompts execute your chosen framework (e.g., Quality, Deep Value, Momentum blend).",
+        "Outputs: fair value range, key drivers, red-flag checklist, and sensitivity table.",
+        "Designed to run on your data sources (Sheets / APIs)."
+      ],
+      "links": {
+        "site": "https://www.valuebot.ai/"
+      },
+      "notes": [
+        "License includes 1 year of updates; patrons get discounts."
+      ]
     }
   ]
 }
