@@ -4,8 +4,22 @@
       "id": "quality-moat-europe",
       "title": "Quality Moat — Europe",
       "subtitle": "High ROIC, conservative leverage, steady margins",
+      "access": "patreon",
+      "comingSoon": false,
+      "teaser_chart": "/images/teasers/quality-moat-europe.png",
+      "full_chart": "https://docs.google.com/spreadsheets/d/REPLACE_WITH_SHEET_ID/pubchart?oid=111&format=png",
       "inception": "2025-08-01",
       "universe": "Europe (mid/large)",
+      "summary": "Hypothesis: sustained ROIC > WACC with stable margins indicates durable advantage; rules codify quality, leverage ceilings, and cash conversion.",
+      "metrics": {
+        "ytd": 0.017,
+        "sharpe": 0.78,
+        "holdings": 3,
+        "cumulative_return": 0.017,
+        "annualized_return": 0.14,
+        "annualized_vol": 0.18,
+        "max_drawdown": -0.032
+      },
       "theory_paragraphs": [
         "Hypothesis: sustained ROIC > WACC with stable gross margins signals durable advantage.",
         "Filters codify accounting quality, leverage ceilings, and cash conversion."
@@ -22,15 +36,8 @@
         { "ticker": "MC.PA", "name": "LVMH", "weight": 0.05 }
       ],
       "performance": {
-        "dates": ["2025-08-01","2025-08-08","2025-08-15","2025-08-22"],
+        "dates": ["2025-08-01", "2025-08-08", "2025-08-15", "2025-08-22"],
         "values": [0, 0.012, 0.009, 0.017]
-      },
-      "metrics": {
-        "cumulative_return": 0.017,
-        "annualized_return": 0.14,
-        "annualized_vol": 0.18,
-        "sharpe": 0.78,
-        "max_drawdown": -0.032
       },
       "methodology_notes": [
         "Cumulative returns are log-compounded weekly based on equal weights.",
@@ -40,13 +47,23 @@
         { "date": "2025-08-22", "note": "Initial seed weights posted." }
       ]
     },
-
     {
       "id": "value-turnaround-us",
       "title": "Value Turnaround — US",
       "subtitle": "Cash-rich, self-help catalysts, insider alignment",
+      "access": "subscriber",
+      "comingSoon": false,
+      "teaser_chart": "/images/teasers/value-turnaround-us.png",
+      "full_chart": "https://docs.google.com/spreadsheets/d/REPLACE_WITH_SHEET_ID/pubchart?oid=222&format=png",
       "inception": "2025-08-10",
       "universe": "US (all-cap)",
+      "summary": "Deep value + identifiable catalysts (buybacks, asset sales, margin recovery) with balance-sheet protection.",
+      "metrics": {
+        "ytd": 0.0,
+        "sharpe": 0.42,
+        "holdings": 0,
+        "cumulative_return": 0.0
+      },
       "theory_paragraphs": [
         "Deep value screen with balance-sheet protection and identifiable catalysts.",
         "Focus on buybacks, asset sales, margin recovery."
@@ -57,8 +74,7 @@
         "Documented catalyst within 12–18 months"
       ],
       "holdings": [],
-      "performance": { "dates": [], "values": [] },
-      "metrics": { "cumulative_return": 0 }
+      "performance": { "dates": [], "values": [] }
     }
   ]
 }
