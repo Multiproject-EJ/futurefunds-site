@@ -2,20 +2,21 @@
 <html lang="en" data-lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>FutureFunds.ai — Build AI portfolios in public</title>
+  <title>FutureFunds.ai — What happens if AI runs the investment process?</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <meta name="description" content="An educational finance lab: publish the theory, codify the tools, run portfolios. Transparent wins and losses." />
-  <meta property="og:title" content="FutureFunds.ai" />
-  <meta property="og:description" content="Open, transparent, AI-assisted investing—built in public." />
+  <meta name="description" content="FutureFunds.ai is a live research experiment: codify rules, wire them into AI tools, and track portfolios—wins and losses included." />
+  <meta property="og:title" content="FutureFunds.ai — AI investment experiment" />
+  <meta property="og:description" content="A public-by-default experiment in AI-assisted investing. Methods and updates open; some live data gated for supporters." />
   <meta property="og:image" content="/images/og-card.png" />
   <link rel="stylesheet" href="/assets/styles.css" />
   <link rel="icon" href="/images/logo.svg" type="image/svg+xml" />
 </head>
 <body>
   <header class="site-header">
-    <a class="brand" href="/"><img src="/images/logo.svg" alt="" /><span>FutureFunds.ai</span></a>
+    <a class="brand" href="/"><img src="/images/logo.svg" alt=""><span>FutureFunds.ai</span></a>
     <nav class="nav">
       <a href="/tools.html" data-i18n="nav.tools">Tools</a>
+      <a href="/portfolio.html">Portfolios</a>
       <a href="/disclaimer.html" data-i18n="nav.disclaimer">Disclaimer</a>
       <button id="langBtn" class="btn small">EN ▾</button>
       <a id="patreonLogin" class="btn ghost" href="#" data-i18n="cta.connectPatreon">Connect Patreon</a>
@@ -23,18 +24,31 @@
   </header>
 
   <main>
-    <section class="hero">
-      <h1 data-i18n="hero.title">AI-assisted portfolios, built in public</h1>
-      <p class="muted" data-i18n="hero.tagline">
-        We publish the <em>theory</em>, build <em>tools</em>, then run <em>live portfolios</em>—tracking both gains and losses.
+    <!-- HERO: Experiment-first question -->
+    <section class="hero hero--experiment">
+      <div class="badge">EXPERIMENT</div>
+
+      <h1 class="hero-question">
+        What happens if AI runs the investment process?
+      </h1>
+
+      <p class="muted hero-sub">
+        FutureFunds.ai is a live research project: we codify rules, wire them into AI-powered tools,
+        and track portfolios. It’s about learning in the open—wins and losses included.
       </p>
+
       <div class="hero-ctas">
-        <a class="btn primary" href="/tools.html" data-i18n="cta.browseTools">Browse Tools</a>
-        <a class="btn" id="joinPatreon" href="https://www.patreon.com/" target="_blank" rel="noopener" data-i18n="cta.joinPatreon">Join on Patreon</a>
+        <a class="btn primary" href="/portfolio.html">See the Portfolios</a>
+        <a class="btn" href="/tools.html">Explore the Tools</a>
       </div>
-      <small class="hero-note" data-i18n="hero.note">Educational content. Not investment advice.</small>
+
+      <small class="hero-note">
+        Educational experiment. Not investment advice.
+        <span class="gating-note">Some live data is gated for supporters while we build safely.</span>
+      </small>
     </section>
 
+    <!-- HOW IT WORKS -->
     <section class="container">
       <h2 data-i18n="how.title">How it works</h2>
       <ol class="pillars">
@@ -44,6 +58,7 @@
       </ol>
     </section>
 
+    <!-- PARTICIPATE / SUPPORT -->
     <section class="container">
       <h2 data-i18n="support.title">Support & Access</h2>
       <div class="grid">
@@ -53,7 +68,7 @@
         </article>
         <article class="card">
           <h3 data-i18n="support.patreon.h">Patreon Unlocks</h3>
-          <p class="muted" data-i18n="support.patreon.b">Some tools unlock with active membership.</p>
+          <p class="muted" data-i18n="support.patreon.b">Some tools and portfolio details unlock with active membership.</p>
         </article>
         <article class="card">
           <h3 data-i18n="support.paid.h">Paid Tools</h3>
