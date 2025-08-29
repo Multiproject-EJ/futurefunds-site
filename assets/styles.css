@@ -62,12 +62,20 @@ a:hover{text-decoration:underline}
   background:#0e1a52;border:1px solid #26358a;color:#bcd;
   padding:.25rem .6rem;border-radius:999px;margin-bottom:1rem
 }
-.hero-question{
-  font-size:clamp(2.2rem,6vw,4rem);
-  line-height:1.1;margin:.2rem auto 1rem;max-width:900px
+.hero-question {
+  font-size: clamp(2.4rem, 6vw, 4.2rem);
+  line-height: 1.2;
+  margin: 0 auto 1rem;
+  max-width: 800px;
+  text-align: center;
 }
-.hero-sub{max-width:820px}
+.hero-sub {
+  max-width: 700px;
+  margin: 0.5rem auto 0;
+  text-align: center;
+}
 .gating-note{opacity:.85;margin-left:.25rem}
+
 
 /* Cards / Layout */
 .grid{
