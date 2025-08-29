@@ -1,8 +1,8 @@
 // DEV MODES (toggle in the console while building)
 window.__DEV__ = {
-  forcePatron: false,   // set true to simulate Patreon access
-  forceLicense: false,  // set true to simulate valid purchase/license
-  forceSubscriber: false // set true to simulate free-subscriber access
+  forcePatron: false,    // simulate Patreon access
+  forceLicense: false,   // simulate valid purchase/license
+  forceSubscriber: false // simulate free-subscriber access
 };
 
 /** Gatekeeper for a tool */
@@ -99,7 +99,7 @@ document.addEventListener('DOMContentLoaded',()=>{
 });
 
 /* ==================================================
-   NEW: Portfolio gating (public | subscriber | patreon)
+   Portfolio gating (public | subscriber | patreon)
    ================================================== */
 async function gatePortfolioAccess(p){
   if (!p) return { allowed:false, reason:'Unknown portfolio', ctaHTML:'<a class="btn" href="/portfolio.html">Back</a>' };
