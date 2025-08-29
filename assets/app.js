@@ -65,8 +65,10 @@ async function renderToolDetail() {
 
     <div>${(t.description || []).map(p => `<p>${p}</p>`).join('')}</div>
 
-    ${t.links?.demo ? `<p><a class="btn" href="${t.links.demo}" target="_blank" rel="noopener">Open Demo</a></p>` : ''}
+    ${t.links?.demo  ? `<p><a class="btn" href="${t.links.demo}"  target="_blank" rel="noopener">Open Demo</a></p>` : ''}
+    ${t.links?.site  ? `<p><a class="btn" href="${t.links.site}"  target="_blank" rel="noopener">Visit Site</a></p>` : ''}
     ${t.links?.sheet ? `<p><a class="btn primary" href="${t.links.sheet}" target="_blank" rel="noopener">Open Google Sheet</a></p>` : ''}
+
     ${t.notes?.length ? `<div class="note-box"><strong>Notes</strong><ul>${t.notes.map(n => `<li>${n}</li>`).join('')}</ul></div>` : ''}
   `;
 }
@@ -74,22 +76,13 @@ async function renderToolDetail() {
 /* =========================================
    PORTFOLIOS: Hub + Strategy detail
    Data file: /data/portfolios.json
-   Keys used: id, title, subtitle, access, comingSoon,
-              teaser_chart, full_chart, metrics{ytd,sharpe,holdings},
-              summary, inception, theory_paragraphs, rules, holdings[],
-              methodology_notes[], changelog[]
    ========================================= */
 
-// Safe wrappers for gating so this file works even if paywall.js isn't loaded yet
+// Safe wrappers so this file works even if paywall.js isn't loaded yet
 async function __gatePortfolioAccess(p) {
   if (typeof gatePortfolioAccess === 'function') return gatePortfolioAccess(p);
-  // default: public unless p.access explicitly locks
-  if (p.access === 'public' || !p.access) return { allowed: true };
-  return {
-    allowed: false,
-    reason: (p.access === 'patreon') ? 'Patreon membership required' : 'Subscription required',
-    ctaHTML: '<a class="btn" href="/portfolio.html">Back</a>'
-  };
+  if (p?.access === 'public' || !p?.access) return { allowed: true };
+  return { allowed: false, reason: 'Locked', ctaHTML: '<a class="btn" href="/portfolio.html">Back</a>' };
 }
 
 async function renderPortfoliosHub() {
@@ -105,17 +98,21 @@ async function renderPortfoliosHub() {
     </div>`;
 
     if (!gated.allowed) {
+      const htmlBlock = gated.html || `
+        <div class="portfolio-thumb locked-card">
+          <img src="${p.teaser_chart || '/images/og-card.png'}" alt="${p.title} chart (locked)">
+          <div class="locked-overlay">🔒 ${gated.reason || 'Locked'}</div>
+        </div>
+        ${gated.ctaHTML || ''}
+      `;
+
       return `
         <article class="card">
           <h3>${p.title}</h3>
           <div class="muted">${p.subtitle || ''}</div>
-          <div class="portfolio-thumb locked-card">
-            <img src="${p.teaser_chart || '/images/og-card.png'}" alt="${p.title} chart (locked)">
-            <div class="locked-overlay">🔒 ${gated.reason || 'Locked'}</div>
-          </div>
+          ${htmlBlock}
           ${stats}
           <p class="muted">${p.summary || ''}</p>
-          ${gated.ctaHTML || ''}
         </article>
       `;
     }
@@ -148,7 +145,7 @@ async function renderStrategyDetail() {
   const gated = await __gatePortfolioAccess(p);
 
   if (!gated.allowed) {
-    mount.innerHTML = `
+    mount.innerHTML = gated.html || `
       <h1>${p.title}</h1>
       <p class="muted">${p.subtitle || ''}</p>
       <div class="portfolio-thumb locked-card">
@@ -184,8 +181,7 @@ async function renderStrategyDetail() {
       <div><span class="label">Sharpe</span><span>${p.metrics?.sharpe?.toFixed?.(2) ?? '—'}</span></div>
     </div>
 
-    <section><h2>The theory</h2>${th
-eory}</section>
+    <section><h2>The theory</h2>${theory}</section>
     <section><h2>Rules</h2><ul>${rules}</ul></section>
 
     <section>
