@@ -1,0 +1,18 @@
+{
+  "articles": [
+    {
+      "id": "ai-future-work",
+      "title": "The AI Job Paradox",
+      "subtitle": "Will AI take jobs or make them?",
+      "youtube": "https://www.youtube.com/embed/XXXXXXX",
+      "summary": "An entertaining look at AI and the future of labor, with political and philosophical reflections."
+    },
+    {
+      "id": "ai-democracy",
+      "title": "AI and Democracy",
+      "subtitle": "How algorithms might change power structures",
+      "youtube": "https://www.youtube.com/embed/YYYYYYY",
+      "summary": "Can democracy survive in an economy where AI directs decisions faster than politicians?"
+    }
+  ]
+}
