@@ -204,3 +204,20 @@ async function renderStrategyDetail() {
     </section>
   `;
 }
+
+/* AI Economy Hub */
+async function renderAiEconomy() {
+  const grid = document.querySelector('#aiEconomyGrid');
+  if (!grid) return;
+  const { articles=[] } = await fetch('/data/ai-economy.json').then(r=>r.json()).catch(()=>({articles:[]}));
+
+  grid.innerHTML = articles.map(a => `
+    <article class="card">
+      <h3><a href="/ai-article.html?id=${encodeURIComponent(a.id)}">${a.title}</a></h3>
+      <div class="muted">${a.subtitle || ''}</div>
+      <p>${a.summary || ''}</p>
+    </article>
+  `).join('');
+}
+document.addEventListener('DOMContentLoaded', renderAiEconomy);
+
