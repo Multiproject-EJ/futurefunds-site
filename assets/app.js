@@ -221,3 +221,23 @@ async function renderAiEconomy() {
 }
 document.addEventListener('DOMContentLoaded', renderAiEconomy);
 
+/* Single AI Economy Article */
+async function renderAiArticle() {
+  const mount = document.querySelector('#aiArticle');
+  if (!mount) return;
+  const id = new URLSearchParams(location.search).get('id');
+  const { articles=[] } = await fetch('/data/ai-economy.json').then(r=>r.json()).catch(()=>({articles:[]}));
+  const a = articles.find(x => x.id === id);
+  if (!a) { mount.innerHTML = '<p>Article not found.</p>'; return; }
+
+  mount.innerHTML = `
+    <h1>${a.title}</h1>
+    <p class="muted">${a.subtitle || ''}</p>
+    ${a.youtube ? `<div class="video"><iframe width="100%" height="400" src="${a.youtube}" frameborder="0" allowfullscreen></iframe></div>` : ''}
+    <div class="article-body">
+      <p>${a.summary}</p>
+      <p><em>More philosophical + political reflections go here...</em></p>
+    </div>
+  `;
+}
+document.addEventListener('DOMContentLoaded', renderAiArticle);
