@@ -15,59 +15,56 @@
     }
     *{box-sizing:border-box}
     html,body{height:100%}
-    body{margin:0; background:var(--bg); color:var(--text); font-family:ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial}
-    header{position:sticky; top:0; z-index:10; backdrop-filter:saturate(150%) blur(6px); background:rgba(255,255,255,.8); border-bottom:1px solid var(--border)}
-    .nav{max-width:1200px; margin:0 auto; display:flex; justify-content:space-between; align-items:center; padding:12px 16px}
+    body{margin:0; background:var(--bg); color:var(--text);
+         font-family:ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial}
+    header{position:sticky; top:0; z-index:10; backdrop-filter:saturate(150%) blur(6px);
+           background:rgba(255,255,255,.85); border-bottom:1px solid var(--border)}
+    .nav{max-width:1200px; margin:0 auto; display:flex; justify-content:space-between;
+         align-items:center; padding:12px 16px}
     .brand{font-weight:800; font-size:20px}
-    .nav-tabs{display:flex; gap:4px; flex-wrap:wrap}
-    .nav-tab{padding:8px 16px; border-radius:8px; background:transparent; border:1px solid transparent; cursor:pointer; transition:all .15s ease}
+    .nav-tabs{display:flex; gap:6px; flex-wrap:wrap}
+    .nav-tab{padding:8px 16px; border-radius:8px; background:transparent; border:1px solid transparent;
+             cursor:pointer; transition:all .15s ease}
     .nav-tab.active{background:var(--accent); color:#fff; border-color:var(--accent)}
     .nav-tab:not(.active):hover{background:#f1f5f9; border-color:var(--border)}
     main{max-width:1200px; margin:0 auto; padding:20px 16px}
     .page{display:none}
     .page.active{display:block}
-    .grid{display:grid; gap:16px}
-    .grid-2{grid-template-columns:1fr 1fr}
-    .card{background:var(--panel); border:1px solid var(--border); border-radius:var(--radius); box-shadow:var(--shadow); padding:20px; margin-bottom:16px}
+    .card{background:var(--panel); border:1px solid var(--border); border-radius:var(--radius);
+          box-shadow:var(--shadow); padding:20px; margin-bottom:16px}
     .head{display:flex; align-items:center; gap:12px; margin-bottom:12px}
     .head .title{font-weight:800; font-size:18px}
     .muted{color:var(--muted)}
-    .form-row{display:grid; grid-template-columns:repeat(4, 1fr); gap:12px}
-    .form-row-3{display:grid; grid-template-columns:repeat(3, 1fr); gap:12px}
-    .form-row-2{display:grid; grid-template-columns:repeat(2, 1fr); gap:12px}
+    .form-row{display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:12px}
     .form-group{display:flex; flex-direction:column; gap:6px}
     label{font-weight:600; font-size:14px}
-    input, select, textarea{width:100%; padding:10px 12px; border-radius:8px; border:1px solid var(--border); background:#fff; font-size:14px}
+    input, select, textarea{width:100%; padding:10px 12px; border-radius:8px; border:1px solid var(--border);
+                            background:#fff; font-size:14px}
     input:focus, select:focus, textarea:focus{outline:2px solid var(--ring); outline-offset:2px}
-    textarea{min-height:160px; resize:vertical; font-family:ui-monospace, Monaco, 'Courier New', monospace}
-    .btn{display:inline-flex; gap:8px; align-items:center; justify-content:center; padding:10px 16px; border-radius:8px; border:1px solid var(--border); background:#fff; cursor:pointer; font-weight:500; transition:all .15s ease}
+    textarea{min-height:160px; resize:vertical; font-family:ui-monospace, Monaco, "Courier New", monospace}
+    .btn{display:inline-flex; gap:8px; align-items:center; justify-content:center; padding:10px 16px;
+         border-radius:8px; border:1px solid var(--border); background:#fff; cursor:pointer;
+         font-weight:500; transition:all .15s ease}
     .btn:hover{box-shadow:var(--shadow)}
     .btn.primary{background:var(--accent); color:#fff; border-color:var(--accent)}
     .btn.ghost{background:transparent; color:var(--accent); border-color:var(--accent)}
     .btn.warn{background:#fff7ed; color:#9a3412; border-color:#fed7aa}
     .btn:disabled{opacity:.5; cursor:not-allowed}
-    .chips{display:flex; gap:8px; flex-wrap:wrap; margin:8px 0}
-    .chip{display:inline-flex; align-items:center; gap:8px; padding:6px 12px; border-radius:20px; border:1px solid var(--border); background:#fff; cursor:pointer; font-size:13px; transition:all .15s ease}
-    .chip:hover{box-shadow:var(--shadow)}
-    .chip.active{background:var(--accent); color:#fff; border-color:var(--accent)}
-    .output{background:#f8fafc; border:1px solid var(--border); border-radius:8px; padding:16px; min-height:220px; font-family:ui-monospace, Monaco, 'Courier New', monospace; font-size:13px; white-space:pre-wrap; word-wrap:break-word}
-    .output.empty{color:var(--muted); font-style:italic}
-    .preview{background:#fff; border:1px solid var(--border); border-radius:8px; padding:16px; min-height:220px; font-size:15px; line-height:1.55}
-    .preview h1,.preview h2,.preview h3{margin:0.6rem 0 0.4rem; line-height:1.25}
-    .preview h1{font-size:1.35rem} .preview h2{font-size:1.2rem} .preview h3{font-size:1.05rem}
-    .preview code{background:#f1f5f9; padding:2px 4px; border-radius:3px; font-family:ui-monospace,Monaco,monospace; font-size:.95em}
-    .divider{height:1px; background:var(--border); margin:12px 0}
-    .row{display:flex; gap:12px; flex-wrap:wrap}
+    .chips{display:flex; gap:8px; flex-wrap:wrap}
+    .chip{padding:6px 12px; border-radius:20px; border:1px solid var(--border); background:#fff;
+          cursor:pointer; font-size:13px}
+    .output{background:#f8fafc; border:1px solid var(--border); border-radius:8px; padding:16px;
+            min-height:220px; font-family:ui-monospace, Monaco, "Courier New", monospace; white-space:pre-wrap}
+    .preview{background:#fff; border:1px solid var(--border); border-radius:8px; padding:16px;
+             min-height:220px; line-height:1.55}
+    .preview h1,.preview h2,.preview h3{margin:.6rem 0 .4rem; line-height:1.25}
+    .preview code{background:#f1f5f9; padding:2px 4px; border-radius:3px; font-family:ui-monospace,Monaco,monospace}
     .status{display:flex; align-items:center; gap:8px; padding:8px 0; font-size:14px}
     .dot{width:8px; height:8px; border-radius:50%; background:var(--muted)}
     .status.loading .dot{background:var(--accent); animation:pulse 1.5s infinite}
     .status.ok{color:var(--ok)} .status.ok .dot{background:var(--ok)}
     .status.error{color:var(--err)} .status.error .dot{background:var(--err)}
-    @keyframes pulse{0%,100%{opacity:1} 50%{opacity:.3}}
-    @media (max-width: 900px){
-      .form-row, .form-row-3, .form-row-2{grid-template-columns:1fr}
-      .grid-2{grid-template-columns:1fr}
-    }
+    @keyframes pulse{0%,100%{opacity:1} 50%{opacity:.35}}
   </style>
 </head>
 <body>
@@ -91,8 +88,7 @@
           <span class="muted">Set up keys & choose a model</span>
         </div>
 
-        <!-- Provider & Key -->
-        <div class="form-row-3">
+        <div class="form-row">
           <div class="form-group">
             <label>Provider</label>
             <select id="provider">
@@ -111,50 +107,44 @@
           </div>
         </div>
 
-        <!-- OpenRouter controls -->
-        <div class="form-row-3" id="openrouter-controls">
+        <!-- OpenRouter specific -->
+        <div class="form-row" id="openrouter-controls">
           <div class="form-group">
             <label>Model</label>
             <select id="model-select">
               <option value="nvidia/nemotron-nano-9b-v2:free">nvidia/nemotron-nano-9b-v2:free</option>
             </select>
           </div>
-          <div class="form-group">
-            <label style="color:transparent">.</label>
-            <div class="row">
-              <button class="btn ghost" id="refresh-models">Refresh models</button>
-              <label style="display:flex; align-items:center; gap:6px; font-size:14px">
-                <input type="checkbox" id="only-free" /> Free only
-              </label>
-            </div>
+          <div class="form-group" style="display:flex; align-items:end; gap:8px">
+            <button class="btn ghost" id="refresh-models">Refresh models</button>
+            <label style="display:flex; align-items:center; gap:6px; font-size:14px">
+              <input type="checkbox" id="only-free" /> Free only
+            </label>
           </div>
-          <div class="form-group">
-            <label style="color:transparent">.</label>
+          <div class="form-group" style="display:flex; align-items:end">
             <button class="btn ghost" id="toggle-favorite-or" style="width:100%">☆ Favorite</button>
           </div>
         </div>
 
-        <!-- Generic controls -->
-        <div class="form-row-2" id="generic-controls" style="display:none">
+        <!-- Generic (OpenAI/Gemini) -->
+        <div class="form-row" id="generic-controls" style="display:none">
           <div class="form-group">
             <label>Model</label>
-            <input id="model-input" type="text" placeholder="e.g., gpt-4o-mini / gemini-2.0-flash" />
+            <input id="model-input" placeholder="e.g., gpt-4o-mini / gemini-2.0-flash" />
           </div>
-          <div class="form-group">
-            <label style="color:transparent">.</label>
+          <div class="form-group" style="display:flex; align-items:end">
             <button class="btn ghost" id="toggle-favorite-gen" style="width:100%">☆ Favorite</button>
           </div>
         </div>
 
-        <!-- Favorites + status -->
+        <!-- Favorites -->
         <div id="favorites-section" style="display:none">
           <div class="head" style="margin-top:8px"><div class="title" style="font-size:16px">Favorites</div></div>
           <div id="favorite-chips" class="chips"></div>
-          <div class="divider"></div>
+          <div style="height:1px;background:var(--border);margin:12px 0"></div>
         </div>
-        <div class="status" id="api-status">
-          <div class="dot"></div><span>Ready</span>
-        </div>
+
+        <div class="status" id="api-status"><div class="dot"></div><span>Ready</span></div>
       </div>
     </section>
 
@@ -167,18 +157,9 @@
         </div>
 
         <div class="form-row">
-          <div class="form-group">
-            <label>Ticker</label>
-            <input id="sa-ticker" placeholder="AAPL" />
-          </div>
-          <div class="form-group">
-            <label>Company</label>
-            <input id="sa-company" placeholder="Apple Inc." />
-          </div>
-          <div class="form-group">
-            <label>Exchange</label>
-            <input id="sa-exchange" placeholder="NASDAQ / NYSE / LSE / OSE" />
-          </div>
+          <div class="form-group"><label>Ticker</label><input id="sa-ticker" placeholder="AAPL" /></div>
+          <div class="form-group"><label>Company</label><input id="sa-company" placeholder="Apple Inc." /></div>
+          <div class="form-group"><label>Exchange</label><input id="sa-exchange" placeholder="NASDAQ / NYSE / LSE / OSE" /></div>
           <div class="form-group">
             <label>Style</label>
             <select id="sa-style">
@@ -191,39 +172,21 @@
           </div>
         </div>
 
-        <div class="form-row-2">
-          <div class="form-group">
-            <label>Analyst notes</label>
-            <textarea id="sa-notes" placeholder="Facts, constraints, angles…"></textarea>
-          </div>
-          <div class="form-group">
-            <label>Prompt (editable)</label>
-            <textarea id="sa-prompt" placeholder="Will auto-generate from fields above…"></textarea>
-          </div>
+        <div class="form-row">
+          <div class="form-group"><label>Analyst notes</label><textarea id="sa-notes" placeholder="Facts, constraints, angles…"></textarea></div>
+          <div class="form-group"><label>Prompt (editable)</label><textarea id="sa-prompt" placeholder="Will auto-generate from fields above…"></textarea></div>
         </div>
 
-        <div class="row">
+        <div class="form-row">
           <button class="btn" id="sa-build-prompt">Build Prompt</button>
           <button class="btn primary" id="sa-generate">Generate</button>
           <button class="btn ghost" id="sa-clear">Clear</button>
           <button class="btn" id="sa-download">Download .md</button>
         </div>
 
-        <div class="divider"></div>
-
-        <div class="grid grid-2">
-          <div>
-            <div class="form-group">
-              <label>Raw (Markdown)</label>
-              <div id="sa-output" class="output empty">No output yet.</div>
-            </div>
-          </div>
-          <div>
-            <div class="form-group">
-              <label>Preview</label>
-              <div id="sa-preview" class="preview">—</div>
-            </div>
-          </div>
+        <div class="form-row">
+          <div class="form-group"><label>Raw (Markdown)</label><div id="sa-output" class="output">No output yet.</div></div>
+          <div class="form-group"><label>Preview</label><div id="sa-preview" class="preview">—</div></div>
         </div>
 
         <div class="status" id="sa-status"><div class="dot"></div><span>Ready</span></div>
@@ -236,52 +199,30 @@
           <span class="muted">Commit Markdown to your repo</span>
         </div>
 
-        <div class="form-row-3">
-          <div class="form-group">
-            <label>Owner</label>
-            <input id="gh-owner" placeholder="your-user-or-org" />
-          </div>
-          <div class="form-group">
-            <label>Repo</label>
-            <input id="gh-repo" placeholder="futurefunds.ai" />
-          </div>
-          <div class="form-group">
-            <label>Branch</label>
-            <input id="gh-branch" value="main" />
-          </div>
+        <div class="form-row">
+          <div class="form-group"><label>Owner</label><input id="gh-owner" placeholder="your-user-or-org" /></div>
+          <div class="form-group"><label>Repo</label><input id="gh-repo" placeholder="futurefunds.ai" /></div>
+          <div class="form-group"><label>Branch</label><input id="gh-branch" value="main" /></div>
         </div>
-
-        <div class="form-row-3">
-          <div class="form-group">
-            <label>Publish Mode</label>
+        <div class="form-row">
+          <div class="form-group"><label>Publish Mode</label>
             <select id="pub-mode">
               <option value="jekyll">_posts/YYYY-MM-DD-title.md</option>
               <option value="folder">posts/title.md</option>
             </select>
           </div>
-          <div class="form-group">
-            <label>Date</label>
-            <input id="post-date" type="date" />
-          </div>
-          <div class="form-group">
-            <label>Tags</label>
-            <input id="post-tags" placeholder="stocks, analysis, ticker" />
-          </div>
+          <div class="form-group"><label>Date</label><input id="post-date" type="date" /></div>
+          <div class="form-group"><label>Tags</label><input id="post-tags" placeholder="stocks, analysis, ticker" /></div>
         </div>
-
-        <div class="form-row-2">
-          <div class="form-group">
-            <label>GitHub Token</label>
-            <input id="gh-token" type="password" placeholder="ghp_…" />
-          </div>
+        <div class="form-row">
+          <div class="form-group"><label>GitHub Token</label><input id="gh-token" type="password" placeholder="ghp_…" /></div>
           <div class="form-group" style="display:flex; align-items:end">
             <label style="display:flex; align-items:center; gap:8px;">
               <input type="checkbox" id="remember-gh" /> Remember token in this browser
             </label>
           </div>
         </div>
-
-        <div class="row">
+        <div class="form-row">
           <button class="btn primary" id="publish-btn">Publish</button>
           <button class="btn warn" id="test-publish-btn">Dry-run</button>
         </div>
@@ -293,156 +234,188 @@
     <!-- Playground -->
     <section id="page-playground" class="page">
       <div class="card">
-        <div class="head">
-          <div class="title">API Playground</div>
-          <span class="muted">Quick freeform test</span>
-        </div>
-        <div class="form-group" style="margin-bottom:16px">
-          <label>Input</label>
-          <textarea id="input-text" placeholder="Write a prompt…"></textarea>
-        </div>
-        <div class="row" style="margin-bottom:16px">
+        <div class="head"><div class="title">API Playground</div><span class="muted">Quick freeform test</span></div>
+        <div class="form-group"><label>Input</label><textarea id="input-text" placeholder="Write a prompt…"></textarea></div>
+        <div class="form-row">
           <button class="btn" id="demo-btn">Demo</button>
           <button class="btn primary" id="send-btn">Send</button>
           <button class="btn ghost" id="clear-btn">Clear</button>
           <button class="btn" id="format-toggle-btn" title="Toggle formatting">Formatting: On</button>
         </div>
-        <div class="form-group">
-          <label>Output</label>
-          <div id="output" class="output empty">No output yet.</div>
-        </div>
+        <div class="form-group"><label>Output</label><div id="output" class="output">No output yet.</div></div>
         <div class="status" id="playground-status"><div class="dot"></div><span>Ready</span></div>
       </div>
     </section>
   </main>
 
   <script>
+    // ------------ helpers ------------
     const $ = s => document.querySelector(s);
-    const escapeHtml = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
     const todayISO = () => new Date().toISOString().slice(0,10);
-    const slugify = s => (s||'').toLowerCase().replace(/[^\w\\s-]/g,'').trim().replace(/\\s+/g,'-').replace(/-+/g,'-');
+    const escapeHtml = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    const slugify = s => (s||'').toLowerCase().replace(/[^\w\s-]/g,'').trim().replace(/\s+/g,'-').replace(/-+/g,'-');
 
+    // ------------ Navigation (tabs) ------------
+    function initNavigation(){
+      const tabs=document.querySelectorAll('.nav-tab');
+      const pages=document.querySelectorAll('.page');
+      tabs.forEach(tab=>{
+        tab.addEventListener('click',()=>{
+          const target=tab.dataset.page;
+          tabs.forEach(t=>t.classList.remove('active'));
+          pages.forEach(p=>p.classList.remove('active'));
+          tab.classList.add('active');
+          document.getElementById('page-'+target).classList.add('active');
+        });
+      });
+    }
+
+    // ------------ API Manager ------------
     class GenericAPIManager{
       constructor(){
-        this.providers={openrouter:{keyStorage:'api-key-openrouter',favsStorage:'api-favs-openrouter'},
-                        openai:{keyStorage:'api-key-openai',favsStorage:'api-favs-openai'},
-                        gemini:{keyStorage:'api-key-gemini',favsStorage:'api-favs-gemini'}};
+        this.providers={
+          openrouter:{keyStorage:'api-key-openrouter', favsStorage:'api-favs-openrouter'},
+          openai:{keyStorage:'api-key-openai', favsStorage:'api-favs-openai'},
+          gemini:{keyStorage:'api-key-gemini', favsStorage:'api-favs-gemini'}
+        };
         this.currentProvider='openrouter';
         this.init();
       }
-      init(){ this.bind(); this.load(); this.renderFavs(); if(this.currentProvider==='openrouter') setTimeout(()=>this.refreshModels(),500); }
+      init(){ this.bind(); this.load(); this.renderFavs(); if(this.currentProvider==='openrouter'){ setTimeout(()=>this.refreshModels(),400); } }
       bind(){
-        $('#provider').addEventListener('change',e=>{this.currentProvider=e.target.value; this.load();});
-        $('#save-key').addEventListener('click',_=>this.saveKey());
-        $('#refresh-models').addEventListener('click',_=>this.refreshModels());
-        $('#only-free').addEventListener('change',_=>this.refreshModels());
-        $('#toggle-favorite-or').addEventListener('click',_=>this.toggleFav());
-        const genBtn=$('#toggle-favorite-gen'); if(genBtn) genBtn.addEventListener('click',_=>this.toggleFav());
-        const ms=$('#model-select'); if(ms) ms.addEventListener('change',_=>{this.updateFavBtn(); this.renderFavs();});
-        const mi=$('#model-input'); if(mi) mi.addEventListener('input',_=>{this.updateFavBtn(); this.renderFavs();});
+        $('#provider').addEventListener('change',e=>{ this.currentProvider=e.target.value; this.load(); });
+        $('#save-key').addEventListener('click',()=>this.saveKey());
+        $('#refresh-models').addEventListener('click',()=>this.refreshModels());
+        $('#only-free').addEventListener('change',()=>this.refreshModels());
+        $('#toggle-favorite-or').addEventListener('click',()=>this.toggleFav());
+        const genBtn=$('#toggle-favorite-gen'); if(genBtn) genBtn.addEventListener('click',()=>this.toggleFav());
+        const ms=$('#model-select'); if(ms) ms.addEventListener('change',()=>this.updateFavBtn());
+        const mi=$('#model-input'); if(mi) mi.addEventListener('input',()=>this.updateFavBtn());
       }
       setStatus(msg,t='default'){ const s=$('#api-status'); s.querySelector('span').textContent=msg; s.className='status'+(t!=='default'?' '+t:''); }
       load(){
         const p=this.currentProvider, ks=this.providers[p].keyStorage;
         $('#api-key').value = localStorage.getItem(ks)||'';
-        $('#openrouter-controls').style.display = p==='openrouter'?'':'none';
-        $('#generic-controls').style.display   = p==='openrouter'?'none':'';
+        $('#openrouter-controls').style.display = p==='openrouter' ? '' : 'none';
+        $('#generic-controls').style.display   = p==='openrouter' ? 'none' : '';
         this.updateFavBtn(); this.renderFavs();
       }
-      saveKey(){ const p=this.currentProvider, ks=this.providers[p].keyStorage; const v=$('#api-key').value.trim();
-        if(v){ localStorage.setItem(ks,v); this.setStatus('Key saved','ok'); } else { localStorage.removeItem(ks); this.setStatus('Key removed','ok'); } }
+      saveKey(){ const p=this.currentProvider, ks=this.providers[p].keyStorage, v=$('#api-key').value.trim();
+        if(v){ localStorage.setItem(ks,v); this.setStatus('Key saved','ok'); }
+        else { localStorage.removeItem(ks); this.setStatus('Key removed','ok'); } }
       getKey(){ return localStorage.getItem(this.providers[this.currentProvider].keyStorage)||''; }
-      model(){ return this.currentProvider==='openrouter'? $('#model-select').value : ($('#model-input')?.value||'').trim(); }
+      model(){ return this.currentProvider==='openrouter' ? $('#model-select').value : ($('#model-input')?.value||'').trim(); }
+      getFavs(){ try{return JSON.parse(localStorage.getItem(this.providers[this.currentProvider].favsStorage)||'[]')}catch{return[]} }
+      setFavs(v){ try{localStorage.setItem(this.providers[this.currentProvider].favsStorage, JSON.stringify(v))}catch{} }
+      updateFavBtn(){ const m=this.model(); const fav=this.getFavs().includes(m);
+        const btn=this.currentProvider==='openrouter'?$('#toggle-favorite-or'):$('#toggle-favorite-gen');
+        if(btn){ btn.textContent = m ? (fav?'★ Favorite':'☆ Favorite') : '☆ Favorite'; btn.disabled=!m; }
+        this.setStatus(m?`Model: ${m}${fav?' ★':''}`:'No model');
+      }
+      toggleFav(){ const m=this.model(); if(!m) return; const f=this.getFavs(); const i=f.indexOf(m); if(i===-1) f.push(m); else f.splice(i,1); this.setFavs(f); this.updateFavBtn(); this.renderFavs(); }
       async refreshModels(){
         if(this.currentProvider!=='openrouter') return;
-        const key=this.getKey(); const onlyFree=$('#only-free')?.checked; const select=$('#model-select');
+        const key=this.getKey(); const onlyFree=$('#only-free')?.checked;
         this.setStatus('Loading models…','loading');
         try{
-          const headers= key ? {'Authorization':`Bearer ${key}`} : {};
-          const res= await fetch('https://openrouter.ai/api/v1/models',{headers});
+          const headers = key ? {'Authorization':`Bearer ${key}`} : {};
+          const res = await fetch('https://openrouter.ai/api/v1/models',{headers});
           if(!res.ok) throw new Error('Model fetch failed');
-          const data = await res.json(); let models = (data?.data||[]).map(m=>m.id).filter(Boolean);
+          const data = await res.json();
+          let models = (data?.data||[]).map(m=>m.id).filter(Boolean);
           if(onlyFree) models = models.filter(id=>id.includes(':free'));
-          models.sort((a,b)=> (a.includes(':free')&&!b.includes(':free'))?-1:(!a.includes(':free')&&b.includes(':free'))?1:a.localeCompare(b));
-          const cur=select.value; select.innerHTML=''; models.slice(0,200).forEach(id=>{ const o=document.createElement('option'); o.value=id; o.textContent=id; select.appendChild(o); });
+          models.sort((a,b)=> (a.includes(':free')&&!b.includes(':free'))? -1 : (!a.includes(':free')&&b.includes(':free'))? 1 : a.localeCompare(b));
+          const select=$('#model-select'); const cur=select.value; select.innerHTML='';
+          models.slice(0,200).forEach(id=>{ const o=document.createElement('option'); o.value=id; o.textContent=id; select.appendChild(o); });
           if(cur && models.includes(cur)) select.value=cur;
           this.setStatus(`Loaded ${models.length} models`,'ok'); this.updateFavBtn();
         }catch(e){ this.setStatus(e.message||'Error','error'); }
       }
-      getFavs(){ try{return JSON.parse(localStorage.getItem(this.providers[this.currentProvider].favsStorage)||'[]')}catch{return[]} }
-      setFavs(a){ try{localStorage.setItem(this.providers[this.currentProvider].favsStorage, JSON.stringify(a))}catch{} }
-      toggleFav(){ const m=this.model(); if(!m) return; const f=this.getFavs(); const i=f.indexOf(m); if(i===-1) f.push(m); else f.splice(i,1); this.setFavs(f); this.renderFavs(); this.updateFavBtn(); }
-      updateFavBtn(){ const m=this.model(); const fav=m && this.getFavs().includes(m); const b= this.currentProvider==='openrouter'? $('#toggle-favorite-or'): $('#toggle-favorite-gen'); if(b){ b.textContent = fav ? '★ Favorite':'☆ Favorite'; b.disabled = !m; } this.setStatus(m?`Model: ${m}${fav?' ★':''}`:'No model'); }
       async callAPI(prompt){
         const p=this.currentProvider, key=this.getKey(), model=this.model();
-        if(!key) throw new Error('Missing API key'); if(!model) throw new Error('No model selected');
+        if(!key) throw new Error('Missing API key');
+        if(!model) throw new Error('No model selected');
+
         if(p==='openrouter'){
           const res = await fetch('https://openrouter.ai/api/v1/chat/completions',{
-            method:'POST', headers:{'Content-Type':'application/json','Authorization':`Bearer ${key}`,'HTTP-Referer':window.location.origin,'X-Title':'FutureFunds Stock Analyzer'},
+            method:'POST',
+            headers:{'Content-Type':'application/json','Authorization':`Bearer ${key}`,'HTTP-Referer':window.location.origin,'X-Title':'FutureFunds Stock Analyzer'},
             body:JSON.stringify({model, messages:[{role:'system',content:'You are a financial analyst. Write clearly in Markdown.'},{role:'user',content:prompt}]})
-          }); if(!res.ok) throw new Error(`HTTP ${res.status}`); const d=await res.json(); return d?.choices?.[0]?.message?.content||'';
-        }else if(p==='openai'){
+          });
+          if(!res.ok) throw new Error(`HTTP ${res.status}`);
+          const d=await res.json(); return d?.choices?.[0]?.message?.content||'';
+        }
+        if(p==='openai'){
           const res = await fetch('https://api.openai.com/v1/chat/completions',{
             method:'POST', headers:{'Content-Type':'application/json','Authorization':`Bearer ${key}`},
             body:JSON.stringify({model, messages:[{role:'system',content:'You are a financial analyst. Write clearly in Markdown.'},{role:'user',content:prompt}]})
-          }); if(!res.ok) throw new Error(`HTTP ${res.status}`); const d=await res.json(); return d?.choices?.[0]?.message?.content||'';
-        }else if(p==='gemini'){
+          });
+          if(!res.ok) throw new Error(`HTTP ${res.status}`);
+          const d=await res.json(); return d?.choices?.[0]?.message?.content||'';
+        }
+        if(p==='gemini'){
           const url=`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`;
-          const res = await fetch(url,{ method:'POST', headers:{'Content-Type':'application/json','x-goog-api-key':key}, body:JSON.stringify({contents:[{role:'user',parts:[{text:prompt}]}]}) });
-          if(!res.ok) throw new Error(`HTTP ${res.status}`); const d=await res.json(); const parts=d?.candidates?.[0]?.content?.parts||[]; return parts.map(p=>p.text||'').join('').trim();
-        } else { throw new Error('Unsupported provider'); }
+          const res = await fetch(url,{method:'POST', headers:{'Content-Type':'application/json','x-goog-api-key':key},
+            body:JSON.stringify({contents:[{role:'user',parts:[{text:prompt}]}]})});
+          if(!res.ok) throw new Error(`HTTP ${res.status}`);
+          const d=await res.json(); const parts=d?.candidates?.[0]?.content?.parts||[]; return parts.map(p=>p.text||'').join('').trim();
+        }
+        throw new Error('Unsupported provider');
       }
       renderFavs(){
-        const favs = this.getFavs(); const host = $('#favorite-chips'); const sec = $('#favorites-section');
-        if(!host || !sec) return;
-        host.innerHTML = '';
-        if(!favs.length){ sec.style.display='none'; return; }
-        sec.style.display = '';
-        favs.forEach(m=>{
-          const chip=document.createElement('button'); chip.className='chip'; chip.textContent=m;
+        const favs=this.getFavs(); const host=$('#favorite-chips'); const sec=$('#favorites-section');
+        if(!host||!sec) return; host.innerHTML=''; if(!favs.length){ sec.style.display='none'; return; }
+        sec.style.display=''; favs.forEach(m=>{ const chip=document.createElement('button'); chip.className='chip'; chip.textContent=m;
           chip.addEventListener('click',()=>{ if(this.currentProvider==='openrouter') $('#model-select').value=m; else $('#model-input').value=m; this.updateFavBtn(); });
           host.appendChild(chip);
         });
       }
     }
 
+    // ------------ Markdown renderer (simple) ------------
     function mdToHtml(text){
       if(!text) return '';
-      let f=escapeHtml(text)
-        .replace(/\\*\\*(.*?)\\*\\*/g,'<strong>$1</strong>')
-        .replace(/(?<!\\*)\\*([^*\\n]+?)\\*(?!\\*)/g,'<em>$1</em>')
-        .replace(/`([^`\\n]+?)`/g,'<code>$1</code>')
-        .replace(/\\n/g,'<br>');
-      const lines=f.split('<br>'); const out=[]; let lt=null; const close=()=>{ if(lt){ out.push(lt==='ul' ? '</ul>':'</ol>'); lt=null; } };
+      let s = escapeHtml(text)
+        .replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>')
+        .replace(/(?<!\*)\*([^*\n]+?)\*(?!\*)/g,'<em>$1</em>')
+        .replace(/`([^`\n]+?)`/g,'<code>$1</code>')
+        .replace(/\n/g,'<br>');
+
+      const lines = s.split('<br>'); const out=[]; let list=null; const close=()=>{ if(list){ out.push(list==='ul' ? '</ul>' : '</ol>'); list=null; } };
       for(const raw of lines){
         const line=raw.trim();
-        if(/^#{1,6}\\s/.test(line)){ const lvl=line.match(/^#{1,6}/)[0].length; const c=line.replace(/^#{1,6}\\s/,'').replace(/\\s#+$/,''); close(); out.push(`<h${lvl}>${c}</h${lvl}>`); continue; }
-        if(line==='---'||line==='***'||line==='___'){ close(); out.push('<hr class="divider">'); continue; }
-        if(/^[-*•]\\s+/.test(line)){ if(lt!=='ul'){ close(); out.push('<ul>'); lt='ul'; } out.push('<li>'+line.replace(/^[-*•]\\s+/,'')+'</li>'); continue; }
-        if(/^\\d+\\.\\s+/.test(line)){ if(lt!=='ol'){ close(); out.push('<ol>'); lt='ol'; } out.push('<li>'+line.replace(/^\\d+\\.\\s+/,'')+'</li>'); continue; }
+        if(/^#{1,6}\s/.test(line)){ const lvl=(line.match(/^#{1,6}/)||['#'])[0].length; const c=line.replace(/^#{1,6}\s/,''); close(); out.push(`<h${lvl}>${c}</h${lvl}>`); continue; }
+        if(/^[-*•]\s+/.test(line)){ if(list!=='ul'){ close(); out.push('<ul>'); list='ul'; } out.push('<li>'+line.replace(/^[-*•]\s+/,'')+'</li>'); continue; }
+        if(/^\d+\.\s+/.test(line)){ if(list!=='ol'){ close(); out.push('<ol>'); list='ol'; } out.push('<li>'+line.replace(/^\d+\.\s+/,'')+'</li>'); continue; }
         close(); out.push(line ? line+'<br>' : '<br>');
       }
       close(); return out.join('');
     }
 
+    // ------------ Analyzer ------------
     function buildPrompt(){
-      const t=$('#sa-ticker').value.trim(), c=$('#sa-company').value.trim(), x=$('#sa-exchange').value.trim(), s=$('#sa-style').value, n=$('#sa-notes').value.trim();
-      const angle = {balanced:'balanced, evidence-based tone', 'deep-dive':'in-depth, analyst style', 'quant-lean':'data-driven tone', 'bear-case':'skeptical but fair', 'bull-case':'optimistic but grounded'}[s]||'balanced';
-      return \`Act as a professional equity analyst. Write a **concise, decision-oriented** stock note in **Markdown**.
+      const t=$('#sa-ticker').value.trim(),
+            c=$('#sa-company').value.trim(),
+            x=$('#sa-exchange').value.trim(),
+            s=$('#sa-style').value,
+            n=$('#sa-notes').value.trim();
+      const toneMap={balanced:'balanced, evidence-based tone', 'deep-dive':'in-depth, analyst style',
+                     'quant-lean':'data-driven tone','bear-case':'skeptical but fair','bull-case':'optimistic but grounded'};
+      return `Act as a professional equity analyst. Write a **concise, decision-oriented** stock note in **Markdown**.
 
-**Ticker:** \${t}
-**Company:** \${c}
-**Exchange:** \${x}
+**Ticker:** ${t}
+**Company:** ${c}
+**Exchange:** ${x}
 
 **Output goals**
 - Clear headings, short paragraphs, bullets where helpful
 - Avoid filler; give concrete numbers/ranges when plausible
 - End with a one-line verdict + confidence (Low/Med/High)
 
-**Tone:** \${angle}
-\${n ? "\\n**Analyst notes to incorporate:**\\n"+n+"\\n" : ""}
+**Tone:** ${toneMap[s]||'balanced'}
+${n ? "\n**Analyst notes to incorporate:**\n"+n+"\n" : ""}
 
-# \${c} (\${t}) — Investment Brief
+# ${c} (${t}) — Investment Brief
 
 ## 1) Snapshot
 - Business model in one paragraph
@@ -467,92 +440,140 @@
 
 ## Verdict
 - {Buy/Hold/Avoid} — max 1 sentence.
-- Confidence: {Low/Med/High}\`.trim();
+- Confidence: {Low/Med/High}`;
     }
 
     function initAnalyzer(api){
       const out=$('#sa-output'), prev=$('#sa-preview'), stat=$('#sa-status');
       const setStatus=(m,t='default')=>{ stat.querySelector('span').textContent=m; stat.className='status'+(t!=='default'?' '+t:''); };
-      const setOut=(md)=>{ out.classList.remove('empty'); out.textContent=md||''; prev.innerHTML=mdToHtml(md||''); };
+      const setOut=(md)=>{ out.textContent = md||''; prev.innerHTML = mdToHtml(md||''); };
 
-      $('#sa-build-prompt').addEventListener('click',()=>{ $('#sa-prompt').value=buildPrompt(); setStatus('Prompt ready','ok'); });
+      $('#sa-build-prompt').addEventListener('click',()=>{ $('#sa-prompt').value = buildPrompt(); setStatus('Prompt ready','ok'); });
       $('#sa-generate').addEventListener('click', async ()=>{
-        const prompt = ($('#sa-prompt').value.trim()||buildPrompt()); $('#sa-prompt').value=prompt; setStatus('Generating…','loading');
-        out.classList.remove('empty'); out.textContent='Waiting for response…';
-        try{ const text = await api.callAPI(prompt); setOut(text||'(empty)'); setStatus('Done','ok'); } catch(e){ setOut('Error: '+e.message); setStatus('API error','error'); }
+        const prompt = ($('#sa-prompt').value.trim()||buildPrompt());
+        $('#sa-prompt').value = prompt;
+        setStatus('Generating…','loading'); out.textContent='Waiting for response…';
+        try{ const text = await api.callAPI(prompt); setOut(text||'(empty)'); setStatus('Done','ok'); }
+        catch(e){ setOut('Error: '+e.message); setStatus('API error','error'); }
       });
-      $('#sa-clear').addEventListener('click',()=>{ $('#sa-notes').value=''; $('#sa-prompt').value=''; out.textContent='No output yet.'; out.classList.add('empty'); prev.innerHTML='—'; setStatus('Cleared','ok'); });
-      $('#sa-download').addEventListener('click',()=>{ const md = out.classList.contains('empty')?'':out.textContent; const t=$('#sa-ticker').value.trim()||'stock'; const c=$('#sa-company').value.trim()||'analysis'; const blob=new Blob([md],{type:'text/markdown'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=\`\${slugify(t)}-\${slugify(c)}.md\`; a.click(); URL.revokeObjectURL(a.href); });
+      $('#sa-clear').addEventListener('click',()=>{ $('#sa-notes').value=''; $('#sa-prompt').value=''; out.textContent='No output yet.'; prev.innerHTML='—'; setStatus('Cleared','ok'); });
+      $('#sa-download').addEventListener('click',()=>{
+        const md=out.textContent||''; const t=$('#sa-ticker').value.trim()||'stock'; const c=$('#sa-company').value.trim()||'analysis';
+        const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([md],{type:'text/markdown'}));
+        a.download=`${slugify(t)}-${slugify(c)}.md`; a.click(); URL.revokeObjectURL(a.href);
+      });
     }
 
-    const b64 = str => btoa(unescape(encodeURIComponent(str)));
+    // ------------ GitHub publisher ------------
+    const b64 = s => btoa(unescape(encodeURIComponent(s)));
     async function githubGetFile(owner, repo, path, token, branch){
-      const res = await fetch(\`https://api.github.com/repos/\${owner}/\${repo}/contents/\${encodeURIComponent(path)}?ref=\${encodeURIComponent(branch)}\`, { headers: token?{'Authorization':\`Bearer \${token}\`}:{}});
-      if(res.status===404) return null; if(!res.ok) throw new Error('GitHub GET '+res.status); return await res.json();
+      const res = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/${encodeURIComponent(path)}?ref=${encodeURIComponent(branch)}`,{
+        headers: token? {'Authorization':`Bearer ${token}`} : {}
+      });
+      if(res.status===404) return null;
+      if(!res.ok) throw new Error('GitHub GET '+res.status);
+      return await res.json();
     }
     async function githubPutFile(owner, repo, path, token, branch, content, message, sha=null){
       const body={message, content:b64(content), branch}; if(sha) body.sha=sha;
-      const res = await fetch(\`https://api.github.com/repos/\${owner}/\${repo}/contents/\${encodeURIComponent(path)}\`, { method:'PUT', headers:{'Content-Type':'application/json','Authorization':\`Bearer \${token}\`}, body:JSON.stringify(body)});
-      if(!res.ok) throw new Error('GitHub PUT '+res.status); return await res.json();
+      const res = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/${encodeURIComponent(path)}`,{
+        method:'PUT', headers:{'Content-Type':'application/json','Authorization':`Bearer ${token}`}, body:JSON.stringify(body)
+      });
+      if(!res.ok) throw new Error('GitHub PUT '+res.status);
+      return await res.json();
     }
     function frontMatter({title,date,tags,ticker,company,exchange,model}){
-      const tagArr=(tags||'').split(',').map(s=>s.trim()).filter(Boolean);
-      return '---\\n'+
-             \`title: "\${title.replace(/"/g,'\\\\\"')}"\\n\`+
-             \`date: \${date}\\n\`+
-             \`tags: [\${tagArr.map(t=>\`"\${t}"\`).join(', ')}]\\n\`+
-             \`ticker: "\${ticker}"\\ncompany: "\${company}"\\nexchange: "\${exchange}"\\nmodel: "\${model}"\\n\`+
-             'layout: post\\n'+
-             '---\\n\\n';
+      const arr=(tags||'').split(',').map(s=>s.trim()).filter(Boolean);
+      return '---\n'
+        + `title: "${title.replace(/"/g,'\\"')}"\n`
+        + `date: ${date}\n`
+        + `tags: [${arr.map(t=>`"${t}"`).join(', ')}]\n`
+        + `ticker: "${ticker}"\ncompany: "${company}"\nexchange: "${exchange}"\nmodel: "${model}"\n`
+        + 'layout: post\n'
+        + '---\n\n';
     }
-    function buildPublishPayload(){
-      const t=$('#sa-ticker').value.trim(), c=$('#sa-company').value.trim(), x=$('#sa-exchange').value.trim(), model=apiManager.model()||'';
-      const md = $('#sa-output').classList.contains('empty')?'':$('#sa-output').textContent;
-      if(!t||!c) throw new Error('Ticker and Company required'); if(!md) throw new Error('No generated text to publish');
-      const date=$('#post-date').value || todayISO(); const title=\`\${c} (\${t}) — Analysis\`; const tags=$('#post-tags').value; const fm=frontMatter({title,date,tags,ticker:t,company:c,exchange:x,model}); const full=fm+md+'\\n';
-      const slug=\`\${slugify(t)}-\${slugify(c)}\`; const mode=$('#pub-mode').value;
-      const filename = mode==='jekyll' ? \`_posts/\${date}-\${slug}.md\` : \`posts/\${slug}.md\`;
+    function buildPublishPayload(api){
+      const t=$('#sa-ticker').value.trim(), c=$('#sa-company').value.trim(), x=$('#sa-exchange').value.trim();
+      const model=(api.model&&api.model())||''; const md=$('#sa-output').textContent||'';
+      if(!t||!c) throw new Error('Ticker and Company required');
+      if(!md || md==='No output yet.') throw new Error('No generated text to publish');
+      const date=$('#post-date').value || todayISO(); const title=`${c} (${t}) — Analysis`; const tags=$('#post-tags').value;
+      const fm=frontMatter({title,date,tags,ticker:t,company:c,exchange:x,model}); const full=fm+md+'\n';
+      const slug=`${slugify(t)}-${slugify(c)}`; const mode=$('#pub-mode').value;
+      const filename = mode==='jekyll' ? `_posts/${date}-${slug}.md` : `posts/${slug}.md`;
       return {content:full, filename, date, title};
     }
-    function initPublisher(){
-      try{ const gh=JSON.parse(localStorage.getItem('ff-gh-settings')||'{}'); if(gh.owner) $('#gh-owner').value=gh.owner; if(gh.repo) $('#gh-repo').value=gh.repo; if(gh.branch) $('#gh-branch').value=gh.branch; if(gh.token){ $('#gh-token').value=gh.token; $('#remember-gh').checked=true; } }catch{}
-      $('#post-date').value=todayISO();
+    function initPublisher(api){
+      try{
+        const saved=JSON.parse(localStorage.getItem('ff-gh-settings')||'{}');
+        if(saved.owner) $('#gh-owner').value=saved.owner;
+        if(saved.repo)  $('#gh-repo').value=saved.repo;
+        if(saved.branch)$('#gh-branch').value=saved.branch;
+        if(saved.token){ $('#gh-token').value=saved.token; $('#remember-gh').checked=true; }
+      }catch{}
+      $('#post-date').value = todayISO();
+
       const setPS=(m,t='default')=>{ const s=$('#pub-status'); s.querySelector('span').textContent=m; s.className='status'+(t!=='default'?' '+t:''); };
-      $('#test-publish-btn').addEventListener('click',()=>{ try{ const {filename,title}=buildPublishPayload(); setPS(\`OK: would create "\${filename}" with title "\${title}"\`,'ok'); }catch(e){ setPS(e.message,'error'); }});
+
+      $('#test-publish-btn').addEventListener('click',()=>{
+        try{ const {filename,title}=buildPublishPayload(api); setPS(`OK: would create "${filename}" (title "${title}")`,'ok'); }
+        catch(e){ setPS(e.message,'error'); }
+      });
+
       $('#publish-btn').addEventListener('click', async ()=>{
         const owner=$('#gh-owner').value.trim(), repo=$('#gh-repo').value.trim(), branch=$('#gh-branch').value.trim()||'main', token=$('#gh-token').value.trim();
-        if(!owner||!repo) return setPS('Owner/Repo missing','error'); if(!token) return setPS('GitHub token missing','error');
-        let payload; try{ payload=buildPublishPayload(); }catch(e){ return setPS(e.message,'error'); }
+        if(!owner||!repo) return setPS('Owner/Repo missing','error');
+        if(!token) return setPS('GitHub token missing','error');
+
+        let payload; try{ payload=buildPublishPayload(api); }catch(e){ return setPS(e.message,'error'); }
+
         setPS('Publishing…','loading');
-        try{ const existing=await githubGetFile(owner,repo,payload.filename,token,branch); const sha=existing?.sha||null; await githubPutFile(owner,repo,payload.filename,token,branch,payload.content,\`Add post: \${payload.title}\`,sha); setPS('Published: '+payload.filename,'ok');
-          const remember=$('#remember-gh').checked; const toSave={owner,repo,branch,token:remember?token:''}; localStorage.setItem('ff-gh-settings',JSON.stringify(toSave));
+        try{
+          const existing=await githubGetFile(owner,repo,payload.filename,token,branch);
+          const sha=existing?.sha||null;
+          await githubPutFile(owner,repo,payload.filename,token,branch,payload.content,`Add post: ${payload.title}`,sha);
+          setPS('Published: '+payload.filename,'ok');
+
+          const remember=$('#remember-gh').checked;
+          const toSave={owner,repo,branch,token:remember?token:''};
+          localStorage.setItem('ff-gh-settings',JSON.stringify(toSave));
         }catch(e){ setPS(e.message,'error'); }
       });
     }
 
-    function initNavigation(){
-      const tabs=document.querySelectorAll('.nav-tab'); const pages=document.querySelectorAll('.page');
-      tabs.forEach(tab=>{ tab.addEventListener('click',()=>{ const target=tab.dataset.page; tabs.forEach(t=>t.classList.remove('active')); tab.classList.add('active'); pages.forEach(p=>p.classList.remove('active')); document.getElementById('page-'+target).classList.add('active'); }); });
-    }
-
+    // ------------ Playground ------------
     function initPlayground(api){
-      const inputEl=$('#input-text'), outputEl=$('#output'), statusEl=$('#playground-status'); const sendBtn=$('#send-btn'), demoBtn=$('#demo-btn'), clearBtn=$('#clear-btn'), fmtBtn=$('#format-toggle-btn');
-      let isFormatted=true, last=''; const setS=(m,t='default')=>{ const s=statusEl; s.querySelector('span').textContent=m; s.className='status'+(t!=='default'?' '+t:''); };
-      const setOut=(content,empty=false)=>{ last=content; if(empty){ outputEl.textContent=content; outputEl.classList.add('empty'); return;} outputEl.classList.remove('empty'); outputEl[isFormatted?'innerHTML':'textContent']= isFormatted? mdToHtml(content) : content; };
-      fmtBtn.addEventListener('click',()=>{ isFormatted=!isFormatted; fmtBtn.textContent = isFormatted?'Formatting: On':'Formatting: Off'; if(last) setOut(last,false); setS(isFormatted?'Formatted':'Raw','ok'); });
+      const inputEl=$('#input-text'), outputEl=$('#output'), statusEl=$('#playground-status');
+      const sendBtn=$('#send-btn'), demoBtn=$('#demo-btn'), clearBtn=$('#clear-btn'), fmtBtn=$('#format-toggle-btn');
+      let isFormatted=true, last='';
+      const setS=(m,t='default')=>{ statusEl.querySelector('span').textContent=m; statusEl.className='status'+(t!=='default'?' '+t:''); };
+      const setOut=(content,empty=false)=>{ last=content; outputEl[isFormatted?'innerHTML':'textContent']= isFormatted ? mdToHtml(content) : content; if(empty) outputEl.textContent='No output yet.'; };
+
+      fmtBtn.addEventListener('click',()=>{ isFormatted=!isFormatted; fmtBtn.textContent=isFormatted?'Formatting: On':'Formatting: Off'; if(last) setOut(last,false); });
       demoBtn.addEventListener('click',()=>{ inputEl.value='Write a limerick about diversification.'; setS('Demo loaded','ok'); });
-      clearBtn.addEventListener('click',()=>{ inputEl.value=''; last=''; setOut('No output yet.', true); setS('Cleared','ok'); });
-      sendBtn.addEventListener('click', async ()=>{ const q=inputEl.value.trim(); if(!q) return setS('Type something first','error'); sendBtn.disabled=true; setS('Calling API…','loading'); setOut('Waiting…',false);
-        try{ const res=await api.callAPI(q); setOut(res,false); setS('Done','ok'); }catch(e){ setOut('Error: '+e.message,false); setS('Error','error'); } finally { sendBtn.disabled=false; } });
+      clearBtn.addEventListener('click',()=>{ inputEl.value=''; last=''; setOut('',true); setS('Cleared','ok'); });
+      sendBtn.addEventListener('click', async ()=>{
+        const q=inputEl.value.trim(); if(!q) return setS('Type something first','error');
+        sendBtn.disabled=true; setS('Calling API…','loading'); setOut('Waiting…',false);
+        try{ const res=await api.callAPI(q); setOut(res||'(empty)',false); setS('Done','ok'); }
+        catch(e){ setOut('Error: '+e.message,false); setS('Error','error'); }
+        finally{ sendBtn.disabled=false; }
+      });
     }
 
+    // ------------ Boot ------------
     let apiManager;
     document.addEventListener('DOMContentLoaded', ()=>{
       initNavigation();
-      apiManager=new GenericAPIManager();
+      apiManager = new GenericAPIManager();
       initAnalyzer(apiManager);
-      initPublisher();
+      initPublisher(apiManager);
       initPlayground(apiManager);
+
+      // Convenience: after saving key, jump to Analyzer
+      document.getElementById('save-key').addEventListener('click', ()=>{
+        const tab = document.querySelector('.nav-tab[data-page="analyzer"]'); tab?.click();
+      });
     });
   </script>
 </body>
