@@ -4,81 +4,105 @@
   <meta charset="utf-8" />
   <title>FutureFunds.ai — What happens if AI runs the investment process?</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <meta name="description" content="FutureFunds.ai is a live res...nto AI tools, and track portfolios—wins and losses included." />
+  <meta name="description" content="FutureFunds.ai is a live research experiment: codify rules, wire them into AI tools, and track portfolios—wins and losses included." />
   <meta property="og:title" content="FutureFunds.ai — AI investment experiment" />
-  <meta property="og:description" content="A public-by-default e...thods and updates open; some live data gated for supporters." />
+  <meta property="og:description" content="A public-by-default experiment in AI-assisted investing. Methods and updates open; some live data gated for supporters." />
   <meta property="og:image" content="/images/og-card.png" />
 
   <!-- Styles -->
   <link rel="stylesheet" href="/assets/styles.css" />
 
   <!-- Favicon / Icons -->
-  <link rel="icon" href="/favicon.ico" />
-  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
-  <link rel="manifest" href="/site.webmanifest" />
+  <link rel="icon" href="/favicon.ico">
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+
+  <!-- Brand Logo as fallback SVG if you add one later -->
+  <link rel="icon" href="/images/logo.png" type="image/png" />
 </head>
 <body>
-  <header>
-    <nav class="navbar">
-      <a href="/" class="nav-link">Home</a>
-      <a href="/blog.html" class="nav-link">Blog</a>
-      <a href="/portfolio.html" class="nav-link">Portfolio</a>
-      <a href="/strategy.html" class="nav-link">Strategy</a>
-      <a href="/tools.html" class="nav-link">Tools</a>
-      <!-- ✅ Added: link to the new analyzer tool (injected) -->
-      <a href="/tools/stock_analyzer_publisher.html" class="nav-link">Stock Analyzer</a>
+  <header class="site-header">
+    <a class="brand" href="/">
+      <img src="/images/logo.png" alt="FutureFunds.ai logo" />
+      <span>FutureFunds.ai</span>
+    </a>
+    <nav class="nav">
+      <a href="/tools.html" data-i18n="nav.tools">Tools</a>
+      <a href="/portfolio.html">Portfolios</a>
+      <a href="/ai-economy.html">The AI Economy</a>
+      <a href="/disclaimer.html" data-i18n="nav.disclaimer">Disclaimer</a>
+      <button id="langBtn" class="btn small">EN ▾</button>
+      <a id="patreonLogin" class="btn ghost" href="#" data-i18n="cta.connectPatreon">Connect Patreon</a>
     </nav>
   </header>
 
   <main>
-    <!-- (Your original homepage content remains here, unchanged) -->
-    <section class="hero">
-      <h1>FutureFunds.ai</h1>
-      <p class="lead">Your AI-powered investing companion. We experiment in public, publish structured notes, and build tools that compress research time.</p>
-      <div class="cta-row">
-        <a class="btn btn-primary" href="/tools/stock_analyzer_publisher.html">Launch Stock Analyzer</a>
-        <a class="btn btn-secondary" href="/blog.html">Browse Analyses</a>
+    <!-- HERO: Experiment-first question -->
+    <section class="hero hero--experiment">
+      <div class="badge">EXPERIMENT</div>
+
+      <div class="hero-divider">
+        <span class="kicker">A simple question</span>
       </div>
+
+      <h1 class="hero-question">
+        What happens if AI runs the investment process?
+      </h1>
+
+      <p class="muted hero-sub">
+        FutureFunds.ai is a live research project: we codify rules, wire them into AI-powered tools,
+        and track portfolios. It’s about learning in the open—wins and losses included.
+      </p>
+
+      <div class="hero-ctas">
+        <a class="btn primary" href="/portfolio.html">See the Portfolios</a>
+        <a class="btn" href="/tools.html">Explore the Tools</a>
+      </div>
+
+      <small class="hero-note">
+        Educational experiment. Not investment advice.
+        <span class="gating-note">Some live data is gated for supporters while we build safely.</span>
+      </small>
     </section>
 
-    <!-- Sections, cards, grids, and any other content you had originally continue below… -->
-    <!-- … -->
+    <!-- HOW IT WORKS -->
+    <section class="container">
+      <h2 data-i18n="how.title">How it works</h2>
+      <ol class="pillars">
+        <li><strong data-i18n="how.p1.h">Theory</strong><br><span data-i18n="how.p1.b">Clear rules & hypotheses for each strategy.</span></li>
+        <li><strong data-i18n="how.p2.h">Tools</strong><br><span data-i18n="how.p2.b">Google Sheets + AI APIs turn rules into screeners.</span></li>
+        <li><strong data-i18n="how.p3.h">Portfolios</strong><br><span data-i18n="how.p3.b">We rebalance by the rules and publish results.</span></li>
+      </ol>
+    </section>
+
+    <!-- PARTICIPATE / SUPPORT -->
+    <section class="container">
+      <h2 data-i18n="support.title">Support & Access</h2>
+      <div class="grid">
+        <article class="card">
+          <h3 data-i18n="support.free.h">Free Tools</h3>
+          <p class="muted" data-i18n="support.free.b">Open to all. Great for learning and testing ideas.</p>
+        </article>
+        <article class="card">
+          <h3 data-i18n="support.patreon.h">Patreon Unlocks</h3>
+          <p class="muted" data-i18n="support.patreon.b">Some tools and portfolio details unlock with active membership.</p>
+        </article>
+        <article class="card">
+          <h3 data-i18n="support.paid.h">Paid Tools</h3>
+          <p class="muted" data-i18n="support.paid.b">One-time purchase or included after 24 months on Patreon (email us to unlock).</p>
+        </article>
+      </div>
+    </section>
   </main>
 
-  <footer>
-    <p>&copy; <span id="year"></span> FutureFunds.ai — All rights reserved.</p>
+  <footer class="site-footer">
+    <p>© <span id="year"></span> FutureFunds.ai — <a href="/disclaimer.html">Disclaimer</a></p>
   </footer>
 
-  <script>
-    // Minimal helper preserved
-    document.getElementById('year').textContent = new Date().getFullYear();
-  </script>
-
-  <style>
-    /* Any inline styles that existed in your original file remain */
-    :root{
-      --bg:#f6f7fb; --panel:#fff; --text:#0f172a; --muted:#64748b;
-      --accent:#1a73e8; --ring:rgba(26,115,232,.2); --border:#e5e7eb;
-      --ok:#16a34a; --err:#ef4444; --shadow:0 12px 34px rgba(0,0,0,.06);
-      --radius:16px;
-    }
-    *{box-sizing:border-box}
-    html,body{height:100%}
-    body{margin:0; background:var(--bg); color:var(--text); font-family:ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial}
-
-    header{position:sticky; top:0; z-index:10; backdrop-filter:saturate(150%) blur(6px); background:rgba(255,255,255,.8); border-bottom:1px solid var(--border)}
-    .navbar{max-width:1200px; margin:0 auto; display:flex; gap:14px; align-items:center; padding:12px 16px; flex-wrap:wrap}
-    .nav-link{color:inherit; text-decoration:none; padding:8px 10px; border-radius:8px}
-    .nav-link:hover{background:#f1f5f9}
-
-    main{max-width:1200px; margin:0 auto; padding:20px 16px}
-    .hero{padding:40px 0}
-    .lead{color:var(--muted); max-width:70ch}
-    .btn{display:inline-flex; align-items:center; gap:8px; padding:10px 14px; border-radius:10px; text-decoration:none}
-    .btn-primary{background:var(--accent); color:#fff}
-    .btn-primary:hover{opacity:.95}
-    .btn-secondary{background:#0ea5e9; color:#fff}
-    .btn-secondary:hover{opacity:.95}
-  </style>
+  <!-- Scripts -->
+  <script src="/assets/app.js" defer></script>
+  <script src="/assets/i18n.js" defer></script>
+  <script src="/assets/paywall.js" defer></script>
 </body>
 </html>
