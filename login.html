@@ -1,54 +1,152 @@
 <!doctype html>
-<html>
+<html lang="en">
 <head>
-  <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width,initial-scale=1"/>
-  <title>FutureFunds — Login</title>
-  <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>FutureFunds — Login</title>
+<link rel="stylesheet" href="/styles.css"/>
+<script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+<style>
+  .wrap{max-width:520px;margin:48px auto;padding:0 16px}
+  .card{background:var(--panel,#fff);border:1px solid var(--border,#e5e7eb);border-radius:16px;box-shadow:var(--shadow,0 12px 34px rgba(0,0,0,.06));padding:22px}
+  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+  .muted{color:var(--muted,#64748b)}
+  label{display:block;font-size:13px;margin:6px 0 4px}
+  input{width:100%;padding:12px;border:1px solid var(--border,#e5e7eb);border-radius:12px;background:var(--panel,#fff)}
+  .btn{padding:10px 12px;border:1px solid var(--border,#e5e7eb);border-radius:12px;background:var(--panel,#fff);cursor:pointer}
+  .btn.primary{background:var(--accent,#1a73e8);border-color:var(--accent,#1a73e8);color:white}
+  .btn.link{border:none;background:transparent;color:var(--accent,#1a73e8);padding:0}
+  .spacer{height:12px}
+  .grid2{display:grid;grid-template-columns:1fr;gap:10px}
+</style>
 </head>
 <body>
-  <h1>Login</h1>
-  <input id="email" type="email" placeholder="Enter your email" />
-  <button id="login">Send Magic Link</button>
-  <button id="logout">Logout</button>
-  <p id="status"></p>
+  <header class="wrap" style="display:flex;justify-content:space-between;align-items:center">
+    <a class="brand" href="/">FutureFunds<span>.ai</span></a>
+    <nav class="links">
+      <a href="/index.html">Home</a>
+      <a href="/universe.html">Universe</a>
+      <a href="/pricing.html">Pricing</a>
+      <a href="/login.html" class="active">Login</a>
+    </nav>
+  </header>
 
-  <script>
-    // 👇 replace with your actual values
-    const sb = supabase.createClient(
-      "https://rhzaxqljwvaykuozxzcg.supabase.co",
-      "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJoemF4cWxqd3ZheWt1b3p4emNnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc4NzMxNjIsImV4cCI6MjA3MzQ0OTE2Mn0.t2dXlzk8fuaDqMmRgLnRB0Kga3yfMeopwnkDzy275k0"
-    );
+  <main class="wrap card">
+    <h1 style="margin:0 0 6px">Login</h1>
+    <p class="muted" style="margin:0 0 16px">Sign in with a magic link or email + password.</p>
 
-    const emailInput = document.getElementById('email');
-    const loginBtn = document.getElementById('login');
-    const logoutBtn = document.getElementById('logout');
-    const status = document.getElementById('status');
+    <!-- Magic Link -->
+    <section>
+      <h3 style="margin:0 0 6px">Magic Link</h3>
+      <label for="ml-email">Email</label>
+      <div class="row" style="gap:8px">
+        <input id="ml-email" type="email" placeholder="you@email.com" autocomplete="email"/>
+        <button id="ml-send" class="btn primary">Send Magic Link</button>
+      </div>
+      <p class="muted" style="margin:8px 0 0">We’ll email you a one-click sign-in link.</p>
+    </section>
 
-    loginBtn.onclick = async () => {
-      const { error } = await sb.auth.signInWithOtp({
-        email: emailInput.value,
-        options: { emailRedirectTo: location.origin + '/login.html' }
-      });
-      if (error) {
-        status.textContent = "Error: " + error.message;
-      } else {
-        status.textContent = "Magic link sent — check your email.";
-      }
-    };
+    <div class="spacer"></div>
+    <hr style="border:none;border-top:1px solid var(--border,#e5e7eb)"/>
+    <div class="spacer"></div>
 
-    logoutBtn.onclick = async () => {
-      await sb.auth.signOut();
-      status.textContent = "Signed out.";
-    };
+    <!-- Email + Password -->
+    <section>
+      <h3 style="margin:0 0 6px">Email & Password</h3>
+      <div class="grid2">
+        <div>
+          <label for="ep-email">Email</label>
+          <input id="ep-email" type="email" placeholder="you@email.com" autocomplete="email"/>
+        </div>
+        <div>
+          <label for="ep-pass">Password</label>
+          <input id="ep-pass" type="password" placeholder="••••••••" autocomplete="current-password"/>
+        </div>
+      </div>
+      <div class="row" style="margin-top:10px">
+        <button id="ep-login" class="btn primary">Sign in</button>
+        <button id="ep-signup" class="btn">Create account</button>
+        <button id="reset" class="btn">Reset password</button>
+        <button id="logout" class="btn">Logout</button>
+      </div>
+    </section>
 
-    // On load: check session
-    (async ()=>{
-      const { data: { session } } = await sb.auth.getSession();
-      if (session) {
-        status.textContent = "Logged in as " + session.user.email;
-      }
-    })();
-  </script>
+    <div class="spacer"></div>
+    <p id="status" class="muted"></p>
+  </main>
+
+<script>
+  // 🔐 Supabase client (your project URL + anon key)
+  const sb = supabase.createClient(
+    "https://rhzaxqljwvaykuozxzcg.supabase.co",
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJoemF4cWxqd3ZheWt1b3p4emNnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc4NzMxNjIsImV4cCI6MjA3MzQ0OTE2Mn0.t2dXlzk8fuaDqMmRgLnRB0Kga3yfMeopwnkDzy275k0"
+  );
+
+  const status = document.getElementById("status");
+  const redirectTo = `${location.origin}/login.html`; // make sure this is whitelisted in Supabase Auth → URL Configuration
+
+  // --- Magic link ---
+  document.getElementById("ml-send").onclick = async () => {
+    const email = document.getElementById("ml-email").value.trim();
+    if (!email) return (status.textContent = "Enter your email.");
+    const { error } = await sb.auth.signInWithOtp({
+      email,
+      options: { emailRedirectTo: redirectTo }
+    });
+    status.textContent = error ? `Error: ${error.message}` : "Magic link sent — check your inbox.";
+  };
+
+  // --- Email + password sign in ---
+  document.getElementById("ep-login").onclick = async () => {
+    const email = document.getElementById("ep-email").value.trim();
+    const password = document.getElementById("ep-pass").value;
+    if (!email || !password) return (status.textContent = "Enter email and password.");
+    const { data, error } = await sb.auth.signInWithPassword({ email, password });
+    if (error) status.textContent = `Error: ${error.message}`;
+    else {
+      status.textContent = `Logged in as ${data.user.email}. Redirecting…`;
+      location.href = "/universe.html";
+    }
+  };
+
+  // --- Create account ---
+  document.getElementById("ep-signup").onclick = async () => {
+    const email = document.getElementById("ep-email").value.trim();
+    const password = document.getElementById("ep-pass").value;
+    if (!email || !password) return (status.textContent = "Enter email and a password (min 6 chars).");
+    const { error } = await sb.auth.signUp({ email, password, options:{ emailRedirectTo: redirectTo }});
+    status.textContent = error ? `Error: ${error.message}` : "Account created. Check your email to confirm.";
+  };
+
+  // --- Reset password (sends email) ---
+  document.getElementById("reset").onclick = async () => {
+    const email = document.getElementById("ep-email").value.trim();
+    if (!email) return (status.textContent = "Enter your email above first.");
+    const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo });
+    status.textContent = error ? `Error: ${error.message}` : "Password reset link sent.";
+  };
+
+  // --- Logout ---
+  document.getElementById("logout").onclick = async () => {
+    await sb.auth.signOut();
+    status.textContent = "Signed out.";
+  };
+
+  // --- Show session on load + react to magic-link redirect ---
+  (async () => {
+    const { data: { session } } = await sb.auth.getSession();
+    if (session) {
+      status.textContent = `Logged in as ${session.user.email}.`;
+    }
+  })();
+
+  sb.auth.onAuthStateChange((_event, session) => {
+    if (session) {
+      status.textContent = `Logged in as ${session.user.email}. Redirecting…`;
+      // Send them to members area
+      setTimeout(()=> location.href = "/universe.html", 500);
+    }
+  });
+</script>
 </body>
 </html>
