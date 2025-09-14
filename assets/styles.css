@@ -179,3 +179,57 @@ a:hover{text-decoration:underline}
   .site-header,.site-footer{padding:0.8rem 1rem}
   .nav a,.nav .btn{margin-left:.6rem}
 }
+
+/* ===========================
+   Universe Page Enhancements
+   =========================== */
+
+/* Shared table polish */
+table.grid th, table.grid td {
+  font-size: 14px;
+  line-height: 1.45;
+}
+table.grid th {
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+table.grid pre {
+  background: var(--bg);
+  border-radius: 8px;
+  padding: 6px 8px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 12px;
+}
+
+/* Tags & chips */
+.tag, .chip {
+  transition: background .2s, border-color .2s;
+}
+.chip:hover, .tag:hover {
+  border-color: var(--accent);
+  background: rgba(26,115,232,.06);
+}
+
+/* Modal polish */
+.modal {
+  animation: modalPop .25s ease;
+}
+@keyframes modalPop {
+  from { transform: translateY(16px) scale(.96); opacity: 0; }
+  to   { transform: translateY(0) scale(1); opacity: 1; }
+}
+
+/* ===========================
+   Theme Variants
+   =========================== */
+body.theme-dark {
+  --bg:#0f172a; --panel:#1e293b; --text:#f8fafc; --muted:#94a3b8;
+  --accent:#38bdf8; --ring:rgba(56,189,248,.25); --border:#334155;
+  --ok:#22c55e; --err:#ef4444; --shadow:0 12px 34px rgba(0,0,0,.55);
+}
+body.theme-earth {
+  --bg:#fdfcf7; --panel:#faf7f0; --text:#2b2a27; --muted:#706c61;
+  --accent:#8c6239; --ring:rgba(140,98,57,.2); --border:#e0ddd5;
+  --ok:#4d7c0f; --err:#b91c1c; --shadow:0 12px 34px rgba(0,0,0,.08);
+}
+
