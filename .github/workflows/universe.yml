@@ -1,1 +1,53 @@
+name: Universe — Daily Deep Dives
+
+on:
+  schedule:
+    - cron: "05 6 * * *"   # 06:05 UTC ≈ 08:05 Europe/Oslo (adjust if needed)
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: universe-daily
+  cancel-in-progress: false
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    env:
+      TZ: Europe/Oslo
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Run Universe generator
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          OPENROUTER_MODEL: ${{ vars.OPENROUTER_MODEL }}
+        run: |
+          node --version
+          node scripts/generate-universe.js
+
+      - name: Commit changes
+        run: |
+          git config user.name "FutureFunds Bot"
+          git config user.email "bot@futurefunds.ai"
+          git add data/universe.json data/universe-*.json data/universe-latest.csv data/universe-topics-log.json || true
+          git commit -m "Universe auto-update: $(date -u +'%Y-%m-%d')" || echo "No changes to commit"
+
+      - name: Push
+        if: success()
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git remote set-url origin https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}.git
+          git push
 
