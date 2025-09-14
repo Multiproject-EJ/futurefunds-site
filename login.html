@@ -1,0 +1,54 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>FutureFunds — Login</title>
+  <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+</head>
+<body>
+  <h1>Login</h1>
+  <input id="email" type="email" placeholder="Enter your email" />
+  <button id="login">Send Magic Link</button>
+  <button id="logout">Logout</button>
+  <p id="status"></p>
+
+  <script>
+    // 👇 replace with your actual values
+    const sb = supabase.createClient(
+      "https://rhzaxqljwvaykuozxzcg.supabase.co",
+      "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJoemF4cWxqd3ZheWt1b3p4emNnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc4NzMxNjIsImV4cCI6MjA3MzQ0OTE2Mn0.t2dXlzk8fuaDqMmRgLnRB0Kga3yfMeopwnkDzy275k0"
+    );
+
+    const emailInput = document.getElementById('email');
+    const loginBtn = document.getElementById('login');
+    const logoutBtn = document.getElementById('logout');
+    const status = document.getElementById('status');
+
+    loginBtn.onclick = async () => {
+      const { error } = await sb.auth.signInWithOtp({
+        email: emailInput.value,
+        options: { emailRedirectTo: location.origin + '/login.html' }
+      });
+      if (error) {
+        status.textContent = "Error: " + error.message;
+      } else {
+        status.textContent = "Magic link sent — check your email.";
+      }
+    };
+
+    logoutBtn.onclick = async () => {
+      await sb.auth.signOut();
+      status.textContent = "Signed out.";
+    };
+
+    // On load: check session
+    (async ()=>{
+      const { data: { session } } = await sb.auth.getSession();
+      if (session) {
+        status.textContent = "Logged in as " + session.user.email;
+      }
+    })();
+  </script>
+</body>
+</html>
