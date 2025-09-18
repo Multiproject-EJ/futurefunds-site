@@ -272,3 +272,17 @@ body.theme-earth {
   text-align: center;
 }
 
+
+.btn.danger {
+  background: var(--danger);
+  color: #fff;
+  border: none;
+  font-weight: 600;
+  transition: background .2s ease;
+}
+
+.btn.danger:hover {
+  background: #e55; /* slightly darker red on hover */
+  color: #fff;
+}
+
