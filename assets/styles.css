@@ -274,7 +274,7 @@ body.theme-earth {
 
 
 .btn.danger {
-  background: var(--danger);
+  background: #e63946;  /* exact logo red */
   color: #fff;
   border: none;
   font-weight: 600;
@@ -282,7 +282,7 @@ body.theme-earth {
 }
 
 .btn.danger:hover {
-  background: #e55; /* slightly darker red on hover */
-  color: #fff;
+  background: #c92f3a; /* darker shade for hover */
 }
+
 
