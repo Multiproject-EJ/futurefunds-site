@@ -1,6 +1,6 @@
 /* ===== Strategy page (scoped) =====
-   Everything is scoped so it won't affect other pages.
-   All colors/borders/shadows come from your global tokens.
+   Everything is scoped under body.page-strategy so it won't leak.
+   It reuses your global tokens via CSS vars.
 */
 
 body.page-strategy{
@@ -8,20 +8,14 @@ body.page-strategy{
   --panel: var(--card);
   --ink:   var(--text);
   --muted-local: var(--muted);
-  --line: var(--border, #e6e9ee);  /* theme-driven border */
+  --line: var(--border, #e6e9ee);
   --accent: var(--accent);
   --accent-2: var(--accent2);
   --radius: 16px;
-  /* IMPORTANT: do NOT override --shadow here; we use the themed one */
 }
 
 /* Layout shell */
-body.page-strategy .wrap{
-  width:min(1100px,92vw);
-  margin:0 auto;
-  /* space below global header */
-  padding-top: clamp(16px, 2.5vw, 32px);
-}
+body.page-strategy .wrap{ width:min(1100px,92vw); margin:0 auto; }
 body.page-strategy a{ color:var(--accent); text-decoration:none; }
 body.page-strategy a:hover{ text-decoration:underline; }
 
@@ -37,7 +31,7 @@ body.page-strategy .panel{
   padding:22px;
   box-shadow:var(--shadow);
 }
-body.page-strategy .grid{ display:grid; gap:18px; }
+body.page-strategy .grid{ display:grid; gap:18px; align-items:stretch; }
 body.page-strategy .grid.cols-2{ grid-template-columns:1fr; }
 body.page-strategy .grid.cols-3{ grid-template-columns:1fr; }
 @media (min-width:880px){
@@ -45,8 +39,8 @@ body.page-strategy .grid.cols-3{ grid-template-columns:1fr; }
   body.page-strategy .grid.cols-3{ grid-template-columns:1fr 1fr 1fr; }
 }
 
-/* Hero */
-body.page-strategy .hero{ padding:28px 0 8px; }
+/* Hero (centered) */
+body.page-strategy .hero{ padding:28px 0 8px; text-align:center; }
 body.page-strategy .hero h1{
   font-size:clamp(28px,4.8vw,44px);
   line-height:1.15;
@@ -56,8 +50,13 @@ body.page-strategy .hero-eyebrow{
   margin:0; color:var(--muted-local);
   font-size:clamp(16px,2.4vw,20px); font-style:italic;
 }
+body.page-strategy .hero p{
+  max-width:900px;
+  margin-left:auto;
+  margin-right:auto;
+}
 
-/* Buttons – override site buttons only inside this page */
+/* Buttons – override site buttons only on this page */
 body.page-strategy .btn{
   appearance:none;
   border:1px solid var(--line);
@@ -76,17 +75,22 @@ body.page-strategy .btn.primary{
 }
 body.page-strategy .btn.ghost{ background:transparent; border-color:var(--line); color:var(--ink); }
 
-/* Metrics row */
+/* Metrics row (center the four chips) */
 body.page-strategy .tag{
   display:inline-block; padding:4px 8px; border-radius:999px;
   border:1px solid var(--line); font-size:12px; color:var(--muted-local);
 }
-body.page-strategy .badges{ display:flex; flex-wrap:wrap; gap:10px; margin-top:10px; }
+body.page-strategy .badges{
+  display:flex; flex-wrap:wrap; gap:16px;
+  justify-content:center; margin-top:14px;
+}
 body.page-strategy .badge{
   border:1px solid var(--line);
   border-radius:12px;
   padding:10px 12px;
   background:color-mix(in oklab,var(--panel),#fff 1.5%);
+  text-align:center;
+  min-width:240px;
 }
 body.page-strategy .badge b{ font-size:18px; }
 body.page-strategy .badge span{ display:block; color:var(--muted-local); font-size:12px; margin-top:4px; }
@@ -121,13 +125,8 @@ body.page-strategy .node:hover{ background:color-mix(in oklab,var(--panel),#fff 
 body.page-strategy .node .dot{
   position:absolute; left:18px; top:50%; transform:translateY(-50%);
   width:16px; height:16px; border-radius:999px;
-  background:var(--panel); border:2px solid var(--line);
-  /* theme-sensitive dot shadow */
-  box-shadow: 0 4px 12px rgba(0,0,0,.20);
+  background:var(--panel); border:2px solid var(--line); box-shadow:var(--shadow);
 }
-body.theme-light.page-strategy .node .dot{ box-shadow: 0 3px 10px rgba(2,10,30,.10); }
-body.theme-dark.page-strategy  .node .dot{ box-shadow: 0 6px 16px rgba(0,0,0,.35); }
-
 body.page-strategy .node.active .dot{
   border-color:var(--accent);
   background:linear-gradient(135deg,var(--accent),var(--accent-2));
@@ -153,79 +152,72 @@ body.page-strategy canvas{
   background:color-mix(in oklab,var(--panel),#fff 1%); border:1px solid var(--line);
 }
 
-/* Version log – base */
-body.page-strategy .log .ai-head{ display:flex; align-items:baseline; justify-content:space-between; gap:8px; }
+/* ===== AI Version Log (2-column, scroll, subtle scrollbar) ===== */
+
+/* Make the whole log panel flex so the scroll area can expand to fill it */
+body.page-strategy .panel.log{
+  display:flex;
+  flex-direction:column;
+  /* Give it a slightly taller baseline so it visually matches the left card */
+  min-height: 520px; /* adjust if you want more/less height */
+}
+
+/* Grid of the two columns; fill available height */
+body.page-strategy .log.split .log-grid{
+  display:grid; grid-template-columns:1fr 1fr; gap:14px;
+  flex:1;          /* fill the panel's height */
+  min-height:0;    /* allow children to shrink within flex parent */
+}
+
+/* Each column stacks header + scroll area */
+body.page-strategy .log.split .log-col{
+  display:flex; flex-direction:column;
+  min-height:0; /* required so the scroll child can size properly */
+}
+
+/* Normal (non-sticky) header */
+body.page-strategy .log .ai-head{
+  display:flex; align-items:baseline; justify-content:space-between; gap:8px;
+  margin-bottom:6px;
+}
 body.page-strategy .log .ai-name{ font-weight:600; }
 body.page-strategy .log .ai-tag{
   border:1px solid var(--line); padding:2px 8px; border-radius:999px;
   font-size:12px; color:var(--muted-local);
 }
+
+/* Scroll area fills the rest and scrolls internally */
+body.page-strategy .log .log-scroll{
+  flex:1;
+  min-height:0;
+  overflow:auto;
+  padding-right:6px;
+  scrollbar-width:thin;
+  scrollbar-color: color-mix(in oklab, var(--ink) 12%, transparent) transparent;
+}
+/* WebKit scrollbars (subtle) */
+body.page-strategy .log .log-scroll::-webkit-scrollbar{ width:6px; }
+body.page-strategy .log .log-scroll::-webkit-scrollbar-thumb{
+  background: color-mix(in oklab, var(--ink) 12%, transparent);
+  border-radius:6px;
+}
+body.page-strategy .log .log-scroll::-webkit-scrollbar-track{ background: transparent; }
+
+/* List styling */
 body.page-strategy .log .log-list{ list-style:none; margin:12px 0 0 0; padding:0; display:grid; gap:10px; }
 body.page-strategy .log .log-list li{ border-left:3px solid var(--line); padding-left:12px; }
 body.page-strategy .log .log-list .muted{ margin-left:6px; }
-
-/* Version log – two columns + single scrollable card */
-body.page-strategy .log.split{
-  /* previously 368px; reduce by another ~20% */
-  max-height: 294px;
-  overflow: auto;
-
-  /* Firefox scrollbar */
-  scrollbar-width: thin;
-  scrollbar-color: color-mix(in oklab, var(--line), transparent 40%) transparent;
-}
-body.page-strategy .log.split .log-grid{
-  display:grid;
-  grid-template-columns:1fr 1fr;
-  gap:14px;
-}
-@media (max-width:880px){
-  body.page-strategy .log.split .log-grid{ grid-template-columns:1fr; }
-}
-
-/* Make each column scroll with the card (no sticky header) */
-body.page-strategy .log.split .log-scroll{
-  height:auto;
-  max-height:none;
-  overflow:visible;
-  padding-right:0;
-}
-body.page-strategy .log.split .ai-head{
-  position: static;   /* was sticky */
-  top: auto;
-  background: transparent;
-  padding: 0 0 6px 0;
-  z-index: auto;
-}
-
-/* WebKit (Chrome/Edge/Safari) scrollbar */
-body.page-strategy .log.split::-webkit-scrollbar{
-  width: 6px;            /* thinner */
-}
-body.page-strategy .log.split::-webkit-scrollbar-track{
-  background: transparent;
-}
-body.page-strategy .log.split::-webkit-scrollbar-thumb{
-  background: color-mix(in oklab, var(--line), transparent 50%); /* low-contrast */
-  border-radius: 6px;
-}
-body.page-strategy .log.split::-webkit-scrollbar-thumb:hover{
-  background: color-mix(in oklab, var(--line), transparent 40%);
-}
 
 /* FAQ plain style */
 body.page-strategy .faq{ background:transparent; border:0; padding:0; box-shadow:none; }
 body.page-strategy .faq h3{ margin:0 0 6px; }
 body.page-strategy .faq p{ color:var(--muted-local); }
 
-/* Optional North Star card – lighter ring in light theme */
+/* Optional North Star card */
 body.page-strategy .northstar{
   background:var(--panel);
-  border:1px solid var(--line);
-  /* subtle outer ring; soft in light, stronger in dark */
-  box-shadow:
-    var(--shadow),
-    0 0 0 4px color-mix(in oklab, var(--accent) 14%, transparent);
+  border:2px solid color-mix(in oklab, var(--accent) 60%, var(--line));
+  box-shadow: var(--shadow), 0 0 0 6px color-mix(in oklab, var(--accent) 20%, transparent), 0 10px 30px rgba(0,0,0,.08);
   border-radius: var(--radius);
 }
 body.page-strategy .northstar h2{
