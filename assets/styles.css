@@ -224,6 +224,14 @@ table.grid pre {
 /* ===========================
    Theme Variants
    =========================== */
+
+/* Site-wide light theme */
+body.theme-light {
+  --bg:#f6f7fb; --card:#ffffff; --text:#0f172a; --muted:#5a6777;
+  --accent:#1a73e8; --accent2:#27b9a0; --ok:#22c55e; --warn:#f6b73c; --danger:#e63946;
+  --page-bg: linear-gradient(180deg,#f6f7fb,#eef2f8);
+}
+
 body.theme-dark {
   --bg:#0f172a; --panel:#1e293b; --text:#f8fafc; --muted:#94a3b8;
   --accent:#38bdf8; --ring:rgba(56,189,248,.25); --border:#334155;
