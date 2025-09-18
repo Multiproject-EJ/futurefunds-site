@@ -4,15 +4,15 @@
 */
 
 body.page-strategy{
-  /* local tokens for this page (derived from your globals) */
+  /* derive from global tokens so themes apply */
   --panel: var(--card);
   --ink:   var(--text);
   --muted-local: var(--muted);
-  --line: #1a2147;                  /* matches site border color */
+  --line: var(--border, #e6e9ee);   /* was hardcoded #1a2147 */
   --accent: var(--accent);
   --accent-2: var(--accent2);
   --radius: 16px;
-  --shadow: 0 10px 30px rgba(0,0,0,.25);
+  /* IMPORTANT: do NOT override --shadow here; use the themed one */
 }
 
 /* Layout shell */
