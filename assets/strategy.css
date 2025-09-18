@@ -166,8 +166,8 @@ body.page-strategy .log .log-list .muted{ margin-left:6px; }
 
 /* Version log – two columns + single scrollable card */
 body.page-strategy .log.split{
-  /* was 460px; reduce by ~20% */
-  max-height: 368px;
+  /* previously 368px; reduce by another ~20% */
+  max-height: 294px;
   overflow: auto;
 
   /* Firefox scrollbar */
@@ -182,6 +182,8 @@ body.page-strategy .log.split .log-grid{
 @media (max-width:880px){
   body.page-strategy .log.split .log-grid{ grid-template-columns:1fr; }
 }
+
+/* Make each column scroll with the card (no sticky header) */
 body.page-strategy .log.split .log-scroll{
   height:auto;
   max-height:none;
@@ -189,12 +191,13 @@ body.page-strategy .log.split .log-scroll{
   padding-right:0;
 }
 body.page-strategy .log.split .ai-head{
-  position: sticky;
-  top: 0;
-  background: var(--panel);
-  padding: 6px 0;
-  z-index: 1;
+  position: static;   /* was sticky */
+  top: auto;
+  background: transparent;
+  padding: 0 0 6px 0;
+  z-index: auto;
 }
+
 /* WebKit (Chrome/Edge/Safari) scrollbar */
 body.page-strategy .log.split::-webkit-scrollbar{
   width: 6px;            /* thinner */
