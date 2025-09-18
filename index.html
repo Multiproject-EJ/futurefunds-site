@@ -22,21 +22,32 @@
   <link rel="icon" href="/images/logo.webp" type="image/webp" />
 </head>
 <body>
-  <header class="site-header">
-    <a class="brand" href="/">
-      <img src="/images/logo.webp" alt="FutureFunds.ai logo" class="logo" />
-      <span>FutureFunds.ai</span>
+ <header class="site-header">
+  <a class="brand" href="/">
+    <img src="/images/logo.webp" alt="FutureFunds.ai logo" class="logo" />
+    <span>FutureFunds.ai</span>
+  </a>
+
+  <nav class="nav">
+    <!-- Strategy -->
+    <a href="/strategy.html" data-i18n="nav.strategy">Strategy</a>
+
+    <!-- Investment Tools -->
+    <a href="/tools.html" data-i18n="nav.investmentTools">Investment Tools</a>
+
+    <!-- The AI Economy -->
+    <a href="/ai-economy.html" data-i18n="nav.aiEconomy">The AI Economy</a>
+
+    <!-- Language selector -->
+    <button id="langBtn" class="btn small">EN ▾</button>
+
+    <!-- Membership (keeps the same id for your existing paywall/Patreon logic) -->
+    <a id="patreonLogin" class="btn ghost" href="/membership.html" data-i18n="cta.membership">
+      Membership
     </a>
-    <nav class="nav">
-      <a href="/tools.html" data-i18n="nav.tools">Tools</a>
-      <a href="/tools/stock_analyzer_publisher.html">Stock Analyzer</a>
-      <a href="/portfolio.html">Portfolios</a>
-      <a href="/ai-economy.html">The AI Economy</a>
-      <a href="/disclaimer.html" data-i18n="nav.disclaimer">Disclaimer</a>
-      <button id="langBtn" class="btn small">EN ▾</button>
-      <a id="patreonLogin" class="btn ghost" href="#" data-i18n="cta.connectPatreon">Connect Patreon</a>
-    </nav>
-  </header>
+  </nav>
+</header>
+
 
   <main>
     <!-- HERO: Experiment-first question -->
