@@ -1,32 +1,171 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Strategy — FutureFunds.ai</title>
+  <title>FutureFunds.ai — Strategy</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link rel="stylesheet" href="/assets/styles.css" />
+  <link rel="stylesheet" href="/assets/strategy.css" />
 </head>
 <body>
-<header class="site-header">
-  <a class="brand" href="/"><img src="/images/logo.svg" alt=""><span>FutureFunds.ai</span></a>
-  <nav class="nav">
-    <a href="/tools.html">Tools</a>
-    <a href="/portfolio.html">Portfolios</a>
-    <a href="/blog.html">Blog</a>
-    <a href="/disclaimer.html">Disclaimer</a>
-  </nav>
-</header>
+  <!-- Global Header -->
+  <header class="site-header">
+    <a class="brand" href="/">
+      <img src="/images/logo.webp" alt="FutureFunds.ai logo" class="logo" />
+      <span>FutureFunds.ai</span>
+    </a>
+    <nav class="nav">
+      <a href="/strategy.html" class="active" data-i18n="nav.strategy">Strategy</a>
+      <a href="/tools.html" data-i18n="nav.investmentTools">Investment Tools</a>
+      <a href="/ai-economy.html" data-i18n="nav.aiEconomy">The AI Economy</a>
+      <button id="langBtn" class="btn small">EN ▾</button>
+      <button id="themeToggle" class="btn small ghost" aria-label="Toggle theme">🌗</button>
+      <a id="patreonLogin" class="btn danger" href="/membership.html" data-i18n="cta.membership">Membership</a>
+    </nav>
+  </header>
 
-<main class="container narrow">
-  <a class="backlink" href="/portfolio.html">← All portfolios</a>
-  <article id="strategyArticle" class="card"></article>
-</main>
+  <!-- Strategy Content -->
+  <main class="wrap">
+    <!-- HERO -->
+    <section class="hero panel">
+      <div class="tag">EXPERIMENT</div>
+      <p class="hero-eyebrow"><em>A simple question</em></p>
+      <h1>What happens if AI runs the investment process?</h1>
+      <p>FutureFunds.ai is a live research project: we codify rules, wire them into AI-powered tools, and track portfolios. It’s about learning in the open—wins and losses included.</p>
+      <p class="muted"><b>Our strategy</b>: from the whole market to a focused, AI-tracked universe.</p>
+      <div class="badges" id="liveBadges">
+        <div class="badge"><b id="badge-universe">42,031</b><span>Stocks in global universe</span></div>
+        <div class="badge"><b id="badge-pass">18%</b><span>Pass initial risk screen</span></div>
+        <div class="badge"><b id="badge-pings">127</b><span>Watchlist pings (last 30 days)</span></div>
+        <div class="badge"><b id="badge-articles">311</b><span>Research articles published</span></div>
+      </div>
+    </section>
 
-<footer class="site-footer">
-  <p>© <span id="year"></span> FutureFunds.ai</p>
-</footer>
+    <!-- INTERACTIVE WALKTHROUGH -->
+    <section id="funnel" class="section">
+      <div class="panel stepflow">
+        <div class="stepflow-head">
+          <h2>Strategy Walkthrough</h2>
+          <p class="muted">Click down the rail to follow the experiment.</p>
+        </div>
+        <div class="rail" id="rail" aria-label="Process steps">
+          <div class="track"></div>
+          <div class="fill" id="railFill"></div>
+          <button class="node active" data-step="0" aria-current="step"><span class="dot"></span><span>1 · Start with the entire market</span></button>
+          <button class="node" data-step="1"><span class="dot"></span><span>2 · Initial risk assessment</span></button>
+          <button class="node" data-step="2"><span class="dot"></span><span>3 · Assign the right analysis</span></button>
+          <button class="node" data-step="3"><span class="dot"></span><span>4 · Deep research → outputs</span></button>
+          <button class="node" data-step="4"><span class="dot"></span><span>5 · Smart Watchlist</span></button>
+          <button class="node" data-step="5"><span class="dot"></span><span>6 · Portfolio AI managers</span></button>
+        </div>
+        <div class="stage">
+          <div class="step-card" id="stepCard">
+            <div class="kicker" id="kicker">STEP 1</div>
+            <h3 id="stepTitle">Start with the entire market</h3>
+            <p class="muted" id="stepText">We consider every listed company globally. No early bias, no blind spots by design.</p>
+            <div class="actions">
+              <button class="btn ghost" id="prevStep">Back</button>
+              <button class="btn primary" id="nextStep">Next</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
 
-<script src="/assets/app.js" defer></script>
-<script src="/assets/paywall.js" defer></script>
+    <!-- MINI DASH / SPARKLINE & VERSION LOG -->
+    <section class="section grid cols-2">
+      <div class="panel spark-wrap">
+        <h3>Signals per Week</h3>
+        <p class="muted">A lightweight view of recent watchlist pings (demo data). Wire this to your backend later.</p>
+        <canvas id="spark"></canvas>
+      </div>
+      <div class="panel log split">
+        <h3>AI Version Log</h3>
+        <div class="log-grid">
+          <div class="log-col">
+            <div class="ai-head">
+              <span class="ai-name">ValueBot.ai</span>
+              <span class="ai-tag">Financial analyst</span>
+            </div>
+            <div class="log-scroll">
+              <ul class="log-list">
+                <li><b>v0.7.3</b> — Expanded coverage to small caps; reject stale filings. <span class="muted">2025-03-10</span></li>
+                <li><b>v0.7.2</b> — Improved risk screen calibration; added quality-drift metric; faster article generation. <span class="muted">2025-03-03</span></li>
+                <li><b>v0.7.1</b> — Sector-specific lenses; fixed ADR detection. <span class="muted">2025-02-20</span></li>
+                <li><b>v0.7.0</b> — New anomaly detector for guidance changes. <span class="muted">2025-02-01</span></li>
+              </ul>
+            </div>
+          </div>
+          <div class="log-col">
+            <div class="ai-head">
+              <span class="ai-name">PortfolioManager.ai</span>
+              <span class="ai-tag">Portfolio management</span>
+            </div>
+            <div class="log-scroll">
+              <ul class="log-list">
+                <li><b>v0.4.6</b> — Added risk parity preset; volatility floor for sizing. <span class="muted">2025-03-08</span></li>
+                <li><b>v0.4.5</b> — Position sizing tuned; rebalancer uses watchlist pings; drawdown guard. <span class="muted">2025-03-01</span></li>
+                <li><b>v0.4.4</b> — New Momentum archetype; improved turnover cap. <span class="muted">2025-02-10</span></li>
+                <li><b>v0.4.3</b> — Better cash handling; taxes-aware sell rules. <span class="muted">2025-01-28</span></li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SMART WATCHLIST & PORTFOLIO -->
+    <section class="section grid cols-2">
+      <div class="panel card">
+        <h3>Smart Watchlist</h3>
+        <p class="muted">A radar for interesting setups. When metrics flip, we get a ping. Great for revisits and timing.</p>
+        <ul class="muted">
+          <li>• Threshold alerts (valuation, momentum, earnings)</li>
+          <li>• Universe-only or open-universe modes</li>
+          <li>• Links straight to the latest write-ups</li>
+        </ul>
+      </div>
+      <div class="panel card">
+        <h3>Portfolio AIs</h3>
+        <p class="muted">Multiple “virtual PMs” with distinct styles simulate selection, sizing, and rebalancing.</p>
+        <ul class="muted">
+          <li>• Quality / Value / Momentum archetypes</li>
+          <li>• Rules + discretion (AI prompts) hybrid</li>
+          <li>• Performance tracked as an experiment</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- NORTH STAR -->
+    <section id="north-star" class="section">
+      <div class="panel card">
+        <h3>North Star</h3>
+        <p><b>DIY, in public.</b> We don’t predict the future—we test our way into it. Every model is a draft and every portfolio a hypothesis. As the tools get smarter, the loop tightens: better screens → sharper research → faster signals → bolder portfolios. We publish the learnings—wins, misses, and the pivots they force.</p>
+      </div>
+    </section>
+
+    <!-- FAQ / DISCLAIMER -->
+    <section class="section grid cols-2">
+      <div class="faq">
+        <h3>Is this financial advice?</h3>
+        <p class="muted">No. This site shares research and tools for educational use only.</p>
+      </div>
+      <div class="faq">
+        <h3>How often is this updated?</h3>
+        <p class="muted">Updates are iterative; cadence varies with data, code changes, and research focus.</p>
+      </div>
+    </section>
+  </main>
+
+  <!-- Global Footer -->
+  <footer class="site-footer">
+    <p>© <span id="year"></span> FutureFunds.ai — <a href="/disclaimer.html">Disclaimer</a></p>
+  </footer>
+
+  <!-- Global Scripts -->
+  <script src="/assets/app.js" defer></script>
+  <script src="/assets/i18n.js" defer></script>
+  <script src="/assets/paywall.js" defer></script>
+  <script src="/assets/strategy.js" defer></script>
 </body>
 </html>
