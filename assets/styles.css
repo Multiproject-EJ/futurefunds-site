@@ -315,4 +315,90 @@ body.theme-light {
   background: #c92f3a; /* darker shade for hover */
 }
 
+/* ===========================
+   Light Theme – Global Polish
+   =========================== */
+
+/* Softer borders + subtle depth */
+body.theme-light .card,
+body.theme-light .portfolio-thumb,
+body.theme-light .video,
+body.theme-light .note-box,
+body.theme-light .table {
+  border-color: var(--border);
+  box-shadow: var(--shadow);
+  background: var(--card);
+}
+
+/* Table grid lines */
+body.theme-light .table th,
+body.theme-light .table td {
+  border-bottom-color: var(--border);
+}
+
+/* Site header/footer separators */
+body.theme-light .site-header,
+body.theme-light .site-footer {
+  border-color: var(--border);
+}
+
+/* Default buttons look like soft pills in light mode */
+body.theme-light .btn:not(.primary):not(.ghost) {
+  background: var(--card);
+  border-color: var(--border);
+  box-shadow: var(--shadow);
+}
+
+/* Ghost buttons stay clean (outline only) */
+body.theme-light .btn.ghost {
+  background: transparent;
+  border-color: var(--border);
+  box-shadow: none;
+}
+
+/* Hero badge: lighter chip style in light mode */
+body.theme-light .badge {
+  background: color-mix(in oklab, var(--card), #fff 6%);
+  border-color: var(--border);
+  color: var(--text);
+}
+
+/* Chips / tags */
+body.theme-light .chip,
+body.theme-light .tag {
+  border-color: var(--border);
+  background: color-mix(in oklab, var(--card), #fff 4%);
+}
+
+/* “Support & Access” cards feel like real cards */
+body.theme-light .grid .card {
+  background: var(--card);
+  border-color: var(--border);
+  box-shadow: var(--shadow);
+}
+
+/* Misc borders previously hardcoded for dark */
+body.theme-light .portfolio-thumb,
+body.theme-light .locked-card,
+body.theme-light .video,
+body.theme-light .note-box {
+  border-color: var(--border);
+}
+
+/* Muted, softer note box background */
+body.theme-light .note-box{
+  background: color-mix(in oklab, var(--card), #000 2%);
+}
+
+/* Statline pills get a light-friendly border/background */
+body.theme-light .statline span{
+  border-color: var(--border);
+  background: color-mix(in oklab, var(--card), #fff 6%);
+}
+
+/* Table code blocks */
+body.theme-light table.grid pre{
+  background: color-mix(in oklab, var(--card), #000 2%);
+}
+
 
