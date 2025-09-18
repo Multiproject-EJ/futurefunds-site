@@ -241,3 +241,29 @@ async function renderAiArticle() {
   `;
 }
 document.addEventListener('DOMContentLoaded', renderAiArticle);
+
+
+// ===== Global Theme Toggle (dark <-> light; persists in localStorage)
+(function themeInit(){
+  const KEY = 'ff_theme';
+  const body = document.body;
+  const order = ['theme-dark','theme-light']; // add 'theme-earth' if you want to cycle 3
+
+  // Ensure exactly one theme class is present at start
+  const saved = localStorage.getItem(KEY);
+  const start = order.includes(saved) ? saved : 'theme-dark';
+  order.forEach(t => body.classList.remove(t));
+  body.classList.add(start);
+
+  const btn = document.getElementById('themeToggle');
+  if (btn) {
+    btn.addEventListener('click', () => {
+      const idx = order.findIndex(t => body.classList.contains(t));
+      const next = order[(idx + 1) % order.length];
+      order.forEach(t => body.classList.remove(t));
+      body.classList.add(next);
+      localStorage.setItem(KEY, next);
+    });
+  }
+})();
+
