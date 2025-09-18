@@ -1,6 +1,6 @@
 /* ===== Strategy page (scoped) =====
-   Scope everything so it doesn't leak to the rest of the site.
-   Uses your global tokens where possible.
+   Everything is scoped so it won't affect other pages.
+   All colors/borders/shadows come from your global tokens.
 */
 
 body.page-strategy{
@@ -8,11 +8,11 @@ body.page-strategy{
   --panel: var(--card);
   --ink:   var(--text);
   --muted-local: var(--muted);
-  --line: var(--border, #e6e9ee);   /* was hardcoded #1a2147 */
+  --line: var(--border, #e6e9ee);  /* theme-driven border */
   --accent: var(--accent);
   --accent-2: var(--accent2);
   --radius: 16px;
-  /* IMPORTANT: do NOT override --shadow here; use the themed one */
+  /* IMPORTANT: do NOT override --shadow here; we use the themed one */
 }
 
 /* Layout shell */
@@ -116,8 +116,13 @@ body.page-strategy .node:hover{ background:color-mix(in oklab,var(--panel),#fff 
 body.page-strategy .node .dot{
   position:absolute; left:18px; top:50%; transform:translateY(-50%);
   width:16px; height:16px; border-radius:999px;
-  background:var(--panel); border:2px solid var(--line); box-shadow:var(--shadow);
+  background:var(--panel); border:2px solid var(--line);
+  /* slightly lighter dot shadow on light theme, stronger on dark */
+  box-shadow: 0 4px 12px rgba(0,0,0,.20);
 }
+body.theme-light.page-strategy .node .dot{ box-shadow: 0 3px 10px rgba(2,10,30,.10); }
+body.theme-dark.page-strategy  .node .dot{ box-shadow: 0 6px 16px rgba(0,0,0,.35); }
+
 body.page-strategy .node.active .dot{
   border-color:var(--accent);
   background:linear-gradient(135deg,var(--accent),var(--accent-2));
@@ -165,11 +170,14 @@ body.page-strategy .faq{ background:transparent; border:0; padding:0; box-shadow
 body.page-strategy .faq h3{ margin:0 0 6px; }
 body.page-strategy .faq p{ color:var(--muted-local); }
 
-/* Optional North Star card */
+/* Optional North Star card – lighter ring in light theme */
 body.page-strategy .northstar{
   background:var(--panel);
-  border:2px solid color-mix(in oklab, var(--accent) 60%, var(--line));
-  box-shadow: var(--shadow), 0 0 0 6px color-mix(in oklab, var(--accent) 20%, transparent), 0 10px 30px rgba(0,0,0,.08);
+  border:1px solid var(--line);
+  /* subtle outer ring; soft in light, stronger in dark */
+  box-shadow:
+    var(--shadow),
+    0 0 0 4px color-mix(in oklab, var(--accent) 14%, transparent);
   border-radius: var(--radius);
 }
 body.page-strategy .northstar h2{
