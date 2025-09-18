@@ -166,8 +166,13 @@ body.page-strategy .log .log-list .muted{ margin-left:6px; }
 
 /* Version log – two columns + single scrollable card */
 body.page-strategy .log.split{
-  max-height: 460px;          /* adjust to taste */
+  /* was 460px; reduce by ~20% */
+  max-height: 368px;
   overflow: auto;
+
+  /* Firefox scrollbar */
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in oklab, var(--line), transparent 40%) transparent;
 }
 body.page-strategy .log.split .log-grid{
   display:grid;
@@ -189,6 +194,20 @@ body.page-strategy .log.split .ai-head{
   background: var(--panel);
   padding: 6px 0;
   z-index: 1;
+}
+/* WebKit (Chrome/Edge/Safari) scrollbar */
+body.page-strategy .log.split::-webkit-scrollbar{
+  width: 6px;            /* thinner */
+}
+body.page-strategy .log.split::-webkit-scrollbar-track{
+  background: transparent;
+}
+body.page-strategy .log.split::-webkit-scrollbar-thumb{
+  background: color-mix(in oklab, var(--line), transparent 50%); /* low-contrast */
+  border-radius: 6px;
+}
+body.page-strategy .log.split::-webkit-scrollbar-thumb:hover{
+  background: color-mix(in oklab, var(--line), transparent 40%);
 }
 
 /* FAQ plain style */
