@@ -28,7 +28,12 @@
     <span>FutureFunds.ai</span>
   </a>
 
-  <nav class="nav">
+  <button class="nav-toggle" id="navToggle" type="button" aria-expanded="false" aria-controls="siteNav">
+    <span class="sr-only">Menu</span>
+    <span class="nav-toggle__bar"></span>
+  </button>
+
+  <nav class="nav" id="siteNav" aria-label="Primary navigation">
     <a href="/strategy.html" data-i18n="nav.strategy">Strategy</a>
     <a href="/tools.html" data-i18n="nav.investmentTools">Investment Tools</a>
     <a href="/ai-economy.html" data-i18n="nav.aiEconomy">The AI Economy</a>

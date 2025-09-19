@@ -8,12 +8,61 @@ const fmt = {
 };
 
 document.addEventListener('DOMContentLoaded', () => {
+  initResponsiveNav();
   const y = $('#year'); if (y) y.textContent = new Date().getFullYear();
   renderToolsIndex();
   renderToolDetail();
   renderPortfoliosHub();
   renderStrategyDetail();
 });
+
+function initResponsiveNav() {
+  const toggle = document.getElementById('navToggle');
+  const nav = document.getElementById('siteNav') || document.querySelector('.site-header .nav');
+  if (!toggle || !nav) return;
+
+  const closeMenu = () => {
+    if (!nav.classList.contains('open')) return;
+    nav.classList.remove('open');
+    document.body.classList.remove('nav-open');
+    toggle.setAttribute('aria-expanded', 'false');
+  };
+
+  toggle.setAttribute('aria-expanded', 'false');
+
+  toggle.addEventListener('click', () => {
+    const isOpen = !nav.classList.contains('open');
+    nav.classList.toggle('open', isOpen);
+    document.body.classList.toggle('nav-open', isOpen);
+    toggle.setAttribute('aria-expanded', String(isOpen));
+  });
+
+  nav.addEventListener('click', (event) => {
+    const target = event.target;
+    if (target instanceof HTMLElement && target.matches('a')) {
+      closeMenu();
+    }
+  });
+
+  document.addEventListener('click', (event) => {
+    if (!nav.classList.contains('open')) return;
+    if (event.target === toggle || toggle.contains(event.target)) return;
+    if (nav.contains(event.target)) return;
+    closeMenu();
+  });
+
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && nav.classList.contains('open')) {
+      closeMenu();
+      toggle.focus();
+    }
+  });
+
+  const mq = window.matchMedia('(min-width: 901px)');
+  const handleMq = (e) => { if (e.matches) closeMenu(); };
+  if (typeof mq.addEventListener === 'function') mq.addEventListener('change', handleMq);
+  else if (typeof mq.addListener === 'function') mq.addListener(handleMq);
+}
 
 /* =========================================
    TOOLS: Index (grid) + Detail (gated)
