@@ -71,6 +71,7 @@ body.page-portfolio .pill{
 }
 body.page-portfolio .pill.live{ color: var(--ok); border-color: color-mix(in oklab, var(--ok) 50%, var(--line)); }
 body.page-portfolio .pill.experimental{ color: var(--warn); border-color: color-mix(in oklab, var(--warn) 50%, var(--line)); }
+body.page-portfolio .pill.patreon{ color: var(--accent); border-color: color-mix(in oklab, var(--accent) 45%, var(--line)); }
 
 body.page-portfolio .mini-chart{
   width:100%; height:120px; display:block;
@@ -107,6 +108,31 @@ body.page-portfolio table.preview td{
   font-size: 14px;
 }
 body.page-portfolio table.preview tr:last-child td{ border-bottom:none; }
+
+body.page-portfolio .p-card.paywall-card{
+  display:grid;
+  gap:12px;
+  cursor:default;
+}
+body.page-portfolio .p-card.paywall-card .paywall-copy{
+  margin:0;
+  color:var(--muted-local);
+}
+body.page-portfolio .p-card.paywall-card .paywall-note{
+  margin:0;
+  font-size:13px;
+  color:var(--muted-local);
+}
+body.page-portfolio .p-card.paywall-card .paywall-list{
+  margin:0;
+  padding-left:18px;
+  color:var(--muted-local);
+}
+body.page-portfolio .p-card.paywall-card .paywall-actions{
+  display:flex;
+  gap:10px;
+  flex-wrap:wrap;
+}
 
 /* ===== Modal ===== */
 body.page-portfolio .pf-modal{
