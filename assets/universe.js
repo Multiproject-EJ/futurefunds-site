@@ -1,5 +1,5 @@
 // /assets/universe.js
-import { supabase } from './supabase.js';
+import { supabase, isMembershipActive } from './supabase.js';
 
 const state = {
   rows: [],
@@ -10,6 +10,11 @@ const state = {
   to: localStorage.getItem('universe_to') || '',
   loading: false,
   error: null,
+  isMember: false,
+  isSignedIn: false,
+  authReady: false,
+  previewCount: 0,
+  lockedCount: 0,
 };
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -30,6 +35,8 @@ async function UniversePage() {
   const mClose = $('#mClose');
 
   if (!tbody) return;
+
+  initMembershipBridge();
 
   // Initialize filters from storage
   qInput.value = state.q;
@@ -138,7 +145,12 @@ async function UniversePage() {
       return;
     }
 
-    const html = state.filtered
+    const visibleRows = getPreviewRows();
+    const lockedCount = getLockedCount();
+    state.previewCount = visibleRows.length;
+    state.lockedCount = lockedCount;
+
+    const html = visibleRows
       .map((row) => {
         const findings = (row.key_findings || []).slice(0, 6).map((item) => `• ${escapeHtml(item)}`).join('<br>');
         const tags = (row.tags || []).map((tag) => `<span class="tag">${escapeHtml(tag)}</span>`).join('');
@@ -153,9 +165,38 @@ async function UniversePage() {
           </tr>`;
       })
       .join('');
-    tbody.innerHTML = html;
 
-    tbody.querySelectorAll('tr').forEach((tr) => {
+    const rows = [];
+    if (html) rows.push(html);
+    if (lockedCount > 0) {
+      const lockedLabel = lockedCount === 1 ? '1 more research brief' : `${lockedCount} more research briefs`;
+      const previewLabel = `${visibleRows.length} of ${state.filtered.length}`;
+      const message = state.authReady
+        ? (state.isSignedIn
+            ? `Your account needs an active membership to view the remaining ${lockedLabel}.`
+            : `Join FutureFunds.ai to unlock the remaining ${lockedLabel}.`)
+        : 'Checking membership status…';
+      const secondaryView = state.isSignedIn ? 'profile' : 'signin';
+      const secondaryLabel = state.isSignedIn ? 'Manage account' : 'Sign in';
+      rows.push(`
+        <tr class="locked-row">
+          <td colspan="6">
+            <div class="locked-paywall">
+              <strong>Unlock the full Universe archive</strong>
+              <p>${escapeHtml(message)}</p>
+              <div class="actions">
+                <a class="btn primary" href="/membership.html">View membership plans</a>
+                <button class="btn" type="button" data-open-auth="${escapeHtml(secondaryView)}">${escapeHtml(secondaryLabel)}</button>
+              </div>
+              <p class="locked-note">Preview shows ${escapeHtml(previewLabel)} entries.</p>
+            </div>
+          </td>
+        </tr>`);
+    }
+
+    tbody.innerHTML = rows.join('');
+
+    tbody.querySelectorAll('tr[data-id]').forEach((tr) => {
       tr.addEventListener('click', () => {
         const id = tr.getAttribute('data-id');
         const row = state.filtered.find((r) => r.date + '|' + r.topic === id);
@@ -211,10 +252,29 @@ async function UniversePage() {
     toast('Data refreshed');
   });
 
-  $('#btnExportCsv').addEventListener('click', () => exportCsv(state.filtered));
+  $('#btnExportCsv').addEventListener('click', () => {
+    const rows = getPreviewRows();
+    if (!rows.length) return toast('Nothing to export', true);
+    exportCsv(rows);
+    if (!state.isMember && state.lockedCount > 0) {
+      toast('Preview export generated — join membership for the full dataset.');
+    } else {
+      toast('CSV exported');
+    }
+  });
+
   $('#btnCopyJson').addEventListener('click', async () => {
-    await navigator.clipboard.writeText(JSON.stringify(state.filtered, null, 2));
-    toast('JSON copied');
+    const rows = getPreviewRows();
+    if (!rows.length) {
+      toast('Nothing to copy', true);
+      return;
+    }
+    await navigator.clipboard.writeText(JSON.stringify(rows, null, 2));
+    if (!state.isMember && state.lockedCount > 0) {
+      toast('Preview copied — join membership for the full dataset.');
+    } else {
+      toast('JSON copied');
+    }
   });
 
   window.addEventListener('keydown', (event) => {
@@ -270,6 +330,66 @@ async function UniversePage() {
 
   function escapeHtml(str) {
     return String(str ?? '').replace(/[&<>"']/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[m]));
+  }
+
+  function computePreviewLimit(total) {
+    if (state.isMember) return total;
+    if (!total) return 0;
+    const raw = Math.ceil(total * 0.2);
+    const limit = Math.max(1, raw);
+    return Math.min(total, limit);
+  }
+
+  function getPreviewRows() {
+    const total = state.filtered.length;
+    if (!total) return [];
+    const limit = computePreviewLimit(total);
+    return state.filtered.slice(0, limit);
+  }
+
+  function getLockedCount() {
+    if (state.isMember) return 0;
+    const total = state.filtered.length;
+    if (!total) return 0;
+    const limit = computePreviewLimit(total);
+    return Math.max(0, total - limit);
+  }
+
+  function initMembershipBridge() {
+    const updateFromAccount = (payload = {}) => {
+      const account = payload && (payload.user !== undefined || payload.membership !== undefined)
+        ? payload
+        : payload.detail || {};
+      const membership = account?.membership || null;
+      const isMember = isMembershipActive ? isMembershipActive(membership) : false;
+      const isSignedIn = !!account?.user;
+      const changed = isMember !== state.isMember || isSignedIn !== state.isSignedIn || !state.authReady;
+      state.isMember = isMember;
+      state.isSignedIn = isSignedIn;
+      state.authReady = true;
+      if (changed) render();
+    };
+
+    const readCurrent = () => {
+      if (window.ffAuth && typeof window.ffAuth.getAccount === 'function') {
+        updateFromAccount(window.ffAuth.getAccount());
+      } else {
+        updateFromAccount({});
+      }
+    };
+
+    if (window.ffAuth && typeof window.ffAuth.onReady === 'function') {
+      window.ffAuth.onReady().then(readCurrent).catch(readCurrent);
+    } else {
+      document.addEventListener('ffauth:ready', readCurrent, { once: true });
+      setTimeout(readCurrent, 1200);
+    }
+
+    document.addEventListener('ffauth:change', (event) => {
+      updateFromAccount(event.detail || {});
+    });
+
+    readCurrent();
   }
 
   await load();

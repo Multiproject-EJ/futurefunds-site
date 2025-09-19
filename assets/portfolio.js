@@ -11,6 +11,11 @@
     mkPortfolio('income-shield', 'Income Shield', 'Live'),
   ];
 
+  const access = {
+    isMember: false,
+    isSignedIn: false,
+  };
+
   function mkPortfolio(id, name, status){
     // demo series
     const n = 60;
@@ -78,7 +83,7 @@
 
   // Render cards
   function hydrateCards(){
-    portfolios.forEach(p=>{
+    portfolios.forEach((p, index)=>{
       const card = document.querySelector(`.p-card[data-id="${p.id}"]`);
       if(!card) return;
 
@@ -99,7 +104,13 @@
       drawLine(c, p.series);
 
       // open modal on click / Enter
-      const open = () => openModal(p.id);
+      const open = () => {
+        if (!isUnlocked(index)) {
+          promptMembership();
+          return;
+        }
+        openModal(p.id);
+      };
       card.addEventListener('click', open);
       card.addEventListener('keydown', e=>{ if(e.key==='Enter' || e.key===' ') { e.preventDefault(); open(); }});
     });
@@ -179,6 +190,119 @@
     });
   }
 
+  function membershipIsActive(record){
+    if(!record) return false;
+    const status = (record.status || '').toLowerCase();
+    if (status && status !== 'active') return false;
+    if (record.current_period_end){
+      const expiry = new Date(record.current_period_end).getTime();
+      if (!Number.isNaN(expiry) && expiry < Date.now()) return false;
+    }
+    return true;
+  }
+
+  function computeVisibleCount(){
+    if (access.isMember) return portfolios.length;
+    if (!portfolios.length) return 0;
+    const raw = Math.ceil(portfolios.length * 0.2);
+    return Math.min(portfolios.length, Math.max(1, raw));
+  }
+
+  function isUnlocked(index){
+    return index < computeVisibleCount() || access.isMember;
+  }
+
+  function applyAccess(){
+    const visibleCount = computeVisibleCount();
+    portfolios.forEach((p, idx) => {
+      const card = document.querySelector(`.p-card[data-id="${p.id}"]`);
+      if (!card) return;
+      const locked = !access.isMember && idx >= visibleCount;
+      card.hidden = locked;
+      card.dataset.locked = locked ? 'true' : 'false';
+      card.tabIndex = locked ? -1 : 0;
+      if (locked) card.setAttribute('aria-hidden', 'true');
+      else card.removeAttribute('aria-hidden');
+    });
+    updatePaywallCard(visibleCount);
+  }
+
+  function updatePaywallCard(visibleCount){
+    const paywall = document.getElementById('portfolioPaywall');
+    if (!paywall) return;
+    const lockedCount = access.isMember ? 0 : Math.max(0, portfolios.length - visibleCount);
+    if (!lockedCount) {
+      paywall.hidden = true;
+      return;
+    }
+    paywall.hidden = false;
+    const msgEl = document.getElementById('portfolioPaywallMsg');
+    if (msgEl) {
+      const label = lockedCount === 1 ? 'one more portfolio' : `${lockedCount} more portfolios`;
+      msgEl.textContent = access.isSignedIn
+        ? `Your account is signed in but needs an active membership to unlock ${label}.`
+        : `Join FutureFunds.ai to unlock ${label}.`;
+    }
+    const previewEl = document.getElementById('portfolioPaywallPreview');
+    if (previewEl) {
+      previewEl.textContent = `Preview shows ${visibleCount} of ${portfolios.length} portfolios.`;
+    }
+    const secondary = paywall.querySelector('[data-lock-secondary]');
+    if (secondary) {
+      secondary.textContent = access.isSignedIn ? 'Manage account' : 'Sign in';
+      secondary.setAttribute('data-open-auth', access.isSignedIn ? 'profile' : 'signin');
+    }
+  }
+
+  function updateAccessFromAccount(payload = {}){
+    const account = payload && (payload.user !== undefined || payload.membership !== undefined)
+      ? payload
+      : payload.detail || {};
+    const membership = account?.membership || null;
+    const isMember = membershipIsActive(membership);
+    const isSignedIn = !!account?.user;
+    const changed = isMember !== access.isMember || isSignedIn !== access.isSignedIn;
+    access.isMember = isMember;
+    access.isSignedIn = isSignedIn;
+    if (changed) applyAccess();
+  }
+
+  function initAccessWatcher(){
+    const readCurrent = () => {
+      if (window.ffAuth && typeof window.ffAuth.getAccount === 'function') {
+        updateAccessFromAccount(window.ffAuth.getAccount());
+      } else {
+        updateAccessFromAccount({});
+      }
+    };
+
+    if (window.ffAuth && typeof window.ffAuth.onReady === 'function') {
+      window.ffAuth.onReady().then(readCurrent).catch(readCurrent);
+    } else {
+      document.addEventListener('ffauth:ready', readCurrent, { once: true });
+      setTimeout(readCurrent, 1200);
+    }
+
+    document.addEventListener('ffauth:change', (event) => {
+      updateAccessFromAccount(event.detail || {});
+    });
+
+    readCurrent();
+  }
+
+  function promptMembership(){
+    if (window.ffAuth && typeof window.ffAuth.openAuth === 'function') {
+      const view = access.isSignedIn ? 'profile' : 'signup';
+      window.ffAuth.openAuth(view);
+    } else {
+      location.href = '/membership.html';
+    }
+  }
+
   // init
-  window.addEventListener('DOMContentLoaded', hydrateCards);
+  window.addEventListener('DOMContentLoaded', () => {
+    hydrateCards();
+    applyAccess();
+    initAccessWatcher();
+  });
 })();
