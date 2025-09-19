@@ -1,23 +1,16 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-lang="en">
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
 <title>FutureFunds — Universe</title>
 
 <!-- Site styles -->
-<link rel="stylesheet" href="/styles.css"/>
+<link rel="stylesheet" href="/assets/styles.css"/>
 
 <style>
   /* Page-local styles (keeps your global tokens) */
   .wrap{max-width:1200px;margin:32px auto;padding:0 16px}
-  header.site{position:sticky;top:0;background:var(--bg,#f6f7fb);z-index:50;border-bottom:1px solid var(--border,#e5e7eb)}
-  .nav{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px 0}
-  .brand{font-weight:700;text-decoration:none;color:var(--text,#0f172a);font-size:18px}
-  .brand span{color:var(--accent,#1a73e8)}
-  .links{display:flex;gap:14px;align-items:center}
-  .links a,.links button{color:var(--text,#0f172a);text-decoration:none;padding:8px 10px;border-radius:10px;border:1px solid transparent}
-  .links a.active{border-color:var(--border,#e5e7eb);background:var(--panel,#fff);box-shadow:var(--shadow,0 12px 34px rgba(0,0,0,.06))}
   .hero h1{margin:.2rem 0 .5rem}
   .hero p{margin:0;color:var(--muted,#64748b)}
 
@@ -57,16 +50,21 @@
 <body>
 
 <!-- Top bar -->
-<header class="site">
-  <div class="wrap nav">
-    <a class="brand" href="/">FutureFunds<span>.ai</span></a>
-    <nav class="links">
-      <a href="/index.html">Home</a>
-      <a href="/stock-analyzer.html">Stock Analyzer</a>
-      <a href="/api-manager.html">API Manager</a>
-      <a href="/universe.html" class="active">Universe</a>
-    </nav>
-  </div>
+<header class="site-header">
+  <a class="brand" href="/">
+    <img src="/images/logo.webp" alt="FutureFunds.ai logo" class="logo" />
+    <span>FutureFunds.ai</span>
+  </a>
+  <nav class="nav">
+    <a href="/strategy.html" data-i18n="nav.strategy">Strategy</a>
+    <a href="/tools.html" data-i18n="nav.investmentTools">Investment Tools</a>
+    <a href="/ai-economy.html" data-i18n="nav.aiEconomy">The AI Economy</a>
+    <a href="/portfolio.html" data-i18n="nav.portfolios">Portfolios</a>
+    <a href="/universe.html" class="active" data-i18n="nav.universe">Universe</a>
+    <button id="langBtn" class="btn small">EN ▾</button>
+    <button id="themeToggle" class="btn small ghost" aria-label="Toggle theme">🌗</button>
+    <a id="patreonLogin" class="btn danger" href="/membership.html" data-i18n="cta.membership">Membership</a>
+  </nav>
 </header>
 
 <!-- Hero -->
@@ -123,6 +121,10 @@
     </div>
   </div>
 </div>
+
+<script src="/assets/app.js" defer></script>
+<script src="/assets/i18n.js" defer></script>
+<script src="/assets/paywall.js" defer></script>
 
 <script>
 (async function UniversePage(){

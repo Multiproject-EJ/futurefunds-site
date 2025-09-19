@@ -8,12 +8,19 @@
 </head>
 <body>
   <header class="site-header">
-    <a class="brand" href="/"><img src="/images/logo.png" alt="FutureFunds.ai logo"><span>FutureFunds.ai</span></a>
+    <a class="brand" href="/">
+      <img src="/images/logo.webp" alt="FutureFunds.ai logo" class="logo" />
+      <span>FutureFunds.ai</span>
+    </a>
     <nav class="nav">
-      <a href="/tools.html">Tools</a>
-      <a href="/portfolio.html">Portfolios</a>
-      <a href="/ai-economy.html" class="active">The AI Economy</a>
-      <a href="/disclaimer.html">Disclaimer</a>
+      <a href="/strategy.html" data-i18n="nav.strategy">Strategy</a>
+      <a href="/tools.html" data-i18n="nav.investmentTools">Investment Tools</a>
+      <a href="/ai-economy.html" class="active" data-i18n="nav.aiEconomy">The AI Economy</a>
+      <a href="/portfolio.html" data-i18n="nav.portfolios">Portfolios</a>
+      <a href="/universe.html" data-i18n="nav.universe">Universe</a>
+      <button id="langBtn" class="btn small">EN ▾</button>
+      <button id="themeToggle" class="btn small ghost" aria-label="Toggle theme">🌗</button>
+      <a id="patreonLogin" class="btn danger" href="/membership.html" data-i18n="cta.membership">Membership</a>
     </nav>
   </header>
 
@@ -24,5 +31,7 @@
   </footer>
 
   <script src="/assets/app.js" defer></script>
+  <script src="/assets/i18n.js" defer></script>
+  <script src="/assets/paywall.js" defer></script>
 </body>
 </html>

@@ -304,15 +304,34 @@ body.theme-light {
 
 
 .btn.danger {
-  background: #e63946;  /* exact logo red */
+  position: relative;
+  z-index: 0;
+  background: var(--danger, #e63946);
   color: #fff;
   border: none;
   font-weight: 600;
-  transition: background .2s ease;
+  transition: background .2s ease, transform .2s ease;
+}
+
+.btn.danger::before {
+  content: "";
+  position: absolute;
+  inset: -4px;
+  border: 1px solid var(--danger, #e63946);
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: -1;
 }
 
 .btn.danger:hover {
-  background: #c92f3a; /* darker shade for hover */
+  background: #c92f3a;
+  background: color-mix(in srgb, var(--danger, #e63946) 90%, #000 10%);
+}
+
+.btn.danger:focus-visible {
+  outline: 2px solid rgba(230, 57, 70, 0.7);
+  outline: 2px solid color-mix(in srgb, var(--danger, #e63946) 70%, #fff 30%);
+  outline-offset: 4px;
 }
 
 /* ===========================
@@ -343,10 +362,21 @@ body.theme-light .site-footer {
 }
 
 /* Default buttons look like soft pills in light mode */
-body.theme-light .btn:not(.primary):not(.ghost) {
+body.theme-light .btn:not(.primary):not(.ghost):not(.danger) {
   background: var(--card);
   border-color: var(--border);
   box-shadow: var(--shadow);
+}
+
+body.theme-light .btn.danger {
+  background: var(--danger);
+  color: #fff;
+  box-shadow: none;
+}
+
+body.theme-light .btn.danger:hover {
+  background: #c92f3a;
+  background: color-mix(in srgb, var(--danger) 90%, #000 10%);
 }
 
 /* Ghost buttons stay clean (outline only) */
