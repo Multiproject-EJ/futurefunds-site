@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en" data-lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>FutureFunds — Universe Editor</title>
+  <link rel="stylesheet" href="/assets/styles.css" />
+  <style>
+    .editor-wrap{max-width:960px;margin:32px auto;padding:0 16px}
+    .editor-grid{display:grid;gap:18px}
+    .editor-grid label{display:block;font-size:.9rem;margin-bottom:4px;color:var(--muted,#64748b)}
+    .editor-grid input,.editor-grid textarea, .editor-grid select{
+      width:100%;padding:12px 14px;border:1px solid var(--border,#e5e7eb);border-radius:12px;background:var(--panel,#fff);
+      color:var(--text,#0f172a);
+    }
+    .editor-grid textarea{min-height:120px;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace}
+    .field-row{display:grid;gap:16px;grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}
+    .muted-small{color:var(--muted,#64748b);font-size:.9rem;margin:4px 0 0}
+    .recent-list{margin-top:22px;display:grid;gap:12px}
+    .recent-card{border:1px solid var(--border,#e5e7eb);border-radius:12px;padding:16px;background:var(--panel,#fff);}
+    .recent-card h3{margin:0 0 6px}
+    .recent-card .tags{margin-top:6px}
+    .note-box button{margin-left:10px}
+  </style>
+</head>
+<body>
+  <header class="site-header">
+    <a class="brand" href="/">
+      <img src="/images/logo.webp" alt="FutureFunds.ai logo" class="logo" />
+      <span>FutureFunds.ai</span>
+    </a>
+    <button class="nav-toggle" id="navToggle" type="button" aria-expanded="false" aria-controls="siteNav">
+      <span class="sr-only">Menu</span>
+      <span class="nav-toggle__bar"></span>
+    </button>
+    <nav class="nav" id="siteNav" aria-label="Primary navigation">
+      <a href="/strategy.html" data-i18n="nav.strategy">Strategy</a>
+      <a href="/tools.html" data-i18n="nav.investmentTools">Investment Tools</a>
+      <a href="/ai-economy.html" data-i18n="nav.aiEconomy">The AI Economy</a>
+      <a href="/portfolio.html" data-i18n="nav.portfolios">Portfolios</a>
+      <a href="/universe.html" data-i18n="nav.universe">Universe</a>
+      <button id="langBtn" class="btn small">EN ▾</button>
+      <button id="themeToggle" class="btn small ghost" aria-label="Toggle theme">🌗</button>
+      <a id="patreonLogin" class="btn danger" href="/membership.html" data-i18n="cta.membership">Membership</a>
+    </nav>
+  </header>
+
+  <main class="editor-wrap">
+    <h1>Universe Editor</h1>
+    <p class="muted">Create and publish research entries into the Universe feed. Admin access only.</p>
+
+    <div id="editorLocked" class="note-box" role="alert">
+      <strong>Access restricted.</strong>
+      <span id="editorLockMsg"> Admin sign-in required to use this page.</span>
+      <button class="btn small" data-open-auth="signin">Sign in</button>
+    </div>
+
+    <form id="analysisForm" class="editor-grid" hidden>
+      <div class="field-row">
+        <div>
+          <label for="analysisDate">Date</label>
+          <input id="analysisDate" name="date" type="date" required />
+        </div>
+        <div>
+          <label for="analysisTags">Tags (comma separated)</label>
+          <input id="analysisTags" name="tags" placeholder="AI, Earnings, Value" />
+          <p class="muted-small">Used for filtering. Example: AI, Earnings, Value.</p>
+        </div>
+      </div>
+
+      <div>
+        <label for="analysisTopic">Topic</label>
+        <input id="analysisTopic" name="topic" placeholder="Reverse DCF — Company" required />
+      </div>
+
+      <div>
+        <label for="analysisConclusion">Conclusion</label>
+        <textarea id="analysisConclusion" name="conclusion" placeholder="Summarize the key takeaway." required></textarea>
+      </div>
+
+      <div>
+        <label for="analysisFindings">Key findings (one per line)</label>
+        <textarea id="analysisFindings" name="findings" placeholder="Finding #1\nFinding #2"></textarea>
+      </div>
+
+      <div>
+        <label for="analysisVisual">Visual/Table markdown</label>
+        <textarea id="analysisVisual" name="visual" placeholder="|Scenario|Rev CAGR|..."></textarea>
+      </div>
+
+      <div>
+        <label for="analysisPrompt">Prompt used (optional, debug)</label>
+        <textarea id="analysisPrompt" name="prompt" placeholder="Paste the LLM prompt for auditing"></textarea>
+      </div>
+
+      <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center">
+        <button class="btn primary" type="submit">Publish to Universe</button>
+        <button class="btn" type="button" id="resetForm">Reset</button>
+        <span id="formMsg" class="muted"></span>
+      </div>
+    </form>
+
+    <section id="recentSection" hidden>
+      <header style="display:flex;justify-content:space-between;align-items:center;gap:12px;margin:28px 0 12px">
+        <h2 style="margin:0">Recent entries</h2>
+        <button class="btn small" type="button" id="refreshRecent">Refresh</button>
+      </header>
+      <div id="recentList" class="recent-list"></div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <p>© <span id="year"></span> FutureFunds.ai — <a href="/disclaimer.html">Disclaimer</a></p>
+  </footer>
+
+  <script src="/assets/app.js" defer></script>
+  <script src="/assets/i18n.js" defer></script>
+  <script src="/assets/paywall.js" defer></script>
+  <script type="module" src="/assets/auth.js"></script>
+  <script type="module" src="/assets/editor.js"></script>
+</body>
+</html>
