@@ -361,6 +361,22 @@ body.theme-light .site-footer {
   border-color: var(--border);
 }
 
+/* Light theme navigation readability */
+body.theme-light .nav a {
+  color: var(--text);
+}
+
+body.theme-light .nav a:hover,
+body.theme-light .nav a:focus-visible {
+  color: color-mix(in srgb, var(--text) 85%, var(--accent) 15%);
+}
+
+body.theme-light .nav a.active,
+body.theme-light .nav a.active:hover,
+body.theme-light .nav a.active:focus-visible {
+  color: var(--danger);
+}
+
 /* Default buttons look like soft pills in light mode */
 body.theme-light .btn:not(.primary):not(.ghost):not(.danger) {
   background: var(--card);

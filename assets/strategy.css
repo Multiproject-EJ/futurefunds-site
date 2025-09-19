@@ -56,8 +56,8 @@ body.page-strategy .hero p{
   margin-right:auto;
 }
 
-/* Buttons – override site buttons only on this page */
-body.page-strategy .btn{
+/* Buttons – override site buttons only within page content */
+body.page-strategy main .btn{
   appearance:none;
   border:1px solid var(--line);
   background:var(--panel);
@@ -68,12 +68,12 @@ body.page-strategy .btn{
   box-shadow:var(--shadow);
   transition:.15s transform,.15s box-shadow;
 }
-body.page-strategy .btn:hover{ transform:translateY(-1px); }
-body.page-strategy .btn.primary{
+body.page-strategy main .btn:hover{ transform:translateY(-1px); }
+body.page-strategy main .btn.primary{
   background:linear-gradient(135deg,var(--accent),var(--accent-2));
   color:#001024; border:0;
 }
-body.page-strategy .btn.ghost{ background:transparent; border-color:var(--line); color:var(--ink); }
+body.page-strategy main .btn.ghost{ background:transparent; border-color:var(--line); color:var(--ink); }
 
 /* Metrics row (center the four chips) */
 body.page-strategy .tag{
