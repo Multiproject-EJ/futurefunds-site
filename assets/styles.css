@@ -113,6 +113,18 @@ body.nav-open .nav-toggle__bar::after{top:0;transform:rotate(-45deg);}
   border:none
 }
 .btn.ghost{background:transparent}
+.btn.theme-toggle{
+  display:inline-flex;
+  align-items:center;
+  gap:.35rem;
+}
+.btn.theme-toggle .theme-toggle__icon{
+  font-size:1.05em;
+  line-height:1;
+}
+.btn.theme-toggle .theme-toggle__label{
+  font-size:.85em;
+}
 
 /* Hero (base) */
 .hero{
