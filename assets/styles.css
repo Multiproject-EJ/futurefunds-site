@@ -502,6 +502,22 @@ body.theme-light .btn:not(.primary):not(.ghost):not(.danger) {
   box-shadow: var(--shadow);
 }
 
+body.theme-light .btn.primary {
+  background: var(--danger);
+  color: #fff;
+  border: none;
+  box-shadow: 0 10px 24px rgba(230, 57, 70, 0.25);
+}
+
+body.theme-light .btn.primary:hover {
+  background: color-mix(in srgb, var(--danger) 90%, #000 10%);
+}
+
+body.theme-light .btn.primary:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--danger) 70%, #fff 30%);
+  outline-offset: 4px;
+}
+
 body.theme-light .btn.danger {
   background: var(--danger);
   color: #fff;
