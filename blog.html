@@ -38,8 +38,53 @@
   </main>
 
   <footer class="site-footer">
-    <p>© <span id="year"></span> FutureFunds.ai</p>
+    <div class="footer-inner">
+      <div class="footer-col footer-about">
+        <a class="brand" href="/">
+          <img src="/images/logo.webp" alt="FutureFunds.ai logo" class="logo" />
+          <span>FutureFunds.ai</span>
+        </a>
+        <p class="muted">Researching how AI can run the investment process in public. Educational only.</p>
+      </div>
+      <div class="footer-col footer-links">
+        <h3 class="footer-heading">Explore</h3>
+        <ul class="footer-links-list">
+          <li><a href="/strategy.html">Strategy</a></li>
+          <li><a href="/tools.html">Investment Tools</a></li>
+          <li><a href="/portfolio.html">Portfolios</a></li>
+          <li><a href="/blog.html">Commentary</a></li>
+        </ul>
+      </div>
+      <div class="footer-col footer-links">
+        <h3 class="footer-heading">Legal &amp; Access</h3>
+        <ul class="footer-links-list">
+          <li><a href="/disclaimer.html">Disclaimer &amp; Disclosures</a></li>
+          <li><a href="/membership.html">Membership</a></li>
+          <li><a href="/login.html">Member Login</a></li>
+          <li><a href="/editor.html">Editor (admin)</a></li>
+        </ul>
+      </div>
+      <div class="footer-col footer-newsletter">
+        <h3 class="footer-heading">Stay in the loop</h3>
+        <p class="muted">Sign up for updates on new research drops and product releases.</p>
+        <form class="newsletter-form" novalidate>
+          <label class="sr-only" for="newsletter-email">Email address</label>
+          <input id="newsletter-email" type="email" name="email" placeholder="you@example.com" autocomplete="email" required />
+          <button type="submit" class="btn primary">Join the list</button>
+        </form>
+        <p class="newsletter-status muted" aria-live="polite"></p>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <small>© <span id="year"></span> FutureFunds.ai. Educational experiment. Not investment advice.</small>
+      <div class="footer-legal">
+        <a href="/disclaimer.html">Disclaimer</a>
+        <a href="/sitemap.xml">Sitemap</a>
+        <a href="/editor.html">Editor</a>
+      </div>
+    </div>
   </footer>
+
 
   <script src="/assets/i18n.js" defer></script>
   <script src="/assets/paywall.js" defer></script>
