@@ -9,6 +9,7 @@ const fmt = {
 
 document.addEventListener('DOMContentLoaded', () => {
   initResponsiveNav();
+  initNewsletterCapture();
   const y = $('#year'); if (y) y.textContent = new Date().getFullYear();
   renderToolsIndex();
   renderToolDetail();
@@ -62,6 +63,57 @@ function initResponsiveNav() {
   const handleMq = (e) => { if (e.matches) closeMenu(); };
   if (typeof mq.addEventListener === 'function') mq.addEventListener('change', handleMq);
   else if (typeof mq.addListener === 'function') mq.addListener(handleMq);
+}
+
+function initNewsletterCapture() {
+  const forms = $$('.newsletter-form');
+  forms.forEach((form, index) => {
+    const emailInput = form.querySelector('input[type="email"]');
+    const status = form.querySelector('.newsletter-status');
+    if (!emailInput) return;
+
+    if (status) {
+      if (!status.id) status.id = `newsletter-status-${index + 1}`;
+      emailInput.setAttribute('aria-describedby', status.id);
+    }
+
+    if (status) {
+      emailInput.addEventListener('input', () => {
+        if (!status.textContent) return;
+        status.textContent = '';
+        delete status.dataset.tone;
+      });
+    }
+
+    form.addEventListener('submit', (event) => {
+      event.preventDefault();
+      if (status) {
+        status.textContent = '';
+        delete status.dataset.tone;
+      }
+
+      const email = emailInput.value.trim();
+      emailInput.value = email;
+
+      const isValid = email && (!emailInput.checkValidity || emailInput.checkValidity());
+      if (!isValid) {
+        if (status) {
+          status.dataset.tone = 'error';
+          status.textContent = 'Please enter a valid email address.';
+        }
+        if (typeof emailInput.reportValidity === 'function') emailInput.reportValidity();
+        else emailInput.focus();
+        return;
+      }
+
+      if (status) {
+        status.dataset.tone = 'success';
+        status.textContent = 'Thanks! You\'re on the list.';
+      }
+
+      form.reset();
+    });
+  });
 }
 
 /* =========================================
