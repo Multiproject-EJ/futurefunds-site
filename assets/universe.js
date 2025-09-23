@@ -71,6 +71,7 @@ async function UniversePage() {
       key_findings: Array.isArray(row.key_findings) ? row.key_findings : [],
       visual_table_md: row.visual_table_md || '',
       conclusion: row.conclusion || '',
+      analysis_markdown: row.analysis_markdown || row.analysis_full_md || row.analysis_full || '',
       tags: Array.isArray(row.tags) ? row.tags : Array.isArray(row.tags?.array) ? row.tags.array : [],
       created_at: row.created_at || null,
     };
@@ -154,10 +155,19 @@ async function UniversePage() {
       .map((row) => {
         const findings = (row.key_findings || []).slice(0, 6).map((item) => `• ${escapeHtml(item)}`).join('<br>');
         const tags = (row.tags || []).map((tag) => `<span class="tag">${escapeHtml(tag)}</span>`).join('');
+        const rowKey = row.date + '|' + row.topic;
+        const readLink = row.analysis_markdown
+          ? `<button type="button" class="link-btn" data-action="full" data-row-id="${escapeHtml(rowKey)}">Read full analysis</button>`
+          : '';
         return `
-          <tr data-id="${escapeHtml(row.date + '|' + row.topic)}">
+          <tr data-id="${escapeHtml(rowKey)}">
             <td>${escapeHtml(row.date)}</td>
-            <td>${escapeHtml(row.topic)}</td>
+            <td>
+              <div class="topic-cell">
+                <div class="topic-cell__title">${escapeHtml(row.topic)}</div>
+                ${readLink}
+              </div>
+            </td>
             <td>${findings}</td>
             <td><pre style="white-space:pre-wrap;margin:0">${escapeHtml(row.visual_table_md || '')}</pre></td>
             <td>${escapeHtml(row.conclusion || '')}</td>
@@ -196,17 +206,50 @@ async function UniversePage() {
 
     tbody.innerHTML = rows.join('');
 
+    tbody.querySelectorAll('button[data-action="full"]').forEach((btn) => {
+      btn.addEventListener('click', (event) => {
+        event.stopPropagation();
+        const id = btn.getAttribute('data-row-id');
+        const row = state.filtered.find((r) => r.date + '|' + r.topic === id);
+        if (!row) return;
+        openModal(row, 'full');
+      });
+    });
+
     tbody.querySelectorAll('tr[data-id]').forEach((tr) => {
       tr.addEventListener('click', () => {
         const id = tr.getAttribute('data-id');
         const row = state.filtered.find((r) => r.date + '|' + r.topic === id);
         if (!row) return;
-        openModal(row);
+        openModal(row, 'summary');
       });
     });
   }
 
-  function openModal(row) {
+  function openModal(row, mode = 'summary') {
+    if (mode === 'full' && row.analysis_markdown) {
+      mTitle.textContent = `${row.topic || 'Details'} — Full analysis`;
+      mBody.innerHTML = renderFullAnalysis(row);
+      modal.style.display = 'flex';
+      const copyFull = $('#copyFull');
+      if (copyFull) {
+        copyFull.addEventListener('click', async () => {
+          try {
+            await navigator.clipboard.writeText(row.analysis_markdown || '');
+            toast('Analysis copied');
+          } catch (err) {
+            console.warn('Clipboard error', err);
+            toast('Unable to copy', true);
+          }
+        });
+      }
+      const backBtn = $('#backToSummary');
+      if (backBtn) {
+        backBtn.addEventListener('click', () => openModal(row, 'summary'));
+      }
+      return;
+    }
+
     mTitle.textContent = row.topic || 'Details';
     mBody.innerHTML = `
       <div style="display:grid;gap:12px">
@@ -215,7 +258,10 @@ async function UniversePage() {
         <div><strong>Key Findings:</strong><br>${(row.key_findings || []).map((item) => `• ${escapeHtml(item)}`).join('<br>')}</div>
         <div><strong>Visual/Table (markdown):</strong>
           <pre style="white-space:pre-wrap">${escapeHtml(row.visual_table_md || '')}</pre>
-          <button id="copyMd" class="btn" style="margin-top:6px;padding:8px 10px;border:1px solid var(--border);border-radius:10px;background:var(--panel)">Copy markdown</button>
+          <div class="modal-actions">
+            <button id="copyMd" class="btn" style="padding:8px 10px;border:1px solid var(--border);border-radius:10px;background:var(--panel)">Copy markdown</button>
+            ${row.analysis_markdown ? '<button id="viewFullAnalysis" class="btn ghost" type="button">Read full analysis</button>' : ''}
+          </div>
         </div>
         <details>
           <summary class="kbd">Prompt used (debug)</summary>
@@ -223,15 +269,34 @@ async function UniversePage() {
         </details>
       </div>`;
     modal.style.display = 'flex';
-    $('#copyMd').addEventListener('click', async () => {
-      try {
-        await navigator.clipboard.writeText(row.visual_table_md || '');
-        toast('Markdown copied');
-      } catch (err) {
-        console.warn('Clipboard error', err);
-        toast('Unable to copy', true);
-      }
-    });
+    const copyBtn = $('#copyMd');
+    if (copyBtn) {
+      copyBtn.addEventListener('click', async () => {
+        try {
+          await navigator.clipboard.writeText(row.visual_table_md || '');
+          toast('Markdown copied');
+        } catch (err) {
+          console.warn('Clipboard error', err);
+          toast('Unable to copy', true);
+        }
+      });
+    }
+    const viewFullBtn = $('#viewFullAnalysis');
+    if (viewFullBtn) {
+      viewFullBtn.addEventListener('click', () => openModal(row, 'full'));
+    }
+  }
+
+  function renderFullAnalysis(row) {
+    return `
+      <div class="analysis-full">
+        <div class="analysis-full__meta"><strong>Date:</strong> ${escapeHtml(row.date || '')}</div>
+        <pre class="analysis-full__body">${escapeHtml(row.analysis_markdown || '')}</pre>
+        <div class="modal-actions">
+          <button id="copyFull" class="btn" type="button" style="padding:8px 10px;border:1px solid var(--border);border-radius:10px;background:var(--panel)">Copy analysis</button>
+          <button id="backToSummary" class="btn ghost" type="button">Back to summary</button>
+        </div>
+      </div>`;
   }
 
   function closeModal() {

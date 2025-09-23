@@ -21,6 +21,22 @@
     .recent-card h3{margin:0 0 6px}
     .recent-card .tags{margin-top:6px}
     .note-box button{margin-left:10px}
+    .analysis-source{border:1px solid var(--border,#e5e7eb);border-radius:16px;padding:16px;background:var(--panel,#fff);display:grid;gap:14px}
+    .analysis-source__head{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between}
+    .analysis-source__modes{display:flex;gap:8px;flex-wrap:wrap}
+    .analysis-mode-btn{border:1px solid var(--border,#e5e7eb);background:transparent;color:var(--muted,#64748b);padding:8px 12px;border-radius:999px;font-size:.85rem;cursor:pointer;transition:border-color .15s ease,background .15s ease,color .15s ease}
+    .analysis-mode-btn.active{background:var(--accent,#2563eb);color:#fff;border-color:var(--accent,#2563eb)}
+    .analysis-mode-btn:not(.active):hover{border-color:var(--accent,#2563eb);color:var(--accent,#2563eb)}
+    .analysis-source__panel{display:grid;gap:12px}
+    .analysis-source textarea{min-height:200px}
+    .analysis-source__actions{display:flex;flex-wrap:wrap;align-items:center;gap:10px}
+    .analysis-status[data-tone="error"]{color:var(--danger,#ff6b6b)}
+    .analysis-status[data-tone="success"]{color:var(--ok,#31d0a3)}
+    .analysis-status[data-tone="info"]{color:var(--muted,#64748b)}
+    .analysis-source__panel-note{color:var(--muted,#64748b);font-size:.85rem;margin:0}
+    .analysis-ai-grid{display:grid;gap:12px}
+    .analysis-ai-grid .field-row{margin:0}
+    .analysis-ai-grid textarea{min-height:100px}
   </style>
 </head>
 <body>
@@ -59,6 +75,61 @@
     </div>
 
     <form id="analysisForm" class="editor-grid" hidden>
+      <section class="analysis-source">
+        <div class="analysis-source__head">
+          <label for="analysisRaw" style="margin:0;font-weight:600">Analysis input</label>
+          <div class="analysis-source__modes" role="tablist">
+            <button type="button" class="analysis-mode-btn active" data-analysis-mode="manual">Paste analysis</button>
+            <button type="button" class="analysis-mode-btn" data-analysis-mode="ai">Generate via AI</button>
+          </div>
+        </div>
+        <div class="analysis-source__panel" data-panel="manual">
+          <p class="analysis-source__panel-note">Paste the full master analysis markdown below, then parse it to fill the fields automatically.</p>
+        </div>
+        <div class="analysis-source__panel analysis-ai-grid" data-panel="ai" hidden>
+          <div class="field-row">
+            <div>
+              <label for="aiTicker">Ticker</label>
+              <input id="aiTicker" placeholder="INSM" autocomplete="off" />
+            </div>
+            <div>
+              <label for="aiCompany">Company</label>
+              <input id="aiCompany" placeholder="Insmed Incorporated" autocomplete="off" />
+            </div>
+            <div>
+              <label for="aiExchange">Exchange</label>
+              <input id="aiExchange" placeholder="NASDAQ" autocomplete="off" />
+            </div>
+          </div>
+          <div class="field-row">
+            <div>
+              <label for="aiModel">Model</label>
+              <input id="aiModel" placeholder="openrouter/auto" autocomplete="off" />
+              <p class="muted-small">Defaults to your preferred OpenRouter model.</p>
+            </div>
+            <div>
+              <label for="aiKey">AI API key</label>
+              <input id="aiKey" type="password" placeholder="Paste your OpenRouter key" autocomplete="off" />
+              <p class="muted-small">Stored locally in this browser.</p>
+            </div>
+          </div>
+          <div>
+            <label for="aiNotes">Angle or extra guidance (optional)</label>
+            <textarea id="aiNotes" placeholder="Key catalysts, data points or tone adjustments"></textarea>
+          </div>
+          <div class="analysis-source__actions">
+            <button type="button" class="btn primary" id="generateAnalysis">Generate analysis</button>
+            <span class="muted-small">The generated report fills the box below.</span>
+          </div>
+        </div>
+        <textarea id="analysisRaw" name="analysis_raw" placeholder="Paste the MASTER STOCK ANALYSIS markdown output here"></textarea>
+        <div class="analysis-source__actions">
+          <button type="button" class="btn" id="parseAnalysis">Parse analysis into fields</button>
+          <button type="button" class="btn ghost" id="clearAnalysis">Clear</button>
+          <span id="analysisStatus" class="analysis-status muted-small" role="status"></span>
+        </div>
+      </section>
+
       <div class="field-row">
         <div>
           <label for="analysisDate">Date</label>
