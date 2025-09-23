@@ -116,6 +116,23 @@ function ensureModalMounted() {
             </div>
           </section>
         </div>
+        <aside class="auth-benefits">
+          <h4 class="auth-benefits__title" data-i18n="membership.perks.title">Member perks &amp; pricing</h4>
+          <p class="auth-benefits__intro muted" data-i18n="membership.perks.subhead">Support the experiment and unlock every research drop.</p>
+          <ul class="perks-list">
+            <li data-i18n="membership.perks.list.analysis">Full Universe AI analysis library (deep research).</li>
+            <li data-i18n="membership.perks.list.portfolios">See every live portfolio and rebalance log.</li>
+            <li data-i18n="membership.perks.list.updates">Receive detailed quarterly strategy updates.</li>
+            <li data-i18n="membership.perks.list.tools">Use the Smart Watchlist and other investor tools for free.</li>
+            <li data-i18n="membership.perks.list.discount">50% off future investor tool bundles.</li>
+            <li data-i18n="membership.perks.list.feedback">Shape the roadmap via the member Strategy Document.</li>
+          </ul>
+          <p class="auth-benefits__price" data-i18n="membership.perks.price">Membership starts at $5/mo via Patreon.</p>
+          <div class="auth-benefits__actions">
+            <button class="btn primary" type="button" data-open-auth="signup" data-i18n="membership.perks.ctaJoin">Join now</button>
+            <button class="btn ghost" type="button" data-open-auth="signin" data-i18n="membership.perks.ctaSignIn">Already a member? Sign in</button>
+          </div>
+        </aside>
         <p id="authMsg" class="auth-msg" role="status"></p>
       </div>
     </div>

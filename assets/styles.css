@@ -279,6 +279,60 @@ body.nav-open .nav-toggle__bar::after{top:0;transform:rotate(-45deg);}
 }
 .card h3{margin:.2rem 0 .35rem}
 
+.perks-list{
+  list-style:none;
+  margin:1rem 0;
+  padding:0;
+  display:grid;
+  gap:.6rem
+}
+.perks-list li{
+  position:relative;
+  padding-left:1.6rem;
+  line-height:1.55
+}
+.perks-list li::before{
+  content:"✓";
+  position:absolute;
+  left:0;
+  top:.15rem;
+  font-weight:700;
+  color:var(--ok)
+}
+
+.membership-offer{padding-top:0}
+.membership-callout{
+  display:grid;
+  gap:1rem;
+  background:color-mix(in srgb,var(--card) 92%,#1b2b6a 8%);
+  border-color:color-mix(in srgb,#5af 32%,#1a2147 68%);
+  box-shadow:0 18px 40px rgba(5,11,32,.45)
+}
+.membership-callout h2{
+  margin:0;
+  font-size:1.8rem;
+  letter-spacing:.01em
+}
+.membership-callout > .muted{margin:0;max-width:52ch}
+.membership-footer{
+  display:grid;
+  gap:.85rem
+}
+.membership-price{
+  margin:0;
+  font-weight:600;
+  color:color-mix(in srgb,var(--muted) 80%,#fff 20%)
+}
+.membership-ctas{
+  display:flex;
+  gap:.75rem;
+  flex-wrap:wrap
+}
+.membership-ctas .btn{
+  flex:1 1 220px;
+  text-align:center
+}
+
 /* Chips / status */
 .chips{display:flex;gap:.4rem;flex-wrap:wrap;margin:.5rem 0}
 .chip{
@@ -759,6 +813,33 @@ body.theme-light table.grid pre{
 .auth-msg{min-height:1.2rem;margin-top:8px;font-size:.9rem;color:var(--muted,#64748b)}
 .auth-msg[data-tone="error"]{color:var(--danger,#ff6b6b)}
 .auth-msg[data-tone="success"]{color:var(--ok,#31d0a3)}
+.auth-benefits{
+  margin-top:1.5rem;
+  border:1px solid color-mix(in srgb,var(--border,#1a2147) 70%,#5af 30%);
+  border-radius:12px;
+  padding:1.2rem 1.3rem;
+  background:color-mix(in srgb,var(--card,#121733) 94%,#1b2b6a 6%);
+  display:grid;
+  gap:.8rem
+}
+.auth-benefits .perks-list{margin:.3rem 0 .2rem;gap:.55rem}
+.auth-benefits .perks-list li{padding-left:1.4rem}
+.auth-benefits__title{margin:0;font-size:1.1rem}
+.auth-benefits__intro{margin:0}
+.auth-benefits__price{
+  margin:0;
+  font-weight:600;
+  color:color-mix(in srgb,var(--muted,#64748b) 80%,#fff 20%)
+}
+.auth-benefits__actions{
+  display:flex;
+  flex-wrap:wrap;
+  gap:.6rem
+}
+.auth-benefits__actions .btn{
+  flex:1 1 160px;
+  text-align:center
+}
 .auth-profile{display:grid;gap:14px}
 .auth-welcome strong{color:var(--text)}
 .auth-membership-card{border:1px solid var(--border,#e6e9ee);border-radius:12px;padding:14px;background:color-mix(in oklab,var(--card,#fff),#fff 4%);display:grid;gap:6px}
