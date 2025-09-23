@@ -29,5 +29,16 @@
   "support.paid.h": "Paid Tools",
   "support.paid.b": "One-time purchase or included after 24 months on Patreon (email us to unlock).",
   "tools.title": "Tools",
-  "tools.back": "← All tools"
+  "tools.back": "← All tools",
+  "membership.perks.title": "Member perks &amp; pricing",
+  "membership.perks.subhead": "Support the experiment and unlock every research drop.",
+  "membership.perks.list.analysis": "Full Universe AI analysis library (deep research).",
+  "membership.perks.list.portfolios": "See every live portfolio and rebalance log.",
+  "membership.perks.list.updates": "Receive detailed quarterly strategy updates.",
+  "membership.perks.list.tools": "Use the Smart Watchlist and other investor tools for free.",
+  "membership.perks.list.discount": "50% off future investor tool bundles.",
+  "membership.perks.list.feedback": "Shape the roadmap via the member Strategy Document.",
+  "membership.perks.price": "Membership starts at $5/mo via Patreon.",
+  "membership.perks.ctaJoin": "Join now",
+  "membership.perks.ctaSignIn": "Already a member? Sign in"
 }
