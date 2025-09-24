@@ -2,6 +2,76 @@
 import { supabase } from './supabase.js';
 import { requireRole, onAuthReady, getAccountState } from './auth.js';
 
+const PROMPT_TABLE = 'editor_prompts';
+const MODEL_TABLE = 'editor_models';
+
+const DEFAULT_PROMPTS = [
+  {
+    id: 'quick-assessment',
+    name: 'Quick assessment',
+    description: 'High-level scan to see if the stock merits more work.',
+    prompt_text: String.raw`You are the FutureFunds.ai research analyst. Produce a concise INVESTMENT SNAPSHOT for {{company_line}}.
+
+Deliverables:
+1. One short paragraph describing the setup, momentum and why the stock is on the radar.
+2. Markdown table titled "Fast Verdict" with columns Metric | Score (/10) | Rationale for Risk, Quality and Timing.
+3. Bullet list with the three most important catalysts or red flags (mix of positives/negatives as appropriate).
+4. Final line starting with "Overall verdict:" that clearly states Interesting / Monitor / Pass.
+
+Stay under 250 words, be decisive and actionable.{{notes_block}}
+
+Return only Markdown.`,
+  },
+  {
+    id: 'deep-research',
+    name: 'Deep research master analysis',
+    description: 'Full MASTER STOCK ANALYSIS structure with valuation tables.',
+    prompt_text: String.raw`You are the FutureFunds.ai research analyst. Produce a MASTER STOCK ANALYSIS (Markdown-Table Edition) for {{company}} (Ticker: {{ticker}}{{exchange_suffix}}). Match the structure of the reference template exactly.
+
+Follow this order and formatting:
+1. Intro sentence: "Below is a MASTER STOCK ANALYSIS (Markdown-Table Edition) for {{company}} (Ticker: {{ticker}}{{exchange_suffix}}) — ..." with a short rationale.
+2. Insert a line containing only ⸻ between every major section.
+3. Section A. One-Liner Summary — Markdown table with columns Ticker | Risk | Quality | Timing | Composite Score (/10).
+4. Section B. Final Verdicts — One Line — list Risk, Quality, Timing values.
+5. Section C. Standardized Scorecard — One Line — Markdown table with the six specified metrics.
+6. Section D. Valuation Ranges — provide USD bear/base/bull table and paragraph with NOK conversions.
+7. Narrative section — short paragraph plus bullet list of pricing, market cap, revenue, catalysts.
+8. Sections 1 through 5 with the same headings (Downside & Risk Analysis; Business Model & Growth Opportunities; Scenario Analysis (include Markdown table with Bear/Base/Bull rows and valuation ranges); Valuation Analysis; Timing & Market Momentum). Use concise bullet points with data.
+9. Section 6. Final Conclusions — bullet lines for Risk, Quality, Timing plus an "Overall Verdict" sentence.
+10. Finish with a note paragraph starting with 🚩 Note:.
+
+Requirements:
+- Use realistic figures and ratings based on the latest publicly available information and reasonable assumptions.
+- Keep bullet points sharp and decision-oriented.
+- Ensure Markdown tables use pipes and render cleanly.
+- Maintain the same tone as the template (professional, catalyst-aware).{{notes_block}}
+
+Return only the Markdown content.`,
+  },
+  {
+    id: 'company-drilldown',
+    name: 'Company deep dive',
+    description: 'Emphasises business model, moat and forward roadmap.',
+    prompt_text: String.raw`You are the FutureFunds.ai research analyst. Prepare a COMPANY DEEP DIVE briefing on {{company_line}}.
+
+Structure the output in Markdown:
+- Opening paragraph summarising the company, current sentiment and why it matters now.
+- "Why it wins" section with bullets on moat, product edge and customer adoption.
+- "Key numbers" Markdown table with Revenue (latest FY), YoY Growth %, Gross Margin %, EBITDA Margin %, Net Cash/(Debt), Market Cap.
+- "Forward roadmap" bullet list covering catalysts in the next 12-24 months (product, regulatory, capital markets).
+- "Risks we're tracking" bullet list with mitigation notes.
+- Closing line beginning "Investment stance:" that states Buy / Watch / Avoid with a one-sentence justification.{{notes_block}}
+
+Keep it crisp, factual and focused on what an investment committee needs.`,
+  },
+];
+
+const DEFAULT_MODELS = [
+  { value: 'openrouter/auto', label: 'OpenRouter Auto', is_default: true },
+  { value: 'openai/gpt-4.1-mini', label: 'OpenAI GPT-4.1 Mini' },
+  { value: 'anthropic/claude-3.5-sonnet', label: 'Anthropic Claude 3.5 Sonnet' },
+];
+
 document.addEventListener('DOMContentLoaded', () => {
   initEditor().catch((err) => console.error('Editor init error', err));
 });
@@ -34,9 +104,27 @@ async function initEditor() {
   const aiNotes = document.getElementById('aiNotes');
   const aiKey = document.getElementById('aiKey');
   const aiModel = document.getElementById('aiModel');
+  const promptSelectBtn = document.getElementById('promptSelectBtn');
+  const promptSelectLabel = document.getElementById('promptSelectLabel');
+  const promptMenu = document.getElementById('promptMenu');
+  const promptSummary = document.getElementById('promptSummary');
+  const promptPreview = document.getElementById('promptPreview');
+  const editModelBtn = document.getElementById('editModelList');
+  const modelEditor = document.getElementById('modelEditor');
+  const modelEditorInput = document.getElementById('modelEditorInput');
+  const modelEditorStatus = document.getElementById('modelEditorStatus');
+  const saveModelBtn = document.getElementById('saveModelList');
+  const cancelModelBtn = document.getElementById('cancelModelList');
 
   const AI_KEY_STORAGE = 'ff-editor-ai-key';
   const AI_MODEL_STORAGE = 'ff-editor-ai-model';
+  const AI_PROMPT_STORAGE = 'ff-editor-ai-prompt';
+
+  let promptOptions = [];
+  let modelOptions = [];
+  let selectedPrompt = null;
+  let desiredPromptId = null;
+  let desiredModelValue = null;
 
   if (!form || !locked) return;
 
@@ -66,6 +154,9 @@ async function initEditor() {
         panel.hidden = mode !== 'manual';
       }
     });
+    if (mode !== 'ai') {
+      closePromptMenu();
+    }
   };
 
   const loadAiConfig = () => {
@@ -77,13 +168,18 @@ async function initEditor() {
         aiKey.value = '';
       }
     }
-    if (aiModel) {
-      try {
-        const stored = localStorage.getItem(AI_MODEL_STORAGE) || 'openrouter/auto';
-        aiModel.value = stored || 'openrouter/auto';
-      } catch {
-        aiModel.value = 'openrouter/auto';
-      }
+    try {
+      desiredModelValue = localStorage.getItem(AI_MODEL_STORAGE) || null;
+    } catch {
+      desiredModelValue = null;
+    }
+    if (!desiredModelValue) {
+      desiredModelValue = 'openrouter/auto';
+    }
+    try {
+      desiredPromptId = localStorage.getItem(AI_PROMPT_STORAGE) || null;
+    } catch {
+      desiredPromptId = null;
     }
   };
 
@@ -96,11 +192,313 @@ async function initEditor() {
       }
       if (aiModel) {
         const value = (aiModel.value || '').trim();
+        desiredModelValue = value || null;
         if (value) localStorage.setItem(AI_MODEL_STORAGE, value);
         else localStorage.removeItem(AI_MODEL_STORAGE);
       }
+      if (selectedPrompt?.id) {
+        localStorage.setItem(AI_PROMPT_STORAGE, selectedPrompt.id);
+      } else {
+        localStorage.removeItem(AI_PROMPT_STORAGE);
+      }
     } catch (err) {
       console.warn('AI config storage error', err);
+    }
+  };
+
+  const renderPromptMenu = () => {
+    if (!promptMenu) return;
+    if (!promptOptions.length) {
+      promptMenu.innerHTML = '<p class="muted-small" style="margin:4px 8px;">No prompts configured.</p>';
+      return;
+    }
+    promptMenu.innerHTML = promptOptions
+      .map((opt) => {
+        const active = selectedPrompt?.id === opt.id ? 'active' : '';
+        const description = opt.description ? `<span>${escapeHtml(opt.description)}</span>` : '';
+        const label = escapeHtml(opt.name || 'Prompt');
+        const id = escapeHtml(opt.id || '');
+        return `<button type="button" data-prompt-id="${id}" class="${active}"><strong>${label}</strong>${description}</button>`;
+      })
+      .join('');
+  };
+
+  const updatePromptUI = () => {
+    if (promptSelectLabel) {
+      promptSelectLabel.textContent = selectedPrompt ? selectedPrompt.name : 'Select prompt';
+    } else if (promptSelectBtn) {
+      promptSelectBtn.textContent = selectedPrompt ? `${selectedPrompt.name} ▾` : 'Select prompt ▾';
+    }
+    if (promptSummary) {
+      if (!promptOptions.length) {
+        promptSummary.textContent = 'No prompts found. Add templates in Supabase.';
+      } else if (selectedPrompt) {
+        promptSummary.textContent = selectedPrompt.description || 'Ready to generate with this prompt.';
+      } else {
+        promptSummary.textContent = 'Choose which template to run when generating analysis.';
+      }
+    }
+    if (promptPreview) {
+      if (selectedPrompt?.prompt_text) {
+        promptPreview.hidden = false;
+        promptPreview.textContent = selectedPrompt.prompt_text.trim();
+      } else {
+        promptPreview.hidden = true;
+        promptPreview.textContent = '';
+      }
+    }
+    renderPromptMenu();
+  };
+
+  const closePromptMenu = () => {
+    if (promptMenu) promptMenu.hidden = true;
+    if (promptSelectBtn) promptSelectBtn.setAttribute('aria-expanded', 'false');
+  };
+
+  const openPromptMenu = () => {
+    if (!promptMenu) return;
+    renderPromptMenu();
+    promptMenu.hidden = false;
+    if (promptSelectBtn) promptSelectBtn.setAttribute('aria-expanded', 'true');
+  };
+
+  const setSelectedPrompt = (id, { persist = true } = {}) => {
+    const next = promptOptions.find((opt) => opt.id === id) || null;
+    selectedPrompt = next;
+    desiredPromptId = next?.id || null;
+    updatePromptUI();
+    if (persist) persistAiConfig();
+  };
+
+  const fetchPromptTemplates = async () => {
+    try {
+      const { data, error } = await supabase.from(PROMPT_TABLE).select('*');
+      if (error) throw error;
+      const rows = Array.isArray(data) ? data : [];
+      const items = rows
+        .map((row) => {
+          const promptId = row.id || row.slug || slugify(row.name || row.title || '');
+          const promptText = row.prompt_text || row.template || row.body || '';
+          const archived = row.archived ?? row.disabled ?? false;
+          return {
+            id: promptId || slugify(`prompt-${row.name || row.slug || Math.random()}`),
+            name: row.name || row.title || row.slug || 'Prompt',
+            description: row.description || row.summary || '',
+            prompt_text: promptText,
+            sort_order: Number.isFinite(row.sort_order) ? row.sort_order : Number.parseInt(row.sort_order, 10),
+            is_default: Boolean(row.is_default || row.default_prompt),
+            archived: Boolean(archived),
+          };
+        })
+        .filter((item) => (item.prompt_text || '').trim());
+      const active = items.filter((item) => !item.archived);
+      active.sort((a, b) => {
+        const orderA = Number.isFinite(a.sort_order) ? a.sort_order : 999;
+        const orderB = Number.isFinite(b.sort_order) ? b.sort_order : 999;
+        if (orderA !== orderB) return orderA - orderB;
+        return (a.name || '').localeCompare(b.name || '');
+      });
+      if (active.length) return active;
+    } catch (error) {
+      console.warn('Prompt load error', error);
+    }
+    return DEFAULT_PROMPTS;
+  };
+
+  const applyPromptOptions = (options = []) => {
+    promptOptions = options;
+    if (!promptOptions.length) {
+      selectedPrompt = null;
+      updatePromptUI();
+      return;
+    }
+    const preferred =
+      promptOptions.find((opt) => opt.id === desiredPromptId) ||
+      promptOptions.find((opt) => opt.is_default) ||
+      promptOptions[0];
+    if (preferred) {
+      setSelectedPrompt(preferred.id, { persist: false });
+    } else {
+      selectedPrompt = null;
+      updatePromptUI();
+    }
+  };
+
+  const refreshPromptOptions = async () => {
+    if (promptSummary) promptSummary.textContent = 'Loading prompts…';
+    const options = await fetchPromptTemplates();
+    applyPromptOptions(options);
+    if (promptSummary && !options.length) {
+      promptSummary.textContent = 'No prompts found. Add templates in Supabase.';
+    }
+  };
+
+  const fetchModelOptions = async () => {
+    try {
+      const { data, error } = await supabase.from(MODEL_TABLE).select('*');
+      if (error) throw error;
+      const rows = Array.isArray(data) ? data : [];
+      const items = rows
+        .map((row) => {
+          const value = (row.value || row.id || '').toString().trim();
+          const archived = row.archived ?? row.disabled ?? false;
+          return {
+            id: row.id || value,
+            value,
+            label: row.label || row.name || value,
+            sort_order: Number.isFinite(row.sort_order) ? row.sort_order : Number.parseInt(row.sort_order, 10),
+            is_default: Boolean(row.is_default || row.default_model),
+            archived: Boolean(archived),
+          };
+        })
+        .filter((item) => item.value);
+      const active = items.filter((item) => !item.archived);
+      active.sort((a, b) => {
+        const orderA = Number.isFinite(a.sort_order) ? a.sort_order : 999;
+        const orderB = Number.isFinite(b.sort_order) ? b.sort_order : 999;
+        if (orderA !== orderB) return orderA - orderB;
+        return (a.label || '').localeCompare(b.label || '');
+      });
+      if (active.length) return active;
+    } catch (error) {
+      console.warn('Model load error', error);
+    }
+    return DEFAULT_MODELS;
+  };
+
+  const applyModelOptions = (options = []) => {
+    modelOptions = options;
+    if (!aiModel) return;
+    aiModel.innerHTML = '';
+    if (!options.length) {
+      const opt = document.createElement('option');
+      opt.value = '';
+      opt.textContent = 'No models available';
+      aiModel.appendChild(opt);
+      aiModel.disabled = true;
+      return;
+    }
+    aiModel.disabled = false;
+    options.forEach((option) => {
+      const opt = document.createElement('option');
+      opt.value = option.value;
+      opt.textContent = option.label || option.value;
+      aiModel.appendChild(opt);
+    });
+    const fallback =
+      (desiredModelValue && options.find((opt) => opt.value === desiredModelValue)?.value) ||
+      options.find((opt) => opt.is_default)?.value ||
+      options[0]?.value || '';
+    if (fallback) {
+      aiModel.value = fallback;
+      desiredModelValue = fallback;
+    }
+  };
+
+  const refreshModelOptions = async () => {
+    if (aiModel) {
+      aiModel.innerHTML = '<option value="">Loading…</option>';
+      aiModel.disabled = true;
+    }
+    const options = await fetchModelOptions();
+    applyModelOptions(options);
+  };
+
+  const openModelEditor = () => {
+    if (!modelEditor || !modelEditorInput) return;
+    if (!modelOptions.length) modelOptions = DEFAULT_MODELS.slice();
+    modelEditor.hidden = false;
+    modelEditorInput.value = modelOptions.map((opt) => `${opt.value} | ${opt.label}`).join('\n');
+    if (modelEditorStatus) {
+      modelEditorStatus.textContent = '';
+      modelEditorStatus.dataset.tone = '';
+    }
+  };
+
+  const closeModelEditor = () => {
+    if (modelEditor) modelEditor.hidden = true;
+    if (modelEditorStatus) {
+      modelEditorStatus.textContent = '';
+      modelEditorStatus.dataset.tone = '';
+    }
+  };
+
+  const parseModelListInput = () => {
+    if (!modelEditorInput) return [];
+    const lines = (modelEditorInput.value || '')
+      .split('
+')
+      .map((line) => line.trim())
+      .filter(Boolean);
+    if (!lines.length) throw new Error('Add at least one model option.');
+    return lines.map((line, index) => {
+      const [valuePart, labelPart] = line.split('|');
+      const value = (valuePart || '').trim();
+      const label = (labelPart || '').trim() || value;
+      if (!value) throw new Error(`Missing model identifier on line ${index + 1}.`);
+      return { value, label, sort_order: index + 1, is_default: index === 0 };
+    });
+  };
+
+  const syncModelOptions = async (list) => {
+    try {
+      const { data: existing } = await supabase.from(MODEL_TABLE).select('value');
+      const existingValues = Array.isArray(existing) ? existing.map((item) => item.value) : [];
+      const newValues = list.map((item) => item.value);
+      const toArchive = existingValues.filter((value) => !newValues.includes(value));
+      if (toArchive.length) {
+        try {
+          await supabase.from(MODEL_TABLE).update({ archived: true }).in('value', toArchive);
+        } catch (archiveError) {
+          console.warn('Model archive error', archiveError);
+        }
+      }
+      const payload = list.map((item, index) => ({
+        value: item.value,
+        label: item.label,
+        sort_order: index + 1,
+        is_default: index === 0,
+        archived: false,
+      }));
+      const { error } = await supabase.from(MODEL_TABLE).upsert(payload, { onConflict: 'value' });
+      if (error) throw error;
+      return payload;
+    } catch (error) {
+      throw error;
+    }
+  };
+
+  const saveModelList = async () => {
+    let parsed;
+    try {
+      parsed = parseModelListInput();
+    } catch (err) {
+      if (modelEditorStatus) {
+        modelEditorStatus.textContent = err.message || 'Unable to parse models.';
+        modelEditorStatus.dataset.tone = 'error';
+      }
+      return;
+    }
+    if (modelEditorStatus) {
+      modelEditorStatus.textContent = 'Saving…';
+      modelEditorStatus.dataset.tone = 'info';
+    }
+    try {
+      await syncModelOptions(parsed);
+      modelOptions = parsed;
+      applyModelOptions(modelOptions);
+      persistAiConfig();
+      if (modelEditorStatus) {
+        modelEditorStatus.textContent = 'Model list updated.';
+        modelEditorStatus.dataset.tone = 'success';
+      }
+      setTimeout(() => closeModelEditor(), 800);
+    } catch (error) {
+      console.error('Model save error', error);
+      if (modelEditorStatus) {
+        modelEditorStatus.textContent = error.message || 'Unable to save models.';
+        modelEditorStatus.dataset.tone = 'error';
+      }
     }
   };
 
@@ -141,7 +539,61 @@ async function initEditor() {
     ['change', 'blur'].forEach((evt) => aiKey.addEventListener(evt, persistAiConfig));
   }
   if (aiModel) {
-    ['change', 'blur'].forEach((evt) => aiModel.addEventListener(evt, persistAiConfig));
+    aiModel.addEventListener('change', () => {
+      persistAiConfig();
+    });
+  }
+
+  if (promptSelectBtn) {
+    promptSelectBtn.addEventListener('click', async () => {
+      if (!promptOptions.length) {
+        await refreshPromptOptions();
+      }
+      const hidden = promptMenu?.hidden ?? true;
+      if (hidden) openPromptMenu();
+      else closePromptMenu();
+    });
+  }
+
+  if (promptMenu) {
+    promptMenu.addEventListener('click', (event) => {
+      const target = event.target.closest('[data-prompt-id]');
+      if (!target) return;
+      event.preventDefault();
+      const id = target.getAttribute('data-prompt-id');
+      if (id) setSelectedPrompt(id);
+      closePromptMenu();
+    });
+  }
+
+  document.addEventListener('click', (event) => {
+    if (!promptMenu || promptMenu.hidden) return;
+    if (promptSelectBtn && (promptSelectBtn === event.target || promptSelectBtn.contains(event.target))) return;
+    if (promptMenu.contains(event.target)) return;
+    closePromptMenu();
+  });
+
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') closePromptMenu();
+  });
+
+  if (editModelBtn) {
+    editModelBtn.addEventListener('click', () => {
+      if (modelEditor?.hidden) openModelEditor();
+      else closeModelEditor();
+    });
+  }
+
+  if (cancelModelBtn) {
+    cancelModelBtn.addEventListener('click', () => {
+      closeModelEditor();
+    });
+  }
+
+  if (saveModelBtn) {
+    saveModelBtn.addEventListener('click', () => {
+      saveModelList();
+    });
   }
 
   if (parseBtn && analysisRaw) {
@@ -170,19 +622,43 @@ async function initEditor() {
       const exchange = (aiExchange?.value || '').trim();
       const notes = (aiNotes?.value || '').trim();
       const apiKey = (aiKey?.value || '').trim();
-      const model = (aiModel?.value || '').trim() || 'openrouter/auto';
+      const model = (aiModel?.value || '').trim() || desiredModelValue || 'openrouter/auto';
 
-      if (!ticker || !company) {
-        setAnalysisStatus('Ticker and company are required for AI generation.', 'error');
+      if (!company) {
+        setAnalysisStatus('Company name is required for AI generation.', 'error');
         return;
       }
       if (!apiKey) {
         setAnalysisStatus('Provide an AI API key to generate the analysis.', 'error');
         return;
       }
+      if (!model) {
+        setAnalysisStatus('Select an AI model before generating.', 'error');
+        return;
+      }
 
+      if (!promptOptions.length) {
+        await refreshPromptOptions();
+      }
+      const promptConfig = selectedPrompt || promptOptions[0];
+      if (!promptConfig) {
+        setAnalysisStatus('Add an AI prompt template in Supabase before generating.', 'error');
+        return;
+      }
+
+      if (aiModel) {
+        aiModel.value = model;
+      }
+      desiredModelValue = model;
       persistAiConfig();
-      const prompt = buildMasterAnalysisPrompt({ ticker, company, exchange, notes });
+      closePromptMenu();
+
+      const prompt = buildPromptFromSelection(promptConfig, { ticker, company, exchange, notes });
+      if (!prompt.trim()) {
+        setAnalysisStatus('Selected prompt template is empty. Update it in Supabase.', 'error');
+        return;
+      }
+
       setAnalysisStatus('Generating analysis via AI…', 'info');
       aiGenerateBtn.disabled = true;
 
@@ -190,18 +666,25 @@ async function initEditor() {
         const content = await callOpenRouterCompletion({ apiKey, model, prompt });
         if (!content.trim()) throw new Error('AI returned an empty response.');
         if (analysisRaw) analysisRaw.value = content.trim();
-        if (promptInput) promptInput.value = prompt;
+        if (promptInput) {
+          const meta = promptConfig?.name ? `Template: ${promptConfig.name}` : 'Template: (fallback master analysis)';
+          promptInput.value = `${meta}\n\n${prompt}`;
+        }
         switchAnalysisMode('manual');
-        fillFromAnalysis(content.trim(), { forceTags: true, onParsed: (parsed) => {
-          if (tagsInput && parsed?.ticker) {
-            const existing = tagsInput.value.split(',').map((t) => t.trim()).filter(Boolean);
-            if (!existing.includes(parsed.ticker)) {
-              existing.unshift(parsed.ticker);
-              tagsInput.value = Array.from(new Set(existing)).join(', ');
+        fillFromAnalysis(content.trim(), {
+          forceTags: true,
+          onParsed: (parsed) => {
+            if (tagsInput && parsed?.ticker) {
+              const existing = tagsInput.value.split(',').map((t) => t.trim()).filter(Boolean);
+              if (!existing.includes(parsed.ticker)) {
+                existing.unshift(parsed.ticker);
+                tagsInput.value = Array.from(new Set(existing)).join(', ');
+              }
             }
-          }
-        }});
-        setAnalysisStatus('AI analysis generated. Review the fields before publishing.', 'success');
+          },
+        });
+        const promptLabel = promptConfig?.name || 'Master Stock Analysis';
+        setAnalysisStatus(`AI analysis generated with "${promptLabel}". Review the fields before publishing.`, 'success');
       } catch (error) {
         console.error('AI generation error', error);
         setAnalysisStatus(error.message || 'AI generation failed.', 'error');
@@ -244,6 +727,9 @@ async function initEditor() {
   locked.hidden = true;
   form.hidden = false;
   if (recentSection) recentSection.hidden = false;
+
+  await refreshModelOptions();
+  await refreshPromptOptions();
 
   form.addEventListener('submit', async (event) => {
     event.preventDefault();
@@ -352,6 +838,14 @@ function parseTags(value) {
     .split(',')
     .map((tag) => tag.trim())
     .filter(Boolean);
+}
+
+function slugify(value) {
+  return String(value || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .replace(/--+/g, '-') || 'item';
 }
 
 function escapeHtml(str) {
@@ -491,10 +985,67 @@ function extractPrimaryTable(text) {
   return tables[0];
 }
 
+function buildPromptFromSelection(promptConfig, context) {
+  if (promptConfig?.prompt_text) {
+    return renderPromptTemplate(promptConfig.prompt_text, {
+      ticker: context.ticker,
+      company: context.company,
+      exchange: context.exchange,
+      notes: context.notes,
+      promptName: promptConfig?.name || '',
+    });
+  }
+  return buildMasterAnalysisPrompt(context);
+}
+
+function renderPromptTemplate(template, context) {
+  if (!template) return '';
+  const company = context.company || '';
+  const ticker = context.ticker || '';
+  const exchange = context.exchange || '';
+  const notes = context.notes || '';
+  const promptName = context.promptName || '';
+  const companyLine = buildCompanyLine(company, ticker, exchange);
+  const tickerLine = ticker ? `Ticker: ${ticker}` : '';
+  const exchangeLine = exchange ? `Exchange: ${exchange}` : '';
+  const exchangeSuffix = exchange ? `, ${exchange}` : '';
+  const notesBlock = notes ? `\n\nAnalyst guidance to incorporate:\n${notes}` : '';
+  const replacements = {
+    company,
+    ticker,
+    exchange,
+    company_line: companyLine,
+    company_or_ticker: company || ticker,
+    ticker_line: tickerLine,
+    exchange_line: exchangeLine,
+    exchange_suffix: exchangeSuffix,
+    notes,
+    notes_block: notesBlock,
+    prompt_name: promptName,
+  };
+  return template.replace(/{{\s*([a-z0-9_]+)\s*}}/gi, (_, key) => replacements[key.toLowerCase()] ?? '').trim();
+}
+
+function buildCompanyLine(company, ticker, exchange) {
+  const name = company || ticker || '';
+  if (!name) return '';
+  const details = [];
+  if (ticker) details.push(`Ticker: ${ticker}`);
+  if (exchange) details.push(exchange);
+  return details.length ? `${name} (${details.join(', ')})` : name;
+}
+
 function buildMasterAnalysisPrompt({ ticker, company, exchange, notes }) {
-  const exchangeLabel = exchange ? `, ${exchange}` : '';
+  const template = DEFAULT_PROMPTS.find((item) => item.id === 'deep-research')?.prompt_text;
+  if (template) {
+    return renderPromptTemplate(template, { ticker, company, exchange, notes });
+  }
+  const companyLine = buildCompanyLine(company, ticker, exchange);
+  const fallbackName = companyLine || company || ticker || 'the company';
+  const tickerLabel = ticker ? `Ticker: ${ticker}${exchange ? `, ${exchange}` : ''}` : '';
+  const descriptor = tickerLabel ? `${fallbackName} (${tickerLabel})` : fallbackName;
   const guidance = notes ? `\n\nAnalyst guidance to incorporate:\n${notes}` : '';
-  return `You are the FutureFunds.ai research analyst. Produce a MASTER STOCK ANALYSIS (Markdown-Table Edition) for ${company} (Ticker: ${ticker}${exchangeLabel}). Match the structure of the reference template exactly.\n\nFollow this order and formatting:\n1. Intro sentence: \\"Below is a MASTER STOCK ANALYSIS (Markdown-Table Edition) for ${company} (Ticker: ${ticker}${exchangeLabel}) — ...\\" with a short rationale.\n2. Insert a line containing only ⸻ between every major section.\n3. Section A. One-Liner Summary — Markdown table with columns Ticker | Risk | Quality | Timing | Composite Score (/10).\n4. Section B. Final Verdicts — One Line — list Risk, Quality, Timing values.\n5. Section C. Standardized Scorecard — One Line — Markdown table with the six specified metrics.\n6. Section D. Valuation Ranges — provide USD bear/base/bull table and paragraph with NOK conversions.\n7. Narrative section — short paragraph plus bullet list of pricing, market cap, revenue, catalysts.\n8. Sections 1 through 5 with the same headings (Downside & Risk Analysis; Business Model & Growth Opportunities; Scenario Analysis (include Markdown table with Bear/Base/Bull rows and valuation ranges); Valuation Analysis; Timing & Market Momentum). Use concise bullet points with data.\n9. Section 6. Final Conclusions — bullet lines for Risk, Quality, Timing plus an \\"Overall Verdict\\" sentence.\n10. Finish with a note paragraph starting with 🚩 Note:.\n\nRequirements:\n- Use realistic figures and ratings based on the latest publicly available information and reasonable assumptions.\n- Keep bullet points sharp and decision-oriented.\n- Ensure Markdown tables use pipes and render cleanly.\n- Maintain the same tone as the template (professional, catalyst-aware).${guidance}\n\nReturn only the Markdown content.`;
+  return `You are the FutureFunds.ai research analyst. Produce a MASTER STOCK ANALYSIS (Markdown-Table Edition) for ${descriptor}. Match the structure of the reference template exactly.\n\nFollow this order and formatting:\n1. Intro sentence: "Below is a MASTER STOCK ANALYSIS (Markdown-Table Edition) for ${descriptor} — ..." with a short rationale.\n2. Insert a line containing only ⸻ between every major section.\n3. Section A. One-Liner Summary — Markdown table with columns Ticker | Risk | Quality | Timing | Composite Score (/10).\n4. Section B. Final Verdicts — One Line — list Risk, Quality, Timing values.\n5. Section C. Standardized Scorecard — One Line — Markdown table with the six specified metrics.\n6. Section D. Valuation Ranges — provide USD bear/base/bull table and paragraph with NOK conversions.\n7. Narrative section — short paragraph plus bullet list of pricing, market cap, revenue, catalysts.\n8. Sections 1 through 5 with the same headings (Downside & Risk Analysis; Business Model & Growth Opportunities; Scenario Analysis (include Markdown table with Bear/Base/Bull rows and valuation ranges); Valuation Analysis; Timing & Market Momentum). Use concise bullet points with data.\n9. Section 6. Final Conclusions — bullet lines for Risk, Quality, Timing plus an "Overall Verdict" sentence.\n10. Finish with a note paragraph starting with 🚩 Note:.\n\nRequirements:\n- Use realistic figures and ratings based on the latest publicly available information and reasonable assumptions.\n- Keep bullet points sharp and decision-oriented.\n- Ensure Markdown tables use pipes and render cleanly.\n- Maintain the same tone as the template (professional, catalyst-aware).${guidance}\n\nReturn only the Markdown content.`;
 }
 
 async function callOpenRouterCompletion({ apiKey, model, prompt }) {

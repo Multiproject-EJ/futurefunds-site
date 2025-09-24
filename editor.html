@@ -37,6 +37,22 @@
     .analysis-ai-grid{display:grid;gap:12px}
     .analysis-ai-grid .field-row{margin:0}
     .analysis-ai-grid textarea{min-height:100px}
+    .prompt-selector{position:relative;display:inline-flex;align-items:center;gap:8px;flex-wrap:wrap}
+    .prompt-menu{position:absolute;top:calc(100% + 6px);left:0;min-width:260px;padding:8px;border:1px solid var(--border,#e5e7eb);border-radius:12px;background:var(--panel,#fff);box-shadow:0 12px 30px rgba(15,23,42,.12);display:grid;gap:6px;z-index:40}
+    .prompt-menu[hidden]{display:none}
+    .prompt-menu button{border:none;background:transparent;text-align:left;padding:8px 10px;border-radius:10px;font-size:.9rem;color:var(--text,#0f172a);cursor:pointer;transition:background .15s ease,color .15s ease}
+    .prompt-menu button strong{display:block;font-weight:600}
+    .prompt-menu button span{display:block;font-size:.8rem;color:var(--muted,#64748b);margin-top:2px}
+    .prompt-menu button:hover{background:rgba(37,99,235,.08)}
+    .prompt-menu button.active{background:var(--accent,#2563eb);color:#fff}
+    .prompt-menu button.active span{color:rgba(255,255,255,.85)}
+    .prompt-details{margin-top:8px;border:1px solid var(--border,#e5e7eb);border-radius:12px;padding:12px;background:rgba(148,163,184,.1);font-size:.85rem;color:var(--muted,#64748b)}
+    .prompt-preview{margin-top:6px;padding:12px;border:1px solid var(--border,#e5e7eb);border-radius:12px;background:var(--panel,#fff);max-height:220px;overflow:auto;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;font-size:.78rem;line-height:1.4;color:var(--text,#0f172a)}
+    .select-edit{display:flex;align-items:center;gap:8px}
+    .select-edit select{flex:1 1 auto}
+    .model-editor{margin-top:10px;border:1px dashed var(--border,#e5e7eb);border-radius:12px;padding:12px;display:grid;gap:10px;background:rgba(148,163,184,.08)}
+    .model-editor textarea{min-height:120px;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace}
+    .model-editor__actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
   </style>
 </head>
 <body>
@@ -89,23 +105,46 @@
         <div class="analysis-source__panel analysis-ai-grid" data-panel="ai" hidden>
           <div class="field-row">
             <div>
-              <label for="aiTicker">Ticker</label>
+              <label for="aiCompany">Company</label>
+              <input id="aiCompany" placeholder="Insmed Incorporated" autocomplete="off" />
+              <p class="muted-small">Only the company name is required to run a prompt.</p>
+            </div>
+            <div>
+              <label for="aiTicker">Ticker (optional)</label>
               <input id="aiTicker" placeholder="INSM" autocomplete="off" />
             </div>
             <div>
-              <label for="aiCompany">Company</label>
-              <input id="aiCompany" placeholder="Insmed Incorporated" autocomplete="off" />
-            </div>
-            <div>
-              <label for="aiExchange">Exchange</label>
+              <label for="aiExchange">Exchange (optional)</label>
               <input id="aiExchange" placeholder="NASDAQ" autocomplete="off" />
             </div>
+          </div>
+          <div>
+            <label>Prompt template</label>
+            <div class="prompt-selector">
+              <button type="button" class="btn ghost" id="promptSelectBtn"><span id="promptSelectLabel">Select prompt</span> ▾</button>
+              <div class="prompt-menu" id="promptMenu" hidden role="menu"></div>
+            </div>
+            <p class="muted-small" id="promptSummary">Loading prompts…</p>
+            <pre id="promptPreview" class="prompt-preview" hidden></pre>
           </div>
           <div class="field-row">
             <div>
               <label for="aiModel">Model</label>
-              <input id="aiModel" placeholder="openrouter/auto" autocomplete="off" />
-              <p class="muted-small">Defaults to your preferred OpenRouter model.</p>
+              <div class="select-edit">
+                <select id="aiModel"></select>
+                <button type="button" class="btn small ghost" id="editModelList">Edit list</button>
+              </div>
+              <p class="muted-small">Select from saved OpenRouter models or edit the list for this workspace.</p>
+              <div class="model-editor" id="modelEditor" hidden>
+                <label for="modelEditorInput" style="font-weight:600">Update model options</label>
+                <textarea id="modelEditorInput" placeholder="openrouter/auto | OpenRouter Auto"></textarea>
+                <p class="muted-small">One model per line. Use <code>model-id | Friendly label</code>. First model becomes the default.</p>
+                <div class="model-editor__actions">
+                  <button type="button" class="btn small primary" id="saveModelList">Save list</button>
+                  <button type="button" class="btn small ghost" id="cancelModelList">Cancel</button>
+                  <span class="muted-small" id="modelEditorStatus"></span>
+                </div>
+              </div>
             </div>
             <div>
               <label for="aiKey">AI API key</label>
