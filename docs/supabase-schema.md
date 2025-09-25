@@ -7,7 +7,7 @@ access rules.
 
 ## Overview
 
-The site ships five application tables in the `public` schema:
+The site ships six application tables in the `public` schema:
 
 | Table | Purpose |
 | --- | --- |
@@ -16,6 +16,7 @@ The site ships five application tables in the `public` schema:
 | `universe` | Holds the research briefs that power `/universe.html` and the editor workflow. |
 | `editor_prompts` | Configurable AI prompt templates surfaced in the research editor. |
 | `editor_models` | Configurable AI model catalogue used by the editor UI. |
+| `stock_analysis_list` | Tracks stock analysis coverage (company, status, type, and analysis date). |
 
 The tables rely on three helper routines:
 
@@ -132,6 +133,24 @@ The tables rely on three helper routines:
 - `SELECT`: admin-only to match the editor gating.
 - `INSERT` / `UPDATE`: admin-only (performed through the editor model management UI).【F:assets/editor.js†L430-L503】
 
+### `stock_analysis_list`
+
+*Primary key*: `id bigint generated always as identity`.
+
+| Column | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `company_name` | `text` | — | Name of the company being tracked. |
+| `has_been_analyzed` | `boolean` | `false` | Indicates whether coverage is complete. |
+| `analysis_type` | `text` | — | Constrained to `initial screen`, `deep research`, or `company specific`. |
+| `analysis_date` | `date` | `current_date` | Defaults to the day the row was inserted. |
+| `created_at` | `timestamptz` | `now()` | Managed automatically. |
+| `updated_at` | `timestamptz` | `now()` | Managed by `set_updated_at`. |
+
+**Policies**
+
+- `SELECT`: `auth.role() = 'authenticated'` so any signed-in user can read the tracking list.
+- `INSERT` / `UPDATE` / `DELETE`: restricted to admins by checking `profiles.role = 'admin'` for the current user.
+
 ## Helper routines
 
 ### `handle_new_user()`
@@ -171,7 +190,7 @@ end;
 $$;
 ```
 
-Attach this `BEFORE UPDATE` trigger to tables with an `updated_at` column (`profiles`, `memberships`, `universe`, `editor_prompts`, `editor_models`).
+Attach this `BEFORE UPDATE` trigger to tables with an `updated_at` column (`profiles`, `memberships`, `universe`, `editor_prompts`, `editor_models`, `stock_analysis_list`).
 
 ### `is_paid_member(uid uuid)`
 
