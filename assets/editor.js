@@ -757,8 +757,7 @@ async function initEditor() {
   const parseModelListInput = () => {
     if (!modelEditorInput) return [];
     const lines = (modelEditorInput.value || '')
-      .split('
-')
+      .split('\n')
       .map((line) => line.trim())
       .filter(Boolean);
     if (!lines.length) throw new Error('Add at least one model option.');
