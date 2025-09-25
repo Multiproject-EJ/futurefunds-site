@@ -35,7 +35,7 @@ The tables rely on three helper routines:
 | --- | --- | --- | --- |
 | `id` | `uuid` | — | Must match the Supabase Auth user id. Frontend upserts `{ id, email }` whenever a session is established.【F:assets/supabase.js†L20-L25】 |
 | `email` | `text` | `null` | Cached copy of the user email for convenience.【F:assets/supabase.js†L20-L25】 |
-| `role` | `text` | `'member'` | Assign `admin` to unlock internal tooling like the research editor. The editor enforces `requireRole('admin')` before writing universe rows.【F:assets/auth.js†L441-L457】【F:assets/editor.js†L720-L773】 |
+| `role` | `text` | `'member'` | Assign `admin` (any casing) to unlock internal tooling like the research editor. The editor enforces `requireRole('admin')`, which recognises `admin`, `administrator`, or `superadmin` markers in the profile before writing universe rows.【F:assets/auth.js†L441-L495】【F:assets/editor.js†L720-L773】 |
 | `created_at` | `timestamptz` | `now()` | Managed automatically by Postgres. |
 | `updated_at` | `timestamptz` | `now()` | Updated through the `set_updated_at` trigger (see below). |
 
