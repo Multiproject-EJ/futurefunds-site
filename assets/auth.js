@@ -439,6 +439,13 @@ export function onAuthReady() {
 }
 
 function normalizeRole(value) {
+  if (value == null) return [];
+  if (Array.isArray(value)) {
+    return value.flatMap((item) => normalizeRole(item));
+  }
+  if (typeof value === 'object') {
+    return Object.values(value).flatMap((item) => normalizeRole(item));
+  }
   return String(value ?? '')
     .split(/[\s,]+/)
     .map((part) => part.trim().toLowerCase())
@@ -450,30 +457,57 @@ function profileHasRole(requiredRole) {
   if (!desired) return true;
 
   const profile = state.profile || {};
+  const membership = state.membership || {};
+  const userMeta = state.user?.app_metadata || {};
+  const userClaims = state.user?.user_metadata || {};
   const buckets = new Set();
 
-  normalizeRole(profile.role).forEach((role) => buckets.add(role));
-  normalizeRole(profile.role_name).forEach((role) => buckets.add(role));
-  normalizeRole(profile.user_role).forEach((role) => buckets.add(role));
-  normalizeRole(profile.access_level).forEach((role) => buckets.add(role));
+  const collect = (value) => {
+    normalizeRole(value).forEach((role) => buckets.add(role));
+  };
 
-  const extraRolesRaw = Array.isArray(profile.roles)
-    ? profile.roles
-    : typeof profile.roles === 'string'
-    ? profile.roles.split(',')
-    : [];
-  const extraRoles = normalizeRole(extraRolesRaw);
-  extraRoles.forEach((role) => buckets.add(role));
+  collect(profile.role);
+  collect(profile.role_name);
+  collect(profile.user_role);
+  collect(profile.access_level);
+  collect(profile.roles);
+  collect(profile.role_tags);
+
+  collect(userMeta.role);
+  collect(userMeta.roles);
+  collect(userMeta.access_level);
+  collect(userMeta.permissions);
+
+  collect(userClaims.role);
+  collect(userClaims.roles);
+  collect(userClaims.access_level);
+
+  collect(membership.role);
+  collect(membership.roles);
+  collect(membership.access_level);
+  collect(membership.plan);
+  collect(membership.plan_name);
 
   if (desired === 'admin') {
     const elevated = ['admin', 'administrator', 'superadmin', 'owner', 'editor'];
-    const hasFlag = ['is_admin', 'admin', 'isAdmin'].some((key) => Boolean(profile[key]));
+    const flagSources = [profile, membership, userMeta, userClaims];
+    const flagKeys = ['is_admin', 'admin', 'isAdmin', 'is_superadmin', 'superuser', 'staff', 'is_staff'];
+    const hasFlag = flagSources.some((source) => flagKeys.some((key) => Boolean(source?.[key])));
     if (hasFlag) return true;
     if (normalizeRole(profile.role).some((role) => elevated.includes(role))) return true;
-    if (extraRoles.some((role) => elevated.includes(role))) return true;
+    if (normalizeRole(profile.roles).some((role) => elevated.includes(role))) return true;
+    if (normalizeRole(userMeta.roles).some((role) => elevated.includes(role))) return true;
+    if (normalizeRole(userClaims.roles).some((role) => elevated.includes(role))) return true;
+    if (normalizeRole(membership.roles).some((role) => elevated.includes(role))) return true;
   }
 
   return buckets.has(desired);
+}
+
+export function hasRole(role = null) {
+  if (!role) return true;
+  if (!state.user) return false;
+  return profileHasRole(role);
 }
 
 export async function requireRole(role = null) {
@@ -486,7 +520,7 @@ export async function requireRole(role = null) {
   }
   if (role) {
     const desired = role.toString().trim().toLowerCase();
-    if (!profileHasRole(desired)) {
+    if (!hasRole(desired)) {
       const err = new Error('Not authorized');
       err.code = 'auth/not-authorized';
       throw err;

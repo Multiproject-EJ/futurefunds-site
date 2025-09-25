@@ -1,6 +1,6 @@
 // /assets/editor.js
 import { supabase } from './supabase.js';
-import { requireRole, onAuthReady, getAccountState } from './auth.js';
+import { onAuthReady, getAccountState, hasRole } from './auth.js';
 
 const PROMPT_TABLE = 'editor_prompts';
 const MODEL_TABLE = 'editor_models';
@@ -150,6 +150,7 @@ async function initEditor() {
   if (!form || !locked) return;
 
   const lockMsg = document.getElementById('editorLockMsg');
+  const lockActionBtn = locked?.querySelector('[data-open-auth]');
 
   const setMessage = (text, tone = 'info') => {
     if (!msg) return;
@@ -592,11 +593,13 @@ async function initEditor() {
       const rows = Array.isArray(data) ? data : [];
       const items = rows
         .map((row) => {
-          const promptId = row.id || row.slug || slugify(row.name || row.title || '');
+          const promptId =
+            resolvePromptRecordId(row) ||
+            slugify(row.name || row.title || row.slug || `prompt-${Math.random().toString(36).slice(2)}`);
           const promptText = row.prompt_text || row.template || row.body || '';
           const archived = row.archived ?? row.disabled ?? false;
           return {
-            id: promptId || slugify(`prompt-${row.name || row.slug || Math.random()}`),
+            id: promptId,
             name: row.name || row.title || row.slug || 'Prompt',
             description: row.description || row.summary || '',
             prompt_text: promptText,
@@ -621,7 +624,13 @@ async function initEditor() {
   };
 
   const applyPromptOptions = (options = []) => {
-    promptOptions = options;
+    const list = Array.isArray(options) ? options : [];
+    promptOptions = list.map((opt, index) => {
+      const source = opt || {};
+      const rawId = source.id ?? source.slug ?? null;
+      const id = String(rawId ?? '').trim() || slugify(source.name || `prompt-${index + 1}`);
+      return { ...source, id };
+    });
     if (!promptOptions.length) {
       selectedPrompt = null;
       updatePromptUI();
@@ -1059,11 +1068,94 @@ async function initEditor() {
     });
   }
 
-  const showLocked = (message) => {
+  const updateLockButton = (action, label) => {
+    if (!lockActionBtn) return;
+    if (!action) {
+      lockActionBtn.hidden = true;
+      return;
+    }
+    lockActionBtn.hidden = false;
+    lockActionBtn.setAttribute('data-open-auth', action);
+    if (label) {
+      lockActionBtn.textContent = label;
+    } else {
+      lockActionBtn.textContent = action === 'profile' ? 'Manage account' : 'Sign in';
+    }
+  };
+
+  const showLocked = (message, { action = 'signin', actionLabel } = {}) => {
     locked.hidden = false;
+    if (form) form.hidden = true;
+    if (recentSection) recentSection.hidden = true;
     if (lockMsg) {
       lockMsg.textContent = ` ${message}`;
     }
+    updateLockButton(action, actionLabel);
+    closePromptMenu();
+    closePromptEditor();
+  };
+
+  const hideLocked = () => {
+    locked.hidden = true;
+    if (lockMsg) {
+      lockMsg.textContent = '';
+    }
+    updateLockButton(null);
+  };
+
+  let adminBootstrapReady = false;
+  let adminBootstrapPromise = null;
+
+  const runAdminBootstrap = async () => {
+    if (adminBootstrapReady) return;
+    if (!adminBootstrapPromise) {
+      adminBootstrapPromise = (async () => {
+        await loadAiConfig({ includeRemote: true });
+        await refreshModelOptions();
+        await refreshPromptOptions();
+        await loadRecent();
+        adminBootstrapReady = true;
+      })()
+        .catch((error) => {
+          console.error('Editor bootstrap error', error);
+          throw error;
+        })
+        .finally(() => {
+          adminBootstrapPromise = null;
+        });
+    }
+    try {
+      await adminBootstrapPromise;
+    } catch (error) {
+      adminBootstrapReady = false;
+    }
+  };
+
+  const applyAccessState = async () => {
+    const account = getAccountState();
+    const signedIn = !!account.user;
+    if (!signedIn) {
+      showLocked('Please sign in with an admin account to continue.', {
+        action: 'signin',
+        actionLabel: 'Sign in',
+      });
+      return;
+    }
+    if (!hasRole('admin')) {
+      showLocked('Your account is signed in but does not have admin permissions.', {
+        action: 'profile',
+        actionLabel: 'Manage account',
+      });
+      return;
+    }
+    hideLocked();
+    if (form) form.hidden = false;
+    if (recentSection) recentSection.hidden = false;
+    await runAdminBootstrap();
+  };
+
+  const handleAuthChange = () => {
+    applyAccessState().catch((error) => console.warn('Editor access state error', error));
   };
 
   if (dateInput) {
@@ -1071,31 +1163,8 @@ async function initEditor() {
   }
 
   await onAuthReady();
-
-  try {
-    await requireRole('admin');
-  } catch (err) {
-    console.warn('Editor access denied', err);
-    const account = getAccountState();
-    const signedIn = !!account.user;
-    const message = signedIn
-      ? 'Your account is signed in but does not have admin permissions.'
-      : 'Please sign in with an admin account to continue.';
-    showLocked(message);
-    if (!signedIn) {
-      const btn = locked.querySelector('[data-open-auth]');
-      if (btn) btn.setAttribute('data-open-auth', 'signin');
-    }
-    return;
-  }
-
-  locked.hidden = true;
-  form.hidden = false;
-  if (recentSection) recentSection.hidden = false;
-
-  await loadAiConfig({ includeRemote: true });
-  await refreshModelOptions();
-  await refreshPromptOptions();
+  await applyAccessState();
+  document.addEventListener('ffauth:change', handleAuthChange);
 
   form.addEventListener('submit', async (event) => {
     event.preventDefault();
@@ -1186,8 +1255,6 @@ async function initEditor() {
       })
       .join('');
   }
-
-  await loadRecent();
 }
 
 function parseLines(value) {
