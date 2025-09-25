@@ -1,6 +1,7 @@
 // /assets/editor.js
 import { supabase } from './supabase.js';
 import { onAuthReady, getAccountState, hasRole } from './auth.js';
+import { describeSupabaseError, composePromptSummary } from './editor-support.js';
 
 const PROMPT_TABLE = 'editor_prompts';
 const MODEL_TABLE = 'editor_models';
@@ -146,6 +147,8 @@ async function initEditor() {
   let supabaseAiKeyCache = null;
   let promptEditorItems = [];
   let promptEditorActiveId = null;
+  let promptLoadErrorMessage = '';
+  let promptLoadUsedFallback = false;
 
   if (!form || !locked) return;
 
@@ -401,9 +404,11 @@ async function initEditor() {
     } catch (error) {
       console.error('Prompt editor load error', error);
       promptEditorItems = [];
-      promptEditorList.innerHTML = `<p class="prompt-editor__empty">${escapeHtml(error.message || 'Unable to load prompts.')}</p>`;
+      const detail = describeSupabaseError(error);
+      const message = detail || error?.message || 'Unable to load prompts.';
+      promptEditorList.innerHTML = `<p class="prompt-editor__empty">${escapeHtml(message)}</p>`;
       resetPromptEditorForm();
-      setPromptEditorStatus('Unable to load prompts from Supabase.', 'error');
+      setPromptEditorStatus(detail ? `Supabase error: ${detail}` : 'Unable to load prompts from Supabase.', 'error');
     }
   };
 
@@ -546,13 +551,13 @@ async function initEditor() {
       promptSelectBtn.textContent = selectedPrompt ? `${selectedPrompt.name} ▾` : 'Select prompt ▾';
     }
     if (promptSummary) {
-      if (!promptOptions.length) {
-        promptSummary.textContent = 'No prompts found. Add templates in Supabase.';
-      } else if (selectedPrompt) {
-        promptSummary.textContent = selectedPrompt.description || 'Ready to generate with this prompt.';
-      } else {
-        promptSummary.textContent = 'Choose which template to run when generating analysis.';
-      }
+      const summaryText = composePromptSummary({
+        promptOptions,
+        selectedPrompt,
+        fallbackUsed: promptLoadUsedFallback,
+        errorMessage: promptLoadErrorMessage,
+      });
+      promptSummary.textContent = summaryText;
     }
     if (promptPreview) {
       if (selectedPrompt?.prompt_text) {
@@ -616,11 +621,14 @@ async function initEditor() {
         if (orderA !== orderB) return orderA - orderB;
         return (a.name || '').localeCompare(b.name || '');
       });
-      if (active.length) return active;
+      if (active.length) {
+        return { items: active, error: null, usedDefault: false };
+      }
     } catch (error) {
       console.warn('Prompt load error', error);
+      return { items: DEFAULT_PROMPTS, error, usedDefault: true };
     }
-    return DEFAULT_PROMPTS;
+    return { items: DEFAULT_PROMPTS, error: null, usedDefault: true };
   };
 
   const applyPromptOptions = (options = []) => {
@@ -650,11 +658,10 @@ async function initEditor() {
 
   const refreshPromptOptions = async () => {
     if (promptSummary) promptSummary.textContent = 'Loading prompts…';
-    const options = await fetchPromptTemplates();
-    applyPromptOptions(options);
-    if (promptSummary && !options.length) {
-      promptSummary.textContent = 'No prompts found. Add templates in Supabase.';
-    }
+    const { items, error, usedDefault } = await fetchPromptTemplates();
+    promptLoadErrorMessage = error ? describeSupabaseError(error) : '';
+    promptLoadUsedFallback = Boolean(usedDefault);
+    applyPromptOptions(items);
   };
 
   const fetchModelOptions = async () => {
