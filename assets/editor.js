@@ -184,6 +184,11 @@ async function initEditor() {
     if (mode !== 'ai') {
       closePromptMenu();
     }
+    if (mode === 'ai') {
+      ensureSupabaseAiKey().catch((error) => {
+        console.warn('AI key preload error', error);
+      });
+    }
   };
 
   const setAiKeyInput = (value) => {
@@ -1497,10 +1502,6 @@ async function callOpenRouterCompletion({ apiKey, model, prompt }) {
     'Content-Type': 'application/json',
     Authorization: `Bearer ${token}`,
   };
-  if (typeof window !== 'undefined') {
-    headers['HTTP-Referer'] = window.location.origin;
-    headers['X-Title'] = 'FutureFunds Universe Editor';
-  }
 
   const body = {
     model,
@@ -1515,18 +1516,46 @@ async function callOpenRouterCompletion({ apiKey, model, prompt }) {
     ],
   };
 
+  const requestHeaders = { ...headers, 'X-Title': 'FutureFunds Universe Editor' };
+  if (typeof window !== 'undefined') {
+    const { location, document } = window;
+    const referer = location?.href || location?.origin || '';
+    if (referer && /^https?:/i.test(referer)) {
+      requestHeaders['HTTP-Referer'] = referer;
+    }
+    const title = document?.title?.trim();
+    if (title) {
+      requestHeaders['X-Title'] = title;
+    } else {
+      requestHeaders['X-Title'] = 'FutureFunds Universe Editor';
+    }
+  }
+
   const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
     method: 'POST',
-    headers,
+    headers: requestHeaders,
     body: JSON.stringify(body),
   });
 
   if (!res.ok) {
     let detail = '';
+    let parsedDetail = null;
     try {
       detail = (await res.text()) || '';
+      try {
+        parsedDetail = detail ? JSON.parse(detail) : null;
+      } catch {
+        parsedDetail = null;
+      }
     } catch {
       detail = '';
+    }
+    if (parsedDetail?.error?.message) {
+      const message = parsedDetail.error.message;
+      if (res.status === 401) {
+        throw new Error(`OpenRouter rejected the API key: ${message}. Check that the key is valid and permitted for this domain.`);
+      }
+      throw new Error(`OpenRouter error ${res.status}: ${message}`);
     }
     const reason = detail ? `${res.status} ${detail.slice(0, 160)}` : `${res.status}`;
     throw new Error(`OpenRouter error ${reason}`);
