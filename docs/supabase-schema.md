@@ -7,7 +7,7 @@ access rules.
 
 ## Overview
 
-The site ships six application tables in the `public` schema:
+The site ships seven application tables in the `public` schema:
 
 | Table | Purpose |
 | --- | --- |
@@ -16,6 +16,7 @@ The site ships six application tables in the `public` schema:
 | `universe` | Holds the research briefs that power `/universe.html` and the editor workflow. |
 | `editor_prompts` | Configurable AI prompt templates surfaced in the research editor. |
 | `editor_models` | Configurable AI model catalogue used by the editor UI. |
+| `editor_api_credentials` | Stores AI provider secrets the editor can retrieve at runtime. |
 | `stock_analysis_list` | Tracks stock analysis coverage (company, status, type, and analysis date). |
 
 The tables rely on three helper routines:
@@ -132,6 +133,33 @@ The tables rely on three helper routines:
 
 - `SELECT`: admin-only to match the editor gating.
 - `INSERT` / `UPDATE`: admin-only (performed through the editor model management UI).【F:assets/editor.js†L430-L503】
+
+### `editor_api_credentials`
+
+*Primary key*: `id uuid` generated via `gen_random_uuid()`.
+
+| Column | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `id` | `uuid` | `gen_random_uuid()` | Primary key used for auditing and trigger updates. |
+| `provider` | `text` | — | Identifier for the AI service (e.g., `openrouter`). |
+| `label` | `text` | — | Human-readable description shown in internal tooling. |
+| `api_key` | `text` | — | The raw credential used when invoking the external API from the editor. |
+| `is_active` | `boolean` | `true` | Allows rotating secrets without deleting history. |
+| `created_at` | `timestamptz` | `now()` | Automatically managed. |
+| `updated_at` | `timestamptz` | `now()` | Maintained by the shared `set_updated_at` trigger. |
+
+**Policies**
+
+- `SELECT`: restricted to admins by verifying `profiles.role = 'admin'` for the current user.
+- `INSERT` / `UPDATE` / `DELETE`: admin-only so only trusted staff can rotate credentials.
+
+**Triggers**
+
+- `set_updated_at` (BEFORE UPDATE) keeps `updated_at` in sync for auditing.
+
+**Seed data**
+
+- The initial migration inserts an OpenRouter key (`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`). Run the seed with a service-role key so the secret never passes through the anon client.
 
 ### `stock_analysis_list`
 
