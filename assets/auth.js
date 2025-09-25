@@ -438,7 +438,45 @@ export function onAuthReady() {
   return state.readyPromise;
 }
 
-export async function requireRole(role = 'member') {
+function normalizeRole(value) {
+  return String(value ?? '')
+    .split(/[\s,]+/)
+    .map((part) => part.trim().toLowerCase())
+    .filter(Boolean);
+}
+
+function profileHasRole(requiredRole) {
+  const desired = (requiredRole || '').toString().trim().toLowerCase();
+  if (!desired) return true;
+
+  const profile = state.profile || {};
+  const buckets = new Set();
+
+  normalizeRole(profile.role).forEach((role) => buckets.add(role));
+  normalizeRole(profile.role_name).forEach((role) => buckets.add(role));
+  normalizeRole(profile.user_role).forEach((role) => buckets.add(role));
+  normalizeRole(profile.access_level).forEach((role) => buckets.add(role));
+
+  const extraRolesRaw = Array.isArray(profile.roles)
+    ? profile.roles
+    : typeof profile.roles === 'string'
+    ? profile.roles.split(',')
+    : [];
+  const extraRoles = normalizeRole(extraRolesRaw);
+  extraRoles.forEach((role) => buckets.add(role));
+
+  if (desired === 'admin') {
+    const elevated = ['admin', 'administrator', 'superadmin', 'owner', 'editor'];
+    const hasFlag = ['is_admin', 'admin', 'isAdmin'].some((key) => Boolean(profile[key]));
+    if (hasFlag) return true;
+    if (normalizeRole(profile.role).some((role) => elevated.includes(role))) return true;
+    if (extraRoles.some((role) => elevated.includes(role))) return true;
+  }
+
+  return buckets.has(desired);
+}
+
+export async function requireRole(role = null) {
   await onAuthReady();
   if (!state.user) {
     openAuth('signin');
@@ -446,9 +484,9 @@ export async function requireRole(role = 'member') {
     err.code = 'auth/not-signed-in';
     throw err;
   }
-  if (role === 'admin') {
-    const actual = state.profile?.role || 'member';
-    if (actual !== 'admin') {
+  if (role) {
+    const desired = role.toString().trim().toLowerCase();
+    if (!profileHasRole(desired)) {
       const err = new Error('Not authorized');
       err.code = 'auth/not-authorized';
       throw err;
