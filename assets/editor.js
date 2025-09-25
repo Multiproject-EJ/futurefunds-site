@@ -73,6 +73,8 @@ const DEFAULT_MODELS = [
   { value: 'anthropic/claude-3.5-sonnet', label: 'Anthropic Claude 3.5 Sonnet' },
 ];
 
+const normalizeOpenRouterApiKey = (value) => (value || '').trim().replace(/^bearer\s+/i, '');
+
 document.addEventListener('DOMContentLoaded', () => {
   initEditor().catch((err) => console.error('Editor init error', err));
 });
@@ -186,7 +188,7 @@ async function initEditor() {
 
   const setAiKeyInput = (value) => {
     if (!aiKey) return;
-    aiKey.value = (value || '').trim();
+    aiKey.value = normalizeOpenRouterApiKey(value);
   };
 
   const loadLocalAiPreferences = () => {
@@ -228,7 +230,7 @@ async function initEditor() {
         .limit(1)
         .maybeSingle();
       if (error) throw error;
-      supabaseAiKeyCache = data?.api_key || null;
+      supabaseAiKeyCache = data?.api_key ? normalizeOpenRouterApiKey(data.api_key) : null;
       if (supabaseAiKeyCache) {
         setAiKeyInput(supabaseAiKeyCache);
       }
@@ -249,7 +251,8 @@ async function initEditor() {
   const persistAiConfig = () => {
     try {
       if (aiKey) {
-        const value = (aiKey.value || '').trim();
+        const value = normalizeOpenRouterApiKey(aiKey.value);
+        setAiKeyInput(value);
         if (value) localStorage.setItem(AI_KEY_STORAGE, value);
         else localStorage.removeItem(AI_KEY_STORAGE);
       }
@@ -1001,7 +1004,7 @@ async function initEditor() {
       const company = (aiCompany?.value || '').trim();
       const exchange = (aiExchange?.value || '').trim();
       const notes = (aiNotes?.value || '').trim();
-      const apiKey = (aiKey?.value || '').trim();
+      const apiKey = normalizeOpenRouterApiKey(aiKey?.value);
       const model = (aiModel?.value || '').trim() || desiredModelValue || 'openrouter/auto';
 
       if (!company) {
@@ -1488,9 +1491,11 @@ function buildMasterAnalysisPrompt({ ticker, company, exchange, notes }) {
 }
 
 async function callOpenRouterCompletion({ apiKey, model, prompt }) {
+  const token = normalizeOpenRouterApiKey(apiKey);
+  if (!token) throw new Error('Provide a valid OpenRouter API key.');
   const headers = {
     'Content-Type': 'application/json',
-    Authorization: `Bearer ${apiKey}`,
+    Authorization: `Bearer ${token}`,
   };
   if (typeof window !== 'undefined') {
     headers['HTTP-Referer'] = window.location.origin;
