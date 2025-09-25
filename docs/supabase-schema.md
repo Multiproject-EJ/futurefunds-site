@@ -134,6 +134,68 @@ The tables rely on three helper routines:
 - `SELECT`: admin-only to match the editor gating.
 - `INSERT` / `UPDATE`: admin-only (performed through the editor model management UI).【F:assets/editor.js†L430-L503】
 
+#### Catalogue snapshot (25 September 2025)
+
+The research editor currently surfaces the following free model presets. Keep the
+`editor_models` table in Supabase aligned with this catalogue when onboarding new
+providers or adjusting defaults.
+
+| Label | Value |
+| --- | --- |
+| xAI: Grok 4 Fast (free) | `x-ai/grok-4-fast:free` |
+| NVIDIA: Nemotron Nano 9B V2 (free) | `nvidia/nemotron-nano-9b-v2:free` |
+| DeepSeek: DeepSeek V3.1 (free) | `deepseek/deepseek-chat-v3.1:free` |
+| OpenAI: gpt-oss-120b (free) | `openai/gpt-oss-120b:free` |
+| OpenAI: gpt-oss-20b (free) | `openai/gpt-oss-20b:free` |
+| Z.AI: GLM 4.5 Air (free) | `z-ai/glm-4.5-air:free` |
+| Qwen: Qwen3 Coder 480B A35B (free) | `qwen/qwen3-coder:free` |
+| MoonshotAI: Kimi K2 0711 (free) | `moonshotai/kimi-k2:free` |
+| Venice: Uncensored (free) | `cognitivecomputations/dolphin-mistral-24b-venice-edition:free` |
+| Google: Gemma 3n 2B (free) | `google/gemma-3n-e2b-it:free` |
+| Tencent: Hunyuan A13B Instruct (free) | `tencent/hunyuan-a13b-instruct:free` |
+| TNG: DeepSeek R1T2 Chimera (free) | `tngtech/deepseek-r1t2-chimera:free` |
+| Mistral: Mistral Small 3.2 24B (free) | `mistralai/mistral-small-3.2-24b-instruct:free` |
+| MoonshotAI: Kimi Dev 72B (free) | `moonshotai/kimi-dev-72b:free` |
+| DeepSeek: Deepseek R1 0528 Qwen3 8B (free) | `deepseek/deepseek-r1-0528-qwen3-8b:free` |
+| DeepSeek: R1 0528 (free) | `deepseek/deepseek-r1-0528:free` |
+| Mistral: Devstral Small 2505 (free) | `mistralai/devstral-small-2505:free` |
+| Google: Gemma 3n 4B (free) | `google/gemma-3n-e4b-it:free` |
+| Meta: Llama 3.3 8B Instruct (free) | `meta-llama/llama-3.3-8b-instruct:free` |
+| Qwen: Qwen3 4B (free) | `qwen/qwen3-4b:free` |
+| Qwen: Qwen3 30B A3B (free) | `qwen/qwen3-30b-a3b:free` |
+| Qwen: Qwen3 8B (free) | `qwen/qwen3-8b:free` |
+| Qwen: Qwen3 14B (free) | `qwen/qwen3-14b:free` |
+| Qwen: Qwen3 235B A22B (free) | `qwen/qwen3-235b-a22b:free` |
+| TNG: DeepSeek R1T Chimera (free) | `tngtech/deepseek-r1t-chimera:free` |
+| Microsoft: MAI DS R1 (free) | `microsoft/mai-ds-r1:free` |
+| Shisa AI: Shisa V2 Llama 3.3 70B (free) | `shisa-ai/shisa-v2-llama3.3-70b:free` |
+| ArliAI: QwQ 32B RpR v1 (free) | `arliai/qwq-32b-arliai-rpr-v1:free` |
+| Agentica: Deepcoder 14B Preview (free) | `agentica-org/deepcoder-14b-preview:free` |
+| MoonshotAI: Kimi VL A3B Thinking (free) | `moonshotai/kimi-vl-a3b-thinking:free` |
+| Meta: Llama 4 Maverick (free) | `meta-llama/llama-4-maverick:free` |
+| Meta: Llama 4 Scout (free) | `meta-llama/llama-4-scout:free` |
+| Qwen: Qwen2.5 VL 32B Instruct (free) | `qwen/qwen2.5-vl-32b-instruct:free` |
+| DeepSeek: DeepSeek V3 0324 (free) | `deepseek/deepseek-chat-v3-0324:free` |
+| Mistral: Mistral Small 3.1 24B (free) | `mistralai/mistral-small-3.1-24b-instruct:free` |
+| Google: Gemma 3 4B (free) | `google/gemma-3-4b-it:free` |
+| Google: Gemma 3 12B (free) | `google/gemma-3-12b-it:free` |
+| Google: Gemma 3 27B (free) | `google/gemma-3-27b-it:free` |
+| Nous: DeepHermes 3 Llama 3 8B Preview (free) | `nousresearch/deephermes-3-llama-3-8b-preview:free` |
+| Dolphin3.0 R1 Mistral 24B (free) | `cognitivecomputations/dolphin3.0-r1-mistral-24b:free` |
+| Dolphin3.0 Mistral 24B (free) | `cognitivecomputations/dolphin3.0-mistral-24b:free` |
+| Qwen: Qwen2.5 VL 72B Instruct (free) | `qwen/qwen2.5-vl-72b-instruct:free` |
+| Mistral: Mistral Small 3 (free) | `mistralai/mistral-small-24b-instruct-2501:free` |
+| DeepSeek: R1 Distill Llama 70B (free) | `deepseek/deepseek-r1-distill-llama-70b:free` |
+| DeepSeek: R1 (free) | `deepseek/deepseek-r1:free` |
+| Google: Gemini 2.0 Flash Experimental (free) | `google/gemini-2.0-flash-exp:free` |
+| Meta: Llama 3.3 70B Instruct (free) | `meta-llama/llama-3.3-70b-instruct:free` |
+| Qwen2.5 Coder 32B Instruct (free) | `qwen/qwen-2.5-coder-32b-instruct:free` |
+| Meta: Llama 3.2 3B Instruct (free) | `meta-llama/llama-3.2-3b-instruct:free` |
+| Qwen2.5 72B Instruct (free) | `qwen/qwen-2.5-72b-instruct:free` |
+| Mistral: Mistral Nemo (free) | `mistralai/mistral-nemo:free` |
+| Google: Gemma 2 9B (free) | `google/gemma-2-9b-it:free` |
+| Mistral: Mistral 7B Instruct (free) | `mistralai/mistral-7b-instruct:free` |
+
 ### `editor_api_credentials`
 
 *Primary key*: `id uuid` generated via `gen_random_uuid()`.
