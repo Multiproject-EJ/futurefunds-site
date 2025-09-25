@@ -53,6 +53,36 @@
     .model-editor{margin-top:10px;border:1px dashed var(--border,#e5e7eb);border-radius:12px;padding:12px;display:grid;gap:10px;background:rgba(148,163,184,.08)}
     .model-editor textarea{min-height:120px;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace}
     .model-editor__actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+    .modal{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;padding:20px;z-index:120}
+    .modal[hidden]{display:none}
+    .modal__backdrop{position:absolute;inset:0;background:rgba(15,23,42,.55)}
+    .modal__dialog{position:relative;background:var(--panel,#fff);color:var(--text,#0f172a);border-radius:18px;max-width:960px;width:100%;max-height:90vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 24px 60px rgba(15,23,42,.28)}
+    .modal__header,.modal__footer{padding:18px 24px;border-color:var(--border,#e5e7eb);display:flex;align-items:center}
+    .modal__header{justify-content:space-between;border-bottom:1px solid var(--border,#e5e7eb);gap:12px}
+    .modal__footer{justify-content:flex-end;gap:12px;border-top:1px solid var(--border,#e5e7eb)}
+    .modal__body{display:grid;grid-template-columns:260px 1fr;gap:0;min-height:420px}
+    .modal__sidebar{background:var(--panel-muted,#f8fafc);border-right:1px solid var(--border,#e5e7eb);padding:18px;overflow:auto}
+    .modal__content{padding:18px;overflow:auto;display:grid;gap:16px}
+    .prompt-editor__sidebar-actions{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;gap:10px}
+    .prompt-editor__list{display:grid;gap:8px}
+    .prompt-editor__list button{width:100%;text-align:left;border:1px solid transparent;border-radius:10px;padding:10px 12px;background:transparent;color:inherit;cursor:pointer;transition:background .15s ease,border-color .15s ease,color .15s ease}
+    .prompt-editor__list button strong{display:block;font-weight:600}
+    .prompt-editor__list button span{display:block;font-size:.8rem;color:var(--muted,#64748b);margin-top:2px}
+    .prompt-editor__list button:hover{border-color:var(--accent,#2563eb)}
+    .prompt-editor__list button.active{background:var(--accent,#2563eb);color:#fff;border-color:var(--accent,#2563eb)}
+    .prompt-editor__list button.active span{color:rgba(255,255,255,.85)}
+    .prompt-editor__list button[data-archived="true"]{opacity:.72}
+    .prompt-editor__empty{color:var(--muted,#64748b);font-size:.9rem}
+    .prompt-editor__form{display:grid;gap:16px}
+    .prompt-editor__form .field-group{display:grid;gap:6px}
+    .prompt-editor__form label{font-weight:600;font-size:.9rem}
+    .prompt-editor__form input,.prompt-editor__form textarea{padding:10px 12px;border:1px solid var(--border,#e5e7eb);border-radius:10px;background:var(--panel,#fff);color:var(--text,#0f172a)}
+    .prompt-editor__form textarea{min-height:220px;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace}
+    .prompt-editor__row{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(160px,1fr))}
+    .prompt-editor__toggles{display:flex;gap:18px;flex-wrap:wrap;align-items:center}
+    .prompt-editor__toggle{display:flex;gap:8px;align-items:center;font-size:.9rem;color:var(--muted,#64748b)}
+    .prompt-editor__toggle input{margin:0}
+    .prompt-editor__status{min-height:18px}
   </style>
 </head>
 <body>
@@ -122,6 +152,7 @@
             <label>Prompt template</label>
             <div class="prompt-selector">
               <button type="button" class="btn ghost" id="promptSelectBtn"><span id="promptSelectLabel">Select prompt</span> ▾</button>
+              <button type="button" class="btn small ghost" id="openPromptEditor">Prompt editor</button>
               <div class="prompt-menu" id="promptMenu" hidden role="menu"></div>
             </div>
             <p class="muted-small" id="promptSummary">Loading prompts…</p>
@@ -221,6 +252,62 @@
       <div id="recentList" class="recent-list"></div>
     </section>
   </main>
+
+  <div id="promptEditorModal" class="modal" hidden role="dialog" aria-modal="true" aria-labelledby="promptEditorTitle">
+    <div class="modal__backdrop" data-close-prompt></div>
+    <div class="modal__dialog">
+      <header class="modal__header">
+        <h2 id="promptEditorTitle" style="margin:0;font-size:1.15rem">Prompt library</h2>
+        <button type="button" class="btn small ghost" id="closePromptEditor">Close</button>
+      </header>
+      <div class="modal__body">
+        <aside class="modal__sidebar">
+          <div class="prompt-editor__sidebar-actions">
+            <strong style="font-size:.95rem">Saved prompts</strong>
+            <button type="button" class="btn small ghost" id="addPromptTemplate">New</button>
+          </div>
+          <div id="promptEditorList" class="prompt-editor__list"></div>
+        </aside>
+        <div class="modal__content">
+          <form id="promptEditorForm" class="prompt-editor__form">
+            <input type="hidden" id="promptEditorId" />
+            <div class="prompt-editor__row">
+              <div class="field-group">
+                <label for="promptEditorName">Name</label>
+                <input id="promptEditorName" name="name" placeholder="Deep research" required />
+              </div>
+              <div class="field-group">
+                <label for="promptEditorSlug">Slug (optional)</label>
+                <input id="promptEditorSlug" name="slug" placeholder="deep-research" />
+              </div>
+              <div class="field-group">
+                <label for="promptEditorSortOrder">Sort order</label>
+                <input id="promptEditorSortOrder" name="sort_order" type="number" min="0" step="1" placeholder="100" />
+              </div>
+            </div>
+            <div class="field-group">
+              <label for="promptEditorDescription">Summary</label>
+              <textarea id="promptEditorDescription" name="description" placeholder="Short summary for the selector"></textarea>
+            </div>
+            <div class="field-group">
+              <label for="promptEditorText">Prompt template</label>
+              <textarea id="promptEditorText" name="prompt_text" placeholder="Write the AI template here" required></textarea>
+              <p class="muted-small">Use template tags like <code>{{company}}</code>, <code>{{ticker}}</code> or <code>{{notes_block}}</code> as needed.</p>
+            </div>
+            <div class="prompt-editor__toggles">
+              <label class="prompt-editor__toggle"><input type="checkbox" id="promptEditorDefault" name="is_default" /> Default prompt</label>
+              <label class="prompt-editor__toggle"><input type="checkbox" id="promptEditorArchived" name="archived" /> Archived</label>
+            </div>
+            <p id="promptEditorStatus" class="muted-small prompt-editor__status"></p>
+          </form>
+        </div>
+      </div>
+      <footer class="modal__footer">
+        <button type="button" class="btn ghost" id="cancelPromptEditor">Cancel</button>
+        <button type="submit" class="btn primary" form="promptEditorForm" id="savePromptEditor">Save prompt</button>
+      </footer>
+    </div>
+  </div>
 
   <footer class="site-footer">
     <div class="footer-inner">

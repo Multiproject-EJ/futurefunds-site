@@ -115,6 +115,24 @@ async function initEditor() {
   const modelEditorStatus = document.getElementById('modelEditorStatus');
   const saveModelBtn = document.getElementById('saveModelList');
   const cancelModelBtn = document.getElementById('cancelModelList');
+  const promptEditorOpenBtn = document.getElementById('openPromptEditor');
+  const promptEditorModal = document.getElementById('promptEditorModal');
+  const promptEditorList = document.getElementById('promptEditorList');
+  const promptEditorForm = document.getElementById('promptEditorForm');
+  const promptEditorStatus = document.getElementById('promptEditorStatus');
+  const promptEditorId = document.getElementById('promptEditorId');
+  const promptEditorName = document.getElementById('promptEditorName');
+  const promptEditorSlug = document.getElementById('promptEditorSlug');
+  const promptEditorDescription = document.getElementById('promptEditorDescription');
+  const promptEditorText = document.getElementById('promptEditorText');
+  const promptEditorSortOrder = document.getElementById('promptEditorSortOrder');
+  const promptEditorDefault = document.getElementById('promptEditorDefault');
+  const promptEditorArchived = document.getElementById('promptEditorArchived');
+  const promptEditorCloseBtn = document.getElementById('closePromptEditor');
+  const promptEditorCancelBtn = document.getElementById('cancelPromptEditor');
+  const promptEditorNewBtn = document.getElementById('addPromptTemplate');
+  const promptEditorBackdrop = promptEditorModal?.querySelector('[data-close-prompt]');
+  const promptEditorSaveBtn = document.getElementById('savePromptEditor');
 
   const AI_KEY_STORAGE = 'ff-editor-ai-key';
   const AI_MODEL_STORAGE = 'ff-editor-ai-model';
@@ -125,6 +143,9 @@ async function initEditor() {
   let selectedPrompt = null;
   let desiredPromptId = null;
   let desiredModelValue = null;
+  let supabaseAiKeyCache = null;
+  let promptEditorItems = [];
+  let promptEditorActiveId = null;
 
   if (!form || !locked) return;
 
@@ -159,13 +180,18 @@ async function initEditor() {
     }
   };
 
-  const loadAiConfig = () => {
+  const setAiKeyInput = (value) => {
+    if (!aiKey) return;
+    aiKey.value = (value || '').trim();
+  };
+
+  const loadLocalAiPreferences = () => {
     if (aiKey) {
       try {
         const stored = localStorage.getItem(AI_KEY_STORAGE) || localStorage.getItem('api-key-openrouter') || '';
-        aiKey.value = stored;
+        setAiKeyInput(stored);
       } catch {
-        aiKey.value = '';
+        setAiKeyInput('');
       }
     }
     try {
@@ -180,6 +206,39 @@ async function initEditor() {
       desiredPromptId = localStorage.getItem(AI_PROMPT_STORAGE) || null;
     } catch {
       desiredPromptId = null;
+    }
+  };
+
+  const ensureSupabaseAiKey = async ({ force = false } = {}) => {
+    if (supabaseAiKeyCache && !force) {
+      setAiKeyInput(supabaseAiKeyCache);
+      return supabaseAiKeyCache;
+    }
+    try {
+      const { data, error } = await supabase
+        .from('editor_api_credentials')
+        .select('id, api_key, provider, is_active, updated_at')
+        .eq('provider', 'openrouter')
+        .eq('is_active', true)
+        .order('updated_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (error) throw error;
+      supabaseAiKeyCache = data?.api_key || null;
+      if (supabaseAiKeyCache) {
+        setAiKeyInput(supabaseAiKeyCache);
+      }
+    } catch (error) {
+      supabaseAiKeyCache = supabaseAiKeyCache || null;
+      console.warn('AI key fetch error', error);
+    }
+    return supabaseAiKeyCache;
+  };
+
+  const loadAiConfig = async ({ includeRemote = false, forceRemote = false } = {}) => {
+    loadLocalAiPreferences();
+    if (includeRemote) {
+      await ensureSupabaseAiKey({ force: forceRemote });
     }
   };
 
@@ -203,6 +262,262 @@ async function initEditor() {
       }
     } catch (err) {
       console.warn('AI config storage error', err);
+    }
+  };
+
+  const setPromptEditorStatus = (text, tone = 'info') => {
+    if (!promptEditorStatus) return;
+    promptEditorStatus.textContent = text || '';
+    promptEditorStatus.dataset.tone = text ? tone : '';
+    const color =
+      tone === 'error'
+        ? 'var(--danger,#ff6b6b)'
+        : tone === 'success'
+        ? 'var(--ok,#31d0a3)'
+        : 'var(--muted,#64748b)';
+    promptEditorStatus.style.color = text ? color : 'var(--muted,#64748b)';
+  };
+
+  const resolvePromptRecordId = (record) => {
+    if (!record) return null;
+    const value = record.id || record.slug || '';
+    const trimmed = String(value || '').trim();
+    return trimmed ? trimmed : null;
+  };
+
+  const getPromptEditorItemById = (id) => {
+    if (!id) return null;
+    return promptEditorItems.find((item) => resolvePromptRecordId(item) === id) || null;
+  };
+
+  const renderPromptEditorList = () => {
+    if (!promptEditorList) return;
+    if (!promptEditorItems.length) {
+      promptEditorList.innerHTML = '<p class="prompt-editor__empty">No prompts yet.</p>';
+      return;
+    }
+    promptEditorList.innerHTML = promptEditorItems
+      .map((item) => {
+        const id = resolvePromptRecordId(item);
+        if (!id) return '';
+        const active = id === promptEditorActiveId ? 'active' : '';
+        const archivedAttr = item.archived ? ' data-archived="true"' : '';
+        const metaParts = [];
+        if (item.is_default) metaParts.push('Default');
+        if (item.archived) metaParts.push('Archived');
+        const detailParts = [];
+        if (item.description) detailParts.push(item.description);
+        if (metaParts.length) detailParts.push(metaParts.join(' • '));
+        const details = detailParts.length ? `<span>${escapeHtml(detailParts.join(' — '))}</span>` : '';
+        const label = escapeHtml(item.name || item.slug || 'Prompt');
+        return `<button type="button" class="${active}" data-editor-prompt="${escapeHtml(id)}"${archivedAttr}><strong>${label}</strong>${details}</button>`;
+      })
+      .filter(Boolean)
+      .join('');
+  };
+
+  const resetPromptEditorForm = () => {
+    if (!promptEditorForm) return;
+    if (typeof promptEditorForm.reset === 'function') {
+      promptEditorForm.reset();
+    }
+    if (promptEditorId) promptEditorId.value = '';
+    if (promptEditorName) promptEditorName.value = '';
+    if (promptEditorSlug) promptEditorSlug.value = '';
+    if (promptEditorDescription) promptEditorDescription.value = '';
+    if (promptEditorText) promptEditorText.value = '';
+    if (promptEditorSortOrder) promptEditorSortOrder.value = '';
+    if (promptEditorDefault) promptEditorDefault.checked = false;
+    if (promptEditorArchived) promptEditorArchived.checked = false;
+  };
+
+  const populatePromptEditorForm = (record) => {
+    if (!promptEditorForm) return;
+    if (typeof promptEditorForm.reset === 'function') {
+      promptEditorForm.reset();
+    }
+    if (promptEditorId) promptEditorId.value = record?.id || '';
+    if (promptEditorName) promptEditorName.value = record?.name || '';
+    if (promptEditorSlug) promptEditorSlug.value = record?.slug || '';
+    if (promptEditorDescription) promptEditorDescription.value = record?.description || '';
+    if (promptEditorText) promptEditorText.value = record?.prompt_text || '';
+    if (promptEditorSortOrder) {
+      const sortValue = record?.sort_order;
+      promptEditorSortOrder.value = Number.isFinite(sortValue) ? sortValue : sortValue ?? '';
+    }
+    if (promptEditorDefault) promptEditorDefault.checked = Boolean(record?.is_default);
+    if (promptEditorArchived) promptEditorArchived.checked = Boolean(record?.archived);
+  };
+
+  const setPromptEditorSelection = (id) => {
+    promptEditorActiveId = id || null;
+    renderPromptEditorList();
+    const current = getPromptEditorItemById(promptEditorActiveId);
+    if (current) {
+      populatePromptEditorForm(current);
+      setPromptEditorStatus('Editing saved prompt.', 'info');
+    } else if (promptEditorItems.length) {
+      resetPromptEditorForm();
+      setPromptEditorStatus('Select a prompt to edit or create a new template.', 'info');
+    } else {
+      resetPromptEditorForm();
+      setPromptEditorStatus('No prompts found. Create a new template to get started.', 'info');
+    }
+  };
+
+  const refreshPromptEditorList = async ({ focusId, fallbackToFirst = true } = {}) => {
+    if (!promptEditorList) return;
+    promptEditorList.innerHTML = '<p class="prompt-editor__empty">Loading…</p>';
+    try {
+      const { data, error } = await supabase
+        .from(PROMPT_TABLE)
+        .select('*')
+        .order('archived', { ascending: true })
+        .order('sort_order', { ascending: true })
+        .order('name', { ascending: true });
+      if (error) throw error;
+      promptEditorItems = Array.isArray(data) ? data : [];
+      let targetId = focusId || promptEditorActiveId || null;
+      if (targetId && !getPromptEditorItemById(targetId)) {
+        targetId = null;
+      }
+      if (!targetId && promptEditorItems.length && fallbackToFirst) {
+        targetId = resolvePromptRecordId(promptEditorItems[0]);
+      }
+      promptEditorActiveId = targetId || null;
+      renderPromptEditorList();
+      const current = getPromptEditorItemById(promptEditorActiveId);
+      if (current) {
+        populatePromptEditorForm(current);
+        setPromptEditorStatus('Editing saved prompt.', 'info');
+      } else if (promptEditorItems.length) {
+        resetPromptEditorForm();
+        setPromptEditorStatus('Select a prompt to edit or create a new template.', 'info');
+      } else {
+        resetPromptEditorForm();
+        setPromptEditorStatus('No prompts found. Create a new template to get started.', 'info');
+      }
+    } catch (error) {
+      console.error('Prompt editor load error', error);
+      promptEditorItems = [];
+      promptEditorList.innerHTML = `<p class="prompt-editor__empty">${escapeHtml(error.message || 'Unable to load prompts.')}</p>`;
+      resetPromptEditorForm();
+      setPromptEditorStatus('Unable to load prompts from Supabase.', 'error');
+    }
+  };
+
+  let previousBodyOverflow = '';
+
+  const openPromptEditor = async () => {
+    if (!promptEditorModal) return;
+    setPromptEditorStatus('Loading prompts…', 'info');
+    promptEditorModal.hidden = false;
+    if (typeof document !== 'undefined' && document.body) {
+      previousBodyOverflow = document.body.style.overflow;
+      document.body.style.overflow = 'hidden';
+    }
+    await refreshPromptEditorList({ fallbackToFirst: true });
+    if (promptEditorName) {
+      setTimeout(() => promptEditorName.focus(), 60);
+    }
+  };
+
+  const closePromptEditor = () => {
+    if (!promptEditorModal) return;
+    promptEditorModal.hidden = true;
+    if (typeof document !== 'undefined' && document.body) {
+      document.body.style.overflow = previousBodyOverflow || '';
+      previousBodyOverflow = '';
+    }
+  };
+
+  const startNewPrompt = () => {
+    promptEditorActiveId = null;
+    renderPromptEditorList();
+    resetPromptEditorForm();
+    setPromptEditorStatus('Create a new prompt template.', 'info');
+    if (promptEditorName) {
+      setTimeout(() => promptEditorName.focus(), 30);
+    }
+  };
+
+  const readPromptEditorForm = () => {
+    const id = (promptEditorId?.value || '').trim();
+    const name = (promptEditorName?.value || '').trim();
+    const slug = (promptEditorSlug?.value || '').trim();
+    const description = (promptEditorDescription?.value || '').trim();
+    const promptText = (promptEditorText?.value || '').trim();
+    const sortValueRaw = (promptEditorSortOrder?.value || '').trim();
+    let sortOrder = null;
+    if (sortValueRaw) {
+      const parsed = Number.parseInt(sortValueRaw, 10);
+      if (Number.isFinite(parsed)) sortOrder = parsed;
+    }
+    return {
+      id: id || null,
+      name,
+      slug: slug || null,
+      description,
+      prompt_text: promptText,
+      sort_order: sortOrder,
+      is_default: Boolean(promptEditorDefault?.checked),
+      archived: Boolean(promptEditorArchived?.checked),
+    };
+  };
+
+  const savePromptEditor = async () => {
+    const values = readPromptEditorForm();
+    if (!values.name) {
+      setPromptEditorStatus('Add a name for the prompt template.', 'error');
+      if (promptEditorName) promptEditorName.focus();
+      return;
+    }
+    if (!values.prompt_text) {
+      setPromptEditorStatus('Write the prompt template before saving.', 'error');
+      if (promptEditorText) promptEditorText.focus();
+      return;
+    }
+    setPromptEditorStatus('Saving…', 'info');
+    if (promptEditorSaveBtn) promptEditorSaveBtn.disabled = true;
+    try {
+      const payload = {
+        name: values.name,
+        description: values.description || null,
+        prompt_text: values.prompt_text,
+        sort_order: Number.isFinite(values.sort_order) ? values.sort_order : null,
+        is_default: values.is_default,
+        archived: values.archived,
+      };
+      if (values.slug) payload.slug = values.slug;
+      if (values.id) payload.id = values.id;
+      const { data, error } = await supabase
+        .from(PROMPT_TABLE)
+        .upsert(payload, { onConflict: 'id' })
+        .select()
+        .maybeSingle();
+      if (error) throw error;
+      const saved = data || null;
+      const savedId = resolvePromptRecordId(saved) || values.slug || values.id || null;
+      if (values.is_default && saved?.id) {
+        try {
+          await supabase.from(PROMPT_TABLE).update({ is_default: false }).neq('id', saved.id);
+        } catch (err) {
+          console.warn('Prompt default reset error', err);
+        }
+      }
+      await refreshPromptOptions();
+      await refreshPromptEditorList({ focusId: savedId || null, fallbackToFirst: !savedId });
+      if (savedId) {
+        setSelectedPrompt(savedId, { persist: false });
+        desiredPromptId = savedId;
+        persistAiConfig();
+      }
+      setPromptEditorStatus('Prompt saved.', 'success');
+    } catch (error) {
+      console.error('Prompt save error', error);
+      setPromptEditorStatus(error.message || 'Unable to save prompt.', 'error');
+    } finally {
+      if (promptEditorSaveBtn) promptEditorSaveBtn.disabled = false;
     }
   };
 
@@ -526,7 +841,7 @@ async function initEditor() {
   };
 
   switchAnalysisMode('manual');
-  loadAiConfig();
+  await loadAiConfig();
 
   modeButtons.forEach((btn) => {
     btn.addEventListener('click', () => {
@@ -574,8 +889,58 @@ async function initEditor() {
   });
 
   document.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape') closePromptMenu();
+    if (event.key === 'Escape') {
+      closePromptMenu();
+      if (!promptEditorModal?.hidden) closePromptEditor();
+    }
   });
+
+  if (promptEditorOpenBtn) {
+    promptEditorOpenBtn.addEventListener('click', async () => {
+      await openPromptEditor();
+    });
+  }
+
+  if (promptEditorCloseBtn) {
+    promptEditorCloseBtn.addEventListener('click', () => {
+      closePromptEditor();
+    });
+  }
+
+  if (promptEditorCancelBtn) {
+    promptEditorCancelBtn.addEventListener('click', () => {
+      closePromptEditor();
+    });
+  }
+
+  if (promptEditorBackdrop) {
+    promptEditorBackdrop.addEventListener('click', () => {
+      closePromptEditor();
+    });
+  }
+
+  if (promptEditorNewBtn) {
+    promptEditorNewBtn.addEventListener('click', () => {
+      startNewPrompt();
+    });
+  }
+
+  if (promptEditorList) {
+    promptEditorList.addEventListener('click', (event) => {
+      const target = event.target.closest('[data-editor-prompt]');
+      if (!target) return;
+      event.preventDefault();
+      const id = target.getAttribute('data-editor-prompt');
+      if (id) setPromptEditorSelection(id);
+    });
+  }
+
+  if (promptEditorForm) {
+    promptEditorForm.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      await savePromptEditor();
+    });
+  }
 
   if (editModelBtn) {
     editModelBtn.addEventListener('click', () => {
@@ -728,6 +1093,7 @@ async function initEditor() {
   form.hidden = false;
   if (recentSection) recentSection.hidden = false;
 
+  await loadAiConfig({ includeRemote: true });
   await refreshModelOptions();
   await refreshPromptOptions();
 
@@ -765,17 +1131,17 @@ async function initEditor() {
     setMessage('Entry published!', 'success');
     form.reset();
     if (dateInput) dateInput.value = payload.date;
-    loadAiConfig();
+    await loadAiConfig();
     switchAnalysisMode('manual');
     setAnalysisStatus('Entry published. Ready for another analysis.', 'success');
     await loadRecent();
   });
 
   if (resetBtn) {
-    resetBtn.addEventListener('click', () => {
+    resetBtn.addEventListener('click', async () => {
       form.reset();
       if (dateInput) dateInput.value = new Date().toISOString().slice(0, 10);
-      loadAiConfig();
+      await loadAiConfig();
       switchAnalysisMode('manual');
       setMessage('Form reset.');
       setAnalysisStatus('Form reset.', 'info');
