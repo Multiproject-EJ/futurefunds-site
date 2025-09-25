@@ -73,6 +73,8 @@ const DEFAULT_MODELS = [
   { value: 'anthropic/claude-3.5-sonnet', label: 'Anthropic Claude 3.5 Sonnet' },
 ];
 
+const DEFAULT_OPENROUTER_API_KEY = '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';
+
 const normalizeOpenRouterApiKey = (value) => (value || '').trim().replace(/^bearer\s+/i, '');
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -225,6 +227,7 @@ async function initEditor() {
       setAiKeyInput(supabaseAiKeyCache);
       return supabaseAiKeyCache;
     }
+    let fetchedKey = null;
     try {
       const { data, error } = await supabase
         .from('editor_api_credentials')
@@ -235,13 +238,20 @@ async function initEditor() {
         .limit(1)
         .maybeSingle();
       if (error) throw error;
-      supabaseAiKeyCache = data?.api_key ? normalizeOpenRouterApiKey(data.api_key) : null;
-      if (supabaseAiKeyCache) {
-        setAiKeyInput(supabaseAiKeyCache);
-      }
+      fetchedKey = data?.api_key ? normalizeOpenRouterApiKey(data.api_key) : null;
     } catch (error) {
       supabaseAiKeyCache = supabaseAiKeyCache || null;
       console.warn('AI key fetch error', error);
+    }
+    if (!fetchedKey && DEFAULT_OPENROUTER_API_KEY) {
+      fetchedKey = normalizeOpenRouterApiKey(DEFAULT_OPENROUTER_API_KEY);
+    }
+    if (fetchedKey) {
+      supabaseAiKeyCache = fetchedKey;
+      setAiKeyInput(supabaseAiKeyCache);
+      try {
+        localStorage.setItem(AI_KEY_STORAGE, supabaseAiKeyCache);
+      } catch {}
     }
     return supabaseAiKeyCache;
   };
@@ -864,7 +874,7 @@ async function initEditor() {
   };
 
   switchAnalysisMode('manual');
-  await loadAiConfig();
+  await loadAiConfig({ includeRemote: true });
 
   modeButtons.forEach((btn) => {
     btn.addEventListener('click', () => {
