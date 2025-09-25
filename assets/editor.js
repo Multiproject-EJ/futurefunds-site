@@ -1505,6 +1505,20 @@ function buildMasterAnalysisPrompt({ ticker, company, exchange, notes }) {
   return `You are the FutureFunds.ai research analyst. Produce a MASTER STOCK ANALYSIS (Markdown-Table Edition) for ${descriptor}. Match the structure of the reference template exactly.\n\nFollow this order and formatting:\n1. Intro sentence: "Below is a MASTER STOCK ANALYSIS (Markdown-Table Edition) for ${descriptor} — ..." with a short rationale.\n2. Insert a line containing only ⸻ between every major section.\n3. Section A. One-Liner Summary — Markdown table with columns Ticker | Risk | Quality | Timing | Composite Score (/10).\n4. Section B. Final Verdicts — One Line — list Risk, Quality, Timing values.\n5. Section C. Standardized Scorecard — One Line — Markdown table with the six specified metrics.\n6. Section D. Valuation Ranges — provide USD bear/base/bull table and paragraph with NOK conversions.\n7. Narrative section — short paragraph plus bullet list of pricing, market cap, revenue, catalysts.\n8. Sections 1 through 5 with the same headings (Downside & Risk Analysis; Business Model & Growth Opportunities; Scenario Analysis (include Markdown table with Bear/Base/Bull rows and valuation ranges); Valuation Analysis; Timing & Market Momentum). Use concise bullet points with data.\n9. Section 6. Final Conclusions — bullet lines for Risk, Quality, Timing plus an "Overall Verdict" sentence.\n10. Finish with a note paragraph starting with 🚩 Note:.\n\nRequirements:\n- Use realistic figures and ratings based on the latest publicly available information and reasonable assumptions.\n- Keep bullet points sharp and decision-oriented.\n- Ensure Markdown tables use pipes and render cleanly.\n- Maintain the same tone as the template (professional, catalyst-aware).${guidance}\n\nReturn only the Markdown content.`;
 }
 
+function sanitizeHeaderValue(value, fallback = '') {
+  if (typeof value !== 'string') return fallback;
+  let sanitized = '';
+  for (const char of value) {
+    const code = char.codePointAt(0);
+    if (code === undefined) continue;
+    if (code <= 0xff && char !== '\r' && char !== '\n') {
+      sanitized += char;
+    }
+  }
+  sanitized = sanitized.trim();
+  return sanitized || fallback;
+}
+
 async function callOpenRouterCompletion({ apiKey, model, prompt }) {
   const token = normalizeOpenRouterApiKey(apiKey);
   if (!token) throw new Error('Provide a valid OpenRouter API key.');
@@ -1531,11 +1545,11 @@ async function callOpenRouterCompletion({ apiKey, model, prompt }) {
     const { location, document } = window;
     const referer = location?.href || location?.origin || '';
     if (referer && /^https?:/i.test(referer)) {
-      requestHeaders['HTTP-Referer'] = referer;
+      requestHeaders['HTTP-Referer'] = sanitizeHeaderValue(referer, referer);
     }
     const title = document?.title?.trim();
     if (title) {
-      requestHeaders['X-Title'] = title;
+      requestHeaders['X-Title'] = sanitizeHeaderValue(title, 'FutureFunds Universe Editor');
     } else {
       requestHeaders['X-Title'] = 'FutureFunds Universe Editor';
     }
