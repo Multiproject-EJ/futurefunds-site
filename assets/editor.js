@@ -338,6 +338,45 @@ async function initEditor() {
       .join('');
   };
 
+  const isPromptIdTaken = (id, { ignoreId = null } = {}) => {
+    const normalized = (id || '').trim();
+    if (!normalized) return false;
+    return promptEditorItems.some((item) => {
+      const recordId = resolvePromptRecordId(item);
+      if (ignoreId && recordId === ignoreId) return false;
+      return recordId === normalized;
+    });
+  };
+
+  const isPromptSlugTaken = (slug, { ignoreId = null } = {}) => {
+    const normalized = (slug || '').trim();
+    if (!normalized) return false;
+    return promptEditorItems.some((item) => {
+      const recordId = resolvePromptRecordId(item);
+      if (ignoreId && recordId === ignoreId) return false;
+      const recordSlug = (item?.slug || '').trim();
+      return recordSlug === normalized;
+    });
+  };
+
+  const generatePromptIdentifier = (base, { ignoreId = null } = {}) => {
+    let root = slugify(base || 'prompt');
+    if (!root) root = 'prompt';
+    let candidate = root;
+    let attempt = 2;
+    while (isPromptIdTaken(candidate, { ignoreId })) {
+      candidate = `${root}-${attempt}`;
+      attempt += 1;
+    }
+    return candidate;
+  };
+
+  const normalizePromptSlug = (value) => {
+    const trimmed = String(value || '').trim();
+    if (!trimmed) return '';
+    return slugify(trimmed);
+  };
+
   const resetPromptEditorForm = () => {
     if (!promptEditorForm) return;
     if (typeof promptEditorForm.reset === 'function') {
@@ -480,7 +519,7 @@ async function initEditor() {
     return {
       id: id || null,
       name,
-      slug: slug || null,
+      slug,
       description,
       prompt_text: promptText,
       sort_order: sortOrder,
@@ -501,10 +540,42 @@ async function initEditor() {
       if (promptEditorText) promptEditorText.focus();
       return;
     }
+
+    const currentId = values.id ? values.id.trim() : '';
+    const editingExisting = Boolean(currentId);
+    let slugValue = '';
+    if (values.slug) {
+      slugValue = normalizePromptSlug(values.slug);
+    } else if (!editingExisting) {
+      slugValue = normalizePromptSlug(values.name || `prompt-${Date.now()}`);
+    }
+    let recordId = currentId;
+    if (!recordId) {
+      recordId = generatePromptIdentifier(slugValue || values.name || `prompt-${Date.now()}`);
+    }
+    if (!editingExisting && !slugValue && recordId) {
+      slugValue = recordId;
+    }
+
+    if (promptEditorId) promptEditorId.value = recordId;
+    if (promptEditorSlug) promptEditorSlug.value = slugValue || '';
+
+    if (!editingExisting && isPromptIdTaken(recordId)) {
+      setPromptEditorStatus('Prompt identifier already exists. Adjust the name or slug.', 'error');
+      if (promptEditorSlug) promptEditorSlug.focus();
+      return;
+    }
+    if (slugValue && isPromptSlugTaken(slugValue, { ignoreId: recordId })) {
+      setPromptEditorStatus('Prompt slug already exists. Try a different slug.', 'error');
+      if (promptEditorSlug) promptEditorSlug.focus();
+      return;
+    }
+
     setPromptEditorStatus('Saving…', 'info');
     if (promptEditorSaveBtn) promptEditorSaveBtn.disabled = true;
     try {
       const payload = {
+        id: recordId,
         name: values.name,
         description: values.description || null,
         prompt_text: values.prompt_text,
@@ -512,8 +583,7 @@ async function initEditor() {
         is_default: values.is_default,
         archived: values.archived,
       };
-      if (values.slug) payload.slug = values.slug;
-      if (values.id) payload.id = values.id;
+      payload.slug = slugValue || null;
       const { data, error } = await supabase
         .from(PROMPT_TABLE)
         .upsert(payload, { onConflict: 'id' })
@@ -623,6 +693,7 @@ async function initEditor() {
           const archived = row.archived ?? row.disabled ?? false;
           return {
             id: promptId,
+            slug: row.slug || null,
             name: row.name || row.title || row.slug || 'Prompt',
             description: row.description || row.summary || '',
             prompt_text: promptText,
