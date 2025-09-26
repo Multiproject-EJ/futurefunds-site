@@ -5,9 +5,7 @@ const state = {
   rows: [],
   filtered: [],
   q: localStorage.getItem('universe_q') || '',
-  tag: localStorage.getItem('universe_tag') || '',
-  from: localStorage.getItem('universe_from') || '',
-  to: localStorage.getItem('universe_to') || '',
+  viewMode: localStorage.getItem('universe_view_mode') || 'tags',
   loading: false,
   error: null,
   isMember: false,
@@ -24,11 +22,63 @@ document.addEventListener('DOMContentLoaded', () => {
 async function UniversePage() {
   const $ = (sel) => document.querySelector(sel);
   const tbody = $('#tbody');
+  const headerRow = $('#headerRow');
   const qInput = $('#q');
-  const tagSel = $('#tagSel');
-  const fromInput = $('#from');
-  const toInput = $('#to');
-  const chips = $('#chips');
+  const viewButtons = Array.from(document.querySelectorAll('[data-mode]'));
+
+  const BASE_HEADERS = [
+    { key: 'company', label: 'Company name', style: 'min-width:220px' },
+    { key: 'price', label: 'Current Price', style: 'width:130px' },
+    { key: 'risk', label: 'Risk Rating', style: 'width:120px' },
+    { key: 'date', label: 'Date', style: 'width:110px' },
+    { key: 'financials', label: 'Financials', style: 'width:120px' },
+    { key: 'analysis', label: 'Analysis', style: 'width:110px' },
+  ];
+
+  const VIEW_CONFIG = {
+    tags: {
+      columns: [
+        { key: 'tag_moat', label: '[Tag] Moat/quality type', getter: (row) => findTagMatch(row.tags, ['moat', 'quality']) },
+        { key: 'tag_leverage', label: '[Tag] Leverage', getter: (row) => findTagMatch(row.tags, ['lever']) },
+        { key: 'tag_cannibal', label: '[Tag] Cannibal', getter: (row) => findTagMatch(row.tags, ['cannibal']) },
+        { key: 'tag_valuetrap', label: '[Tag] Valuetrap?', getter: (row) => findTagMatch(row.tags, ['value trap', 'valuetrap']) },
+        { key: 'tag_options', label: '[Tag] Options', getter: (row) => findTagMatch(row.tags, ['option']) },
+        { key: 'tag_writedowns', label: '[Tag] Writedowns', getter: (row) => findTagMatch(row.tags, ['writedown']) },
+        { key: 'tag_asymmetric', label: '[Tag] Assymetric/Swingtrade', getter: (row) => findTagMatch(row.tags, ['swing', 'asym']) },
+        { key: 'tag_superinvestors', label: '[Tag] Superinvestors', getter: (row) => findTagMatch(row.tags, ['superinvestor', 'guru']) },
+        { key: 'tag_industry', label: '[Tag] Industry', getter: (row) => findTagMatch(row.tags, ['industry', 'sector', 'tech', 'consumer', 'energy', 'financial', 'health', 'industrial']) },
+      ],
+    },
+    strategies: {
+      columns: [
+        { key: 'strategy_focus', label: 'Strategy focus', getter: (row) => row.strategies?.focus ?? row.strategy_focus },
+        { key: 'strategy_plan', label: 'Entry plan', getter: (row) => row.strategies?.entry ?? row.strategy_entry },
+        { key: 'strategy_exit', label: 'Exit plan', getter: (row) => row.strategies?.exit ?? row.strategy_exit },
+      ],
+    },
+    metrics: {
+      columns: [
+        { key: 'metric_ps', label: 'P/S', getter: (row) => formatMetric(getMetricValue(row, ['ps', 'price_sales', 'price_to_sales'])) },
+        { key: 'metric_pe', label: 'P/E', getter: (row) => formatMetric(getMetricValue(row, ['pe', 'price_earnings', 'price_to_earnings'])) },
+        { key: 'metric_pb', label: 'P/B', getter: (row) => formatMetric(getMetricValue(row, ['pb', 'price_book', 'price_to_book'])) },
+        { key: 'metric_peg', label: 'PEG', getter: (row) => formatMetric(getMetricValue(row, ['peg'])) },
+        { key: 'metric_evebit', label: 'EV/EBIT', getter: (row) => formatMetric(getMetricValue(row, ['ev_ebit', 'evebit'])) },
+        { key: 'metric_evebitda', label: 'EV/EBITDA', getter: (row) => formatMetric(getMetricValue(row, ['ev_ebitda', 'evebitda'])) },
+      ],
+    },
+    placeholder1: {
+      columns: [
+        { key: 'placeholder1_a', label: 'Placeholder 1A', getter: (row) => row.placeholder1?.a ?? row.placeholder1_a },
+        { key: 'placeholder1_b', label: 'Placeholder 1B', getter: (row) => row.placeholder1?.b ?? row.placeholder1_b },
+      ],
+    },
+    placeholder2: {
+      columns: [
+        { key: 'placeholder2_a', label: 'Placeholder 2A', getter: (row) => row.placeholder2?.a ?? row.placeholder2_a },
+        { key: 'placeholder2_b', label: 'Placeholder 2B', getter: (row) => row.placeholder2?.b ?? row.placeholder2_b },
+      ],
+    },
+  };
   const modal = $('#modal');
   const mTitle = $('#mTitle');
   const mBody = $('#mBody');
@@ -40,9 +90,6 @@ async function UniversePage() {
 
   // Initialize filters from storage
   qInput.value = state.q;
-  tagSel.value = state.tag;
-  fromInput.value = state.from;
-  toInput.value = state.to;
 
   async function load() {
     state.loading = true;
@@ -67,68 +114,49 @@ async function UniversePage() {
       id: row.id,
       date: row.date || '',
       topic: row.topic || '',
+      company: row.company || row.company_name || row.topic || '',
       prompt_used: row.prompt_used || '',
       key_findings: Array.isArray(row.key_findings) ? row.key_findings : [],
       visual_table_md: row.visual_table_md || '',
       conclusion: row.conclusion || '',
       analysis_markdown: row.analysis_markdown || row.analysis_full_md || row.analysis_full || '',
       tags: Array.isArray(row.tags) ? row.tags : Array.isArray(row.tags?.array) ? row.tags.array : [],
+      current_price: normalizeNumeric(row.current_price ?? row.price ?? row.currentPrice),
+      current_price_raw: row.current_price ?? row.price ?? row.currentPrice ?? '',
+      current_price_display: row.current_price_display || row.price_display || '',
+      currency: row.currency_symbol || row.currency || row.currencySymbol || '',
+      risk_rating: row.risk_rating || row.risk || '',
+      strategies: row.strategies || {},
+      metrics: row.metrics || {},
+      placeholder1: row.placeholder1 || {},
+      placeholder2: row.placeholder2 || {},
+      financials_markdown: row.financials_markdown || row.financials_md || '',
       created_at: row.created_at || null,
     };
   }
 
-  function buildTags() {
-    const counts = new Map();
-    state.rows.forEach((row) => {
-      (row.tags || []).forEach((tag) => counts.set(tag, (counts.get(tag) || 0) + 1));
-    });
-
-    const options = ['<option value="">All tags</option>'];
-    [...counts.keys()].sort().forEach((tag) => {
-      options.push(`<option value="${escapeHtml(tag)}">${escapeHtml(tag)}</option>`);
-    });
-    tagSel.innerHTML = options.join('');
-    tagSel.value = state.tag;
-
-    const top = [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 12);
-    chips.innerHTML = top
-      .map(([tag, count]) => `<button class="chip ${state.tag === tag ? 'active' : ''}" data-tag="${escapeHtml(tag)}">${escapeHtml(tag)} · ${count}</button>`)
-      .join('');
-    chips.querySelectorAll('.chip').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        const value = btn.dataset.tag;
-        state.tag = state.tag === value ? '' : value;
-        localStorage.setItem('universe_tag', state.tag);
-        render();
-        buildTags();
-      });
-    });
-  }
-
   function render() {
     localStorage.setItem('universe_q', (qInput.value = state.q));
-    localStorage.setItem('universe_from', (fromInput.value = state.from));
-    localStorage.setItem('universe_to', (toInput.value = state.to));
+    localStorage.setItem('universe_view_mode', state.viewMode);
+
+    updateViewButtons();
+
+    const dynamicColumns = getDynamicColumns();
+    updateHeader(dynamicColumns);
+    const totalColumns = BASE_HEADERS.length + dynamicColumns.length;
 
     if (state.loading) {
-      tbody.innerHTML = '<tr><td class="empty" colspan="6">Loading…</td></tr>';
+      tbody.innerHTML = `<tr><td class="empty" colspan="${totalColumns}">Loading…</td></tr>`;
       return;
     }
     if (state.error) {
-      tbody.innerHTML = `<tr><td class="empty" colspan="6">${escapeHtml(state.error)}</td></tr>`;
+      tbody.innerHTML = `<tr><td class="empty" colspan="${totalColumns}">${escapeHtml(state.error)}</td></tr>`;
       return;
     }
     if (!state.rows.length) {
-      tbody.innerHTML = '<tr><td class="empty" colspan="6">No data yet.</td></tr>';
+      tbody.innerHTML = `<tr><td class="empty" colspan="${totalColumns}">No data yet.</td></tr>`;
       return;
     }
-
-    const inRange = (iso) => {
-      if (!iso) return false;
-      if (state.from && iso < state.from) return false;
-      if (state.to && iso > state.to) return false;
-      return true;
-    };
 
     const needle = state.q.trim().toLowerCase();
     const matchesQuery = (row) => {
@@ -136,13 +164,10 @@ async function UniversePage() {
       return JSON.stringify(row).toLowerCase().includes(needle);
     };
 
-    state.filtered = state.rows
-      .filter((row) => !state.tag || (row.tags || []).includes(state.tag))
-      .filter((row) => (!state.from && !state.to) || inRange(row.date))
-      .filter(matchesQuery);
+    state.filtered = state.rows.filter(matchesQuery);
 
     if (!state.filtered.length) {
-      tbody.innerHTML = '<tr><td class="empty" colspan="6">No results. Try clearing filters.</td></tr>';
+      tbody.innerHTML = `<tr><td class="empty" colspan="${totalColumns}">No results. Try clearing filters.</td></tr>`;
       return;
     }
 
@@ -151,33 +176,10 @@ async function UniversePage() {
     state.previewCount = visibleRows.length;
     state.lockedCount = lockedCount;
 
-    const html = visibleRows
-      .map((row) => {
-        const findings = (row.key_findings || []).slice(0, 6).map((item) => `• ${escapeHtml(item)}`).join('<br>');
-        const tags = (row.tags || []).map((tag) => `<span class="tag">${escapeHtml(tag)}</span>`).join('');
-        const rowKey = row.date + '|' + row.topic;
-        const readLink = row.analysis_markdown
-          ? `<button type="button" class="link-btn" data-action="full" data-row-id="${escapeHtml(rowKey)}">Read full analysis</button>`
-          : '';
-        return `
-          <tr data-id="${escapeHtml(rowKey)}">
-            <td>${escapeHtml(row.date)}</td>
-            <td>
-              <div class="topic-cell">
-                <div class="topic-cell__title">${escapeHtml(row.topic)}</div>
-                ${readLink}
-              </div>
-            </td>
-            <td>${findings}</td>
-            <td><pre style="white-space:pre-wrap;margin:0">${escapeHtml(row.visual_table_md || '')}</pre></td>
-            <td>${escapeHtml(row.conclusion || '')}</td>
-            <td class="tags">${tags}</td>
-          </tr>`;
-      })
-      .join('');
-
     const rows = [];
+    const html = visibleRows.map((row) => buildRow(row, dynamicColumns)).join('');
     if (html) rows.push(html);
+
     if (lockedCount > 0) {
       const lockedLabel = lockedCount === 1 ? '1 more research brief' : `${lockedCount} more research briefs`;
       const previewLabel = `${visibleRows.length} of ${state.filtered.length}`;
@@ -190,7 +192,7 @@ async function UniversePage() {
       const secondaryLabel = state.isSignedIn ? 'Manage account' : 'Sign in';
       rows.push(`
         <tr class="locked-row">
-          <td colspan="6">
+          <td colspan="${totalColumns}">
             <div class="locked-paywall">
               <strong>Unlock the full Universe archive</strong>
               <p>${escapeHtml(message)}</p>
@@ -205,30 +207,227 @@ async function UniversePage() {
     }
 
     tbody.innerHTML = rows.join('');
+  }
 
-    tbody.querySelectorAll('button[data-action="full"]').forEach((btn) => {
-      btn.addEventListener('click', (event) => {
-        event.stopPropagation();
-        const id = btn.getAttribute('data-row-id');
-        const row = state.filtered.find((r) => r.date + '|' + r.topic === id);
-        if (!row) return;
-        openModal(row, 'full');
-      });
-    });
+  function buildRow(row, dynamicColumns) {
+    const rowKey = getRowKey(row);
+    const company = row.company || row.topic || '';
+    const priceText = formatPrice(row);
+    const risk = safeText(row.risk_rating);
+    const date = safeText(row.date);
+    const hasFinancials = !!(row.visual_table_md || row.financials_markdown);
+    const hasAnalysis = !!(row.analysis_markdown || row.conclusion || (row.key_findings || []).length);
 
-    tbody.querySelectorAll('tr[data-id]').forEach((tr) => {
-      tr.addEventListener('click', () => {
-        const id = tr.getAttribute('data-id');
-        const row = state.filtered.find((r) => r.date + '|' + r.topic === id);
-        if (!row) return;
-        openModal(row, 'summary');
-      });
+    const financialsCell = hasFinancials
+      ? `<button type="button" class="link-btn" data-action="financials" data-row-id="${escapeHtml(rowKey)}">View</button>`
+      : '<span style="color:var(--muted,#94a3b8)">No data</span>';
+    const analysisCell = hasAnalysis
+      ? `<button type="button" class="link-btn" data-action="analysis" data-row-id="${escapeHtml(rowKey)}">Open</button>`
+      : '<span style="color:var(--muted,#94a3b8)">No data</span>';
+
+    const dynamicCells = dynamicColumns
+      .map((col) => {
+        const value = safeText(col.getter ? col.getter(row) : undefined);
+        const className = col.className ? ` class="${col.className}"` : '';
+        return `<td${className}>${escapeHtml(value)}</td>`;
+      })
+      .join('');
+
+    return `
+      <tr data-id="${escapeHtml(rowKey)}">
+        <td class="company-cell">${escapeHtml(company)}</td>
+        <td class="metric-cell">${escapeHtml(priceText)}</td>
+        <td>${escapeHtml(risk)}</td>
+        <td>${escapeHtml(date)}</td>
+        <td>${financialsCell}</td>
+        <td>${analysisCell}</td>
+        ${dynamicCells}
+      </tr>`;
+  }
+
+  function getRowKey(row) {
+    if (!row) return '';
+    if (row.id !== undefined && row.id !== null && row.id !== '') return String(row.id);
+    const topic = row.topic || row.company || '';
+    return `${row.date || ''}|${topic}`;
+  }
+
+  function updateHeader(dynamicColumns) {
+    if (!headerRow) return;
+    const headerHtml = [
+      ...BASE_HEADERS.map((col) => `<th${col.style ? ` style="${col.style}"` : ''}>${col.label}</th>`),
+      ...dynamicColumns.map((col) => `<th>${col.label}</th>`),
+    ].join('');
+    headerRow.innerHTML = headerHtml;
+  }
+
+  function updateViewButtons() {
+    viewButtons.forEach((btn) => {
+      const mode = btn.dataset.mode;
+      const isActive = mode === state.viewMode;
+      btn.classList.toggle('active', isActive);
+      btn.setAttribute('aria-pressed', isActive ? 'true' : 'false');
     });
   }
 
-  function openModal(row, mode = 'summary') {
+  function getDynamicColumns() {
+    const config = VIEW_CONFIG[state.viewMode];
+    return config && Array.isArray(config.columns) ? config.columns : [];
+  }
+
+  function findTagMatch(tags, keywords = []) {
+    if (!Array.isArray(tags) || !tags.length) return '—';
+    if (!keywords?.length) return safeText(tags[0]);
+    const normalizedTags = tags.map((tag) => String(tag));
+    for (const keyword of keywords) {
+      const needle = String(keyword || '').toLowerCase();
+      if (!needle) continue;
+      const match = normalizedTags.find((tag) => tag.toLowerCase().includes(needle));
+      if (match) return match;
+    }
+    return '—';
+  }
+
+  function safeText(value) {
+    if (value === null || value === undefined) return '—';
+    const str = String(value).trim();
+    return str ? str : '—';
+  }
+
+  function formatPrice(row) {
+    if (!row) return '—';
+    if (row.current_price_display) return safeText(row.current_price_display);
+    const currencyRaw = row.currency ?? '';
+    const currency = safeText(currencyRaw);
+    const currencyLabel = currency === '—' ? '' : currency;
+
+    const value = row.current_price;
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      return currencyLabel ? formatCurrencyLabel(currencyLabel, formatNumber(value)) : formatNumber(value);
+    }
+    if (value !== null && value !== undefined && value !== '') {
+      const num = Number(value);
+      if (Number.isFinite(num)) {
+        return currencyLabel ? formatCurrencyLabel(currencyLabel, formatNumber(num)) : formatNumber(num);
+      }
+      return safeText(value);
+    }
+    if (row.current_price_raw) {
+      return safeText(row.current_price_raw);
+    }
+    return '—';
+  }
+
+  function formatCurrencyLabel(currency, value) {
+    const symbol = currency.trim();
+    if (!symbol) return value;
+    if (/^[A-Za-z]{3}$/.test(symbol)) return `${symbol.toUpperCase()} ${value}`;
+    return `${symbol}${value}`;
+  }
+
+  function formatNumber(num) {
+    const abs = Math.abs(num);
+    let maximumFractionDigits = 2;
+    if (abs >= 1000) maximumFractionDigits = 0;
+    else if (abs >= 100) maximumFractionDigits = 1;
+    else if (abs < 1) maximumFractionDigits = 4;
+    return num.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits });
+  }
+
+  function formatMetric(value) {
+    if (value === null || value === undefined || value === '') return '—';
+    const num = Number(value);
+    if (Number.isFinite(num)) {
+      const abs = Math.abs(num);
+      let maximumFractionDigits = 2;
+      if (abs >= 1000) maximumFractionDigits = 0;
+      else if (abs >= 100) maximumFractionDigits = 1;
+      else if (abs < 1) maximumFractionDigits = 4;
+      return num.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits });
+    }
+    return safeText(value);
+  }
+
+  function getMetricValue(row, keys = []) {
+    if (!row || !keys?.length) return null;
+    const sources = [row.metrics || {}, row];
+    for (const key of keys) {
+      const variants = buildMetricKeyVariants(key);
+      for (const variant of variants) {
+        for (const source of sources) {
+          if (source && source[variant] !== undefined && source[variant] !== null && source[variant] !== '') {
+            return source[variant];
+          }
+        }
+      }
+    }
+    return null;
+  }
+
+  function buildMetricKeyVariants(key) {
+    const base = String(key || '');
+    const variants = new Set([base]);
+    variants.add(base.toLowerCase());
+    variants.add(base.toUpperCase());
+    variants.add(base.replace(/\//g, '_'));
+    variants.add(base.replace(/[_\s]/g, ''));
+    variants.add(base.replace(/\//g, ''));
+    variants.add(`metric_${base}`);
+    variants.add(`metric_${base}`.toLowerCase());
+    variants.add(`metric${base}`);
+    variants.add(`metric${base}`.toLowerCase());
+    variants.add(`ratio_${base}`);
+    variants.add(`ratio${base}`);
+    return [...variants];
+  }
+
+  function normalizeNumeric(value) {
+    if (value === null || value === undefined) return null;
+    if (typeof value === 'number' && Number.isFinite(value)) return value;
+    const str = String(value).trim();
+    if (!str) return null;
+    const cleaned = str.replace(/[^0-9.+-]/g, '');
+    if (!cleaned) return null;
+    const num = Number(cleaned);
+    return Number.isFinite(num) ? num : null;
+  }
+
+  function openModal(row, mode = 'analysis') {
+    if (!row) return;
+
+    if (mode === 'financials') {
+      const markdown = row.financials_markdown || row.visual_table_md || '';
+      mTitle.textContent = `${row.company || row.topic || 'Financials'} — Financials`;
+      if (markdown) {
+        mBody.innerHTML = `
+          <div style="display:grid;gap:12px">
+            <div><strong>Date:</strong> ${escapeHtml(row.date || '')}</div>
+            <pre style="white-space:pre-wrap;margin:0">${escapeHtml(markdown)}</pre>
+            <div class="modal-actions">
+              <button id="copyFinancials" class="btn" type="button" style="padding:8px 10px;border:1px solid var(--border);border-radius:10px;background:var(--panel)">Copy markdown</button>
+            </div>
+          </div>`;
+        const copyFinancials = $('#copyFinancials');
+        if (copyFinancials) {
+          copyFinancials.addEventListener('click', async () => {
+            try {
+              await navigator.clipboard.writeText(markdown);
+              toast('Markdown copied');
+            } catch (err) {
+              console.warn('Clipboard error', err);
+              toast('Unable to copy', true);
+            }
+          });
+        }
+      } else {
+        mBody.innerHTML = '<p style="margin:0">Financial details are not available for this entry.</p>';
+      }
+      modal.style.display = 'flex';
+      return;
+    }
+
     if (mode === 'full' && row.analysis_markdown) {
-      mTitle.textContent = `${row.topic || 'Details'} — Full analysis`;
+      mTitle.textContent = `${row.company || row.topic || 'Analysis'} — Full analysis`;
       mBody.innerHTML = renderFullAnalysis(row);
       modal.style.display = 'flex';
       const copyFull = $('#copyFull');
@@ -245,42 +444,28 @@ async function UniversePage() {
       }
       const backBtn = $('#backToSummary');
       if (backBtn) {
-        backBtn.addEventListener('click', () => openModal(row, 'summary'));
+        backBtn.addEventListener('click', () => openModal(row, 'analysis'));
       }
       return;
     }
 
-    mTitle.textContent = row.topic || 'Details';
+    const findings = (row.key_findings || []).map((item) => `<li>${escapeHtml(item)}</li>`).join('');
+    const risk = safeText(row.risk_rating);
+    const riskBlock = risk !== '—' ? `<div><strong>Risk rating:</strong> ${escapeHtml(risk)}</div>` : '';
+    const tags = (row.tags || []).filter(Boolean);
+    const tagsBlock = tags.length ? `<div><strong>Tags:</strong> ${escapeHtml(tags.join(', '))}</div>` : '';
+
+    mTitle.textContent = `${row.company || row.topic || 'Analysis'} — Summary`;
     mBody.innerHTML = `
       <div style="display:grid;gap:12px">
         <div><strong>Date:</strong> ${escapeHtml(row.date || '')}</div>
-        <div><strong>Conclusion:</strong><br>${escapeHtml(row.conclusion || '')}</div>
-        <div><strong>Key Findings:</strong><br>${(row.key_findings || []).map((item) => `• ${escapeHtml(item)}`).join('<br>')}</div>
-        <div><strong>Visual/Table (markdown):</strong>
-          <pre style="white-space:pre-wrap">${escapeHtml(row.visual_table_md || '')}</pre>
-          <div class="modal-actions">
-            <button id="copyMd" class="btn" style="padding:8px 10px;border:1px solid var(--border);border-radius:10px;background:var(--panel)">Copy markdown</button>
-            ${row.analysis_markdown ? '<button id="viewFullAnalysis" class="btn ghost" type="button">Read full analysis</button>' : ''}
-          </div>
-        </div>
-        <details>
-          <summary class="kbd">Prompt used (debug)</summary>
-          <pre style="white-space:pre-wrap">${escapeHtml(row.prompt_used || '')}</pre>
-        </details>
+        ${riskBlock}
+        ${findings ? `<div><strong>Key findings:</strong><ul style="margin:6px 0 0;padding-left:18px">${findings}</ul></div>` : ''}
+        ${row.conclusion ? `<div><strong>Conclusion:</strong><br>${escapeHtml(row.conclusion)}</div>` : ''}
+        ${tagsBlock}
+        ${row.analysis_markdown ? '<div class="modal-actions"><button id="viewFullAnalysis" class="btn ghost" type="button">Read full analysis</button></div>' : ''}
       </div>`;
     modal.style.display = 'flex';
-    const copyBtn = $('#copyMd');
-    if (copyBtn) {
-      copyBtn.addEventListener('click', async () => {
-        try {
-          await navigator.clipboard.writeText(row.visual_table_md || '');
-          toast('Markdown copied');
-        } catch (err) {
-          console.warn('Clipboard error', err);
-          toast('Unable to copy', true);
-        }
-      });
-    }
     const viewFullBtn = $('#viewFullAnalysis');
     if (viewFullBtn) {
       viewFullBtn.addEventListener('click', () => openModal(row, 'full'));
@@ -290,7 +475,8 @@ async function UniversePage() {
   function renderFullAnalysis(row) {
     return `
       <div class="analysis-full">
-        <div class="analysis-full__meta"><strong>Date:</strong> ${escapeHtml(row.date || '')}</div>
+        <div class="analysis-full__meta"><strong>${escapeHtml(row.company || row.topic || 'Analysis')}</strong> — ${escapeHtml(row.date || '')}</div>
+        ${row.risk_rating ? `<div class="analysis-full__meta"><strong>Risk rating:</strong> ${escapeHtml(row.risk_rating)}</div>` : ''}
         <pre class="analysis-full__body">${escapeHtml(row.analysis_markdown || '')}</pre>
         <div class="modal-actions">
           <button id="copyFull" class="btn" type="button" style="padding:8px 10px;border:1px solid var(--border);border-radius:10px;background:var(--panel)">Copy analysis</button>
@@ -306,13 +492,18 @@ async function UniversePage() {
   modal.addEventListener('click', (event) => { if (event.target === modal) closeModal(); });
 
   qInput.addEventListener('input', () => { state.q = qInput.value; render(); });
-  tagSel.addEventListener('change', () => { state.tag = tagSel.value; localStorage.setItem('universe_tag', state.tag); render(); });
-  fromInput.addEventListener('change', () => { state.from = fromInput.value; render(); });
-  toInput.addEventListener('change', () => { state.to = toInput.value; render(); });
+  viewButtons.forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const mode = btn.dataset.mode;
+      if (!mode || mode === state.viewMode) return;
+      state.viewMode = mode;
+      localStorage.setItem('universe_view_mode', state.viewMode);
+      render();
+    });
+  });
 
   $('#btnRefresh').addEventListener('click', async () => {
     await load();
-    buildTags();
     render();
     toast('Data refreshed');
   });
@@ -342,6 +533,24 @@ async function UniversePage() {
     }
   });
 
+  tbody.addEventListener('click', (event) => {
+    const target = event.target.closest('button[data-action]');
+    if (!target) return;
+    event.stopPropagation();
+    const action = target.getAttribute('data-action');
+    const id = target.getAttribute('data-row-id');
+    if (!id) return;
+    const row = state.filtered.find((r) => getRowKey(r) === id);
+    if (!row) return;
+    if (action === 'financials') {
+      openModal(row, 'financials');
+    } else if (action === 'analysis') {
+      openModal(row, 'analysis');
+    } else if (action === 'full') {
+      openModal(row, 'full');
+    }
+  });
+
   window.addEventListener('keydown', (event) => {
     if (event.key === '/' && document.activeElement !== qInput) {
       event.preventDefault();
@@ -361,17 +570,32 @@ async function UniversePage() {
 
   function exportCsv(rows) {
     if (!rows?.length) return toast('Nothing to export', true);
-    const header = ['date', 'topic', 'key_findings', 'visual_table_md', 'conclusion', 'tags'];
+    const dynamicColumns = getDynamicColumns();
+    const header = [
+      'company',
+      'current_price',
+      'risk_rating',
+      'date',
+      'conclusion',
+      'financials_markdown',
+      'analysis_markdown',
+      'tags',
+      ...dynamicColumns.map((col) => toSlug(col.label)),
+    ];
     const csv = [
       header.join(','),
       ...rows.map((row) => {
+        const dynamicValues = dynamicColumns.map((col) => csvValue(col.getter ? col.getter(row) : ''));
         const vals = [
-          row.date || '',
-          row.topic || '',
-          (row.key_findings || []).join(' | '),
-          (row.visual_table_md || '').replace(/\n/g, '\\n'),
-          row.conclusion || '',
-          (row.tags || []).join('|')
+          csvValue(row.company || row.topic || ''),
+          csvValue(formatPrice(row)),
+          csvValue(row.risk_rating),
+          csvValue(row.date),
+          csvValue(row.conclusion),
+          csvValue(row.financials_markdown || row.visual_table_md || ''),
+          csvValue(row.analysis_markdown || ''),
+          csvValue((row.tags || []).join('|')),
+          ...dynamicValues,
         ].map(csvEscape);
         return vals.join(',');
       })
@@ -391,6 +615,20 @@ async function UniversePage() {
     const str = String(value ?? '');
     if (/[",\n]/.test(str)) return `"${str.replace(/"/g, '""')}"`;
     return str;
+  }
+
+  function csvValue(value) {
+    if (value === null || value === undefined) return '';
+    if (typeof value === 'number' && Number.isFinite(value)) return value;
+    const str = String(value).trim();
+    if (!str || str === '—') return '';
+    return str.replace(/\n/g, '\\n');
+  }
+
+  function toSlug(label) {
+    const str = String(label || '').toLowerCase();
+    const slug = str.replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+    return slug || 'column';
   }
 
   function escapeHtml(str) {
@@ -458,6 +696,5 @@ async function UniversePage() {
   }
 
   await load();
-  buildTags();
   render();
 }
