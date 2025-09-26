@@ -84,6 +84,17 @@ The tables rely on three helper routines:
 | `conclusion` | `text` | — | Required summary paragraph.【F:assets/editor.js†L734-L772】 |
 | `analysis_markdown` | `text` | `''` | Full markdown saved from the editor (older rows may use `analysis_full`/`analysis_full_md`, which the UI still reads).【F:assets/universe.js†L65-L158】 |
 | `tags` | `text[]` | `{}` | Used for filtering and chips.【F:assets/universe.js†L80-L106】【F:assets/editor.js†L734-L772】 |
+| `company` | `text` | `null` | Optional company name displayed by the new UI cards. |
+| `current_price` | `numeric` | `null` | Latest price as a numeric value for sorting/filtering. |
+| `current_price_raw` | `text` | `null` | Unformatted price payload saved from upstream feeds. |
+| `current_price_display` | `text` | `null` | Human-ready price string rendered in the UI. |
+| `currency` | `text` | `null` | ISO currency code tied to the price fields. |
+| `risk_rating` | `text` | `null` | Optional qualitative rating label shown in UI badges. |
+| `financials_markdown` | `text` | `null` | Extended financials section rendered below the main analysis. |
+| `strategies` | `jsonb` | `'{}'::jsonb` | Structured strategy metadata consumed by the new interface. |
+| `metrics` | `jsonb` | `'{}'::jsonb` | Structured metrics payload consumed by the new interface. |
+| `placeholder1` | `jsonb` | `'{}'::jsonb` | Reserved for future structured content. |
+| `placeholder2` | `jsonb` | `'{}'::jsonb` | Reserved for future structured content. |
 | `created_at` | `timestamptz` | `now()` | Automatically managed. |
 | `updated_at` | `timestamptz` | `now()` | Managed by `set_updated_at`. |
 | `created_by` | `uuid` | `auth.uid()` | Optional audit column to track editors. |
@@ -92,6 +103,29 @@ The tables rely on three helper routines:
 
 - `SELECT`: `is_paid_member(auth.uid())` allows members to read the archive. Consider a second policy that returns a limited preview for anonymous sessions (matching the frontend’s preview behaviour).【F:assets/universe.js†L139-L205】
 - `INSERT` / `UPDATE`: `auth.uid()` with `profiles.role = 'admin'` so only staff can publish new rows (the editor enforces this on the client).【F:assets/editor.js†L720-L773】
+
+Run the following migration to provision the new UI fields and backfill empty JSON objects for existing rows:
+
+```sql
+alter table public.universe
+  add column if not exists company text,
+  add column if not exists current_price numeric,
+  add column if not exists current_price_raw text,
+  add column if not exists current_price_display text,
+  add column if not exists currency text,
+  add column if not exists risk_rating text,
+  add column if not exists financials_markdown text,
+  add column if not exists strategies jsonb default '{}'::jsonb,
+  add column if not exists metrics jsonb default '{}'::jsonb,
+  add column if not exists placeholder1 jsonb default '{}'::jsonb,
+  add column if not exists placeholder2 jsonb default '{}'::jsonb;
+
+update public.universe
+   set strategies   = coalesce(strategies, '{}'::jsonb),
+       metrics      = coalesce(metrics, '{}'::jsonb),
+       placeholder1 = coalesce(placeholder1, '{}'::jsonb),
+       placeholder2 = coalesce(placeholder2, '{}'::jsonb);
+```
 
 ### `editor_prompts`
 
