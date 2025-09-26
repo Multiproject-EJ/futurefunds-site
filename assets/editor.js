@@ -128,6 +128,7 @@ async function initEditor() {
   const promptEditorId = document.getElementById('promptEditorId');
   const promptEditorName = document.getElementById('promptEditorName');
   const promptEditorSlug = document.getElementById('promptEditorSlug');
+  const promptEditorSlugHelp = document.getElementById('promptEditorSlugHelp');
   const promptEditorDescription = document.getElementById('promptEditorDescription');
   const promptEditorText = document.getElementById('promptEditorText');
   const promptEditorSortOrder = document.getElementById('promptEditorSortOrder');
@@ -153,6 +154,8 @@ async function initEditor() {
   let promptEditorActiveId = null;
   let promptLoadErrorMessage = '';
   let promptLoadUsedFallback = false;
+  let promptSlugColumnSupported = true;
+  const promptEditorSlugHelpDefaultText = (promptEditorSlugHelp?.textContent || '').trim();
 
   if (!form || !locked) return;
 
@@ -377,6 +380,52 @@ async function initEditor() {
     return slugify(trimmed);
   };
 
+  const applyPromptSlugFieldState = () => {
+    if (!promptEditorSlug) return;
+    if (promptSlugColumnSupported) {
+      promptEditorSlug.disabled = false;
+      promptEditorSlug.placeholder = 'deep-research';
+      if (promptEditorSlugHelp) {
+        promptEditorSlugHelp.textContent = promptEditorSlugHelpDefaultText ||
+          'Short identifier with letters, numbers or dashes. Leave blank to auto-generate.';
+      }
+    } else {
+      promptEditorSlug.disabled = true;
+      promptEditorSlug.placeholder = 'Not supported by Supabase table';
+      if (promptEditorSlugHelp) {
+        promptEditorSlugHelp.textContent =
+          'Your Supabase table does not include a "slug" column. Leave this blank and FutureFunds will manage identifiers automatically.';
+      }
+    }
+  };
+
+  const markPromptSlugUnsupported = () => {
+    if (!promptSlugColumnSupported) return;
+    promptSlugColumnSupported = false;
+    if (promptEditorSlug) {
+      promptEditorSlug.value = '';
+    }
+    applyPromptSlugFieldState();
+  };
+
+  const isMissingPromptSlugColumnError = (error) => {
+    if (!error || typeof error !== 'object') return false;
+    const err = /** @type {{ message?: string; details?: string; hint?: string; code?: string }} */ (error);
+    const parts = [err.message, err.details, err.hint]
+      .filter((value) => typeof value === 'string')
+      .map((value) => value.toLowerCase());
+    if (!parts.length) {
+      if (typeof err.code === 'string' && err.code.trim() === '42703') {
+        return true;
+      }
+      return false;
+    }
+    return parts.some((part) => part.includes('slug') && part.includes('column') &&
+      (part.includes('does not exist') || part.includes('could not find') || part.includes('unknown column')));
+  };
+
+  applyPromptSlugFieldState();
+
   const resetPromptEditorForm = () => {
     if (!promptEditorForm) return;
     if (typeof promptEditorForm.reset === 'function') {
@@ -581,20 +630,21 @@ async function initEditor() {
       is_default: values.is_default,
       archived: values.archived,
     };
-    if (slugValue) {
-      basePayload.slug = slugValue || null;
-    }
+    let slugFallbackUsed = false;
 
-    const attemptUpsert = async ({ includeId = true } = {}) => {
+    const attemptUpsert = async ({ includeId = true, includeSlug = promptSlugColumnSupported && Boolean(slugValue) } = {}) => {
       const payload = { ...basePayload };
       const options = {};
+      if (includeSlug && slugValue) {
+        payload.slug = slugValue || null;
+      }
       if (includeId && recordId) {
         payload.id = recordId;
         options.onConflict = 'id';
       } else if (editingExisting && currentId) {
         payload.id = currentId;
         options.onConflict = 'id';
-      } else if (slugValue) {
+      } else if (includeSlug && slugValue) {
         options.onConflict = 'slug';
       }
       const query = supabase.from(PROMPT_TABLE).upsert(payload, options);
@@ -605,13 +655,26 @@ async function initEditor() {
 
     try {
       let saved = null;
-      try {
-        saved = await attemptUpsert({ includeId: true });
-      } catch (error) {
-        if (!editingExisting && recordId && isUuidSyntaxError(error)) {
-          console.warn('Prompt save fallback without explicit id', error);
-          saved = await attemptUpsert({ includeId: false });
-        } else {
+      let includeSlug = promptSlugColumnSupported && Boolean(slugValue);
+      let includeId = true;
+      while (true) {
+        try {
+          saved = await attemptUpsert({ includeId, includeSlug });
+          break;
+        } catch (error) {
+          if (includeSlug && isMissingPromptSlugColumnError(error)) {
+            console.warn('Prompt save retry without slug column', error);
+            slugValue = '';
+            includeSlug = false;
+            slugFallbackUsed = true;
+            markPromptSlugUnsupported();
+            continue;
+          }
+          if (includeId && !editingExisting && recordId && isUuidSyntaxError(error)) {
+            console.warn('Prompt save fallback without explicit id', error);
+            includeId = false;
+            continue;
+          }
           throw error;
         }
       }
@@ -642,7 +705,11 @@ async function initEditor() {
         desiredPromptId = savedId;
         persistAiConfig();
       }
-      setPromptEditorStatus('Prompt saved.', 'success');
+      if (slugFallbackUsed) {
+        setPromptEditorStatus('Prompt saved. Supabase is missing the "slug" column so the identifier was generated automatically.', 'success');
+      } else {
+        setPromptEditorStatus('Prompt saved.', 'success');
+      }
     } catch (error) {
       console.error('Prompt save error', error);
       const detail = describeSupabaseError(error);

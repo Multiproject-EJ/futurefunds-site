@@ -279,10 +279,12 @@
               <div class="field-group">
                 <label for="promptEditorSlug">Slug (optional)</label>
                 <input id="promptEditorSlug" name="slug" placeholder="deep-research" />
+                <p class="muted-small" id="promptEditorSlugHelp">Short identifier with letters, numbers or dashes. Leave blank to auto-generate.</p>
               </div>
               <div class="field-group">
                 <label for="promptEditorSortOrder">Sort order</label>
                 <input id="promptEditorSortOrder" name="sort_order" type="number" min="0" step="1" placeholder="100" />
+                <p class="muted-small">Lower numbers appear higher in the picker. Leave blank for default ordering.</p>
               </div>
             </div>
             <div class="field-group">
@@ -298,6 +300,7 @@
               <label class="prompt-editor__toggle"><input type="checkbox" id="promptEditorDefault" name="is_default" /> Default prompt</label>
               <label class="prompt-editor__toggle"><input type="checkbox" id="promptEditorArchived" name="archived" /> Archived</label>
             </div>
+            <p class="muted-small">Set "Default" to auto-select this template. Archive a prompt to hide it from the picker without deleting it.</p>
             <p id="promptEditorStatus" class="muted-small prompt-editor__status"></p>
           </form>
         </div>
