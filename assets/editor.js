@@ -137,6 +137,7 @@ async function initEditor() {
   const promptEditorCloseBtn = document.getElementById('closePromptEditor');
   const promptEditorCancelBtn = document.getElementById('cancelPromptEditor');
   const promptEditorNewBtn = document.getElementById('addPromptTemplate');
+  const promptEditorDeleteBtn = document.getElementById('deletePromptEditor');
   const promptEditorBackdrop = promptEditorModal?.querySelector('[data-close-prompt]');
   const promptEditorSaveBtn = document.getElementById('savePromptEditor');
 
@@ -315,10 +316,33 @@ async function initEditor() {
     return promptEditorItems.find((item) => resolvePromptRecordId(item) === id) || null;
   };
 
+  const getPromptDeletionTarget = (record) => {
+    if (!record || typeof record !== 'object') return null;
+    const rawId = record.id;
+    const rawSlug = record.slug;
+    const idValue = typeof rawId === 'string' ? rawId.trim() : rawId ? String(rawId).trim() : '';
+    if (idValue) {
+      return { column: 'id', value: idValue };
+    }
+    const slugValue = typeof rawSlug === 'string' ? rawSlug.trim() : rawSlug ? String(rawSlug).trim() : '';
+    if (slugValue) {
+      return { column: 'slug', value: slugValue };
+    }
+    return null;
+  };
+
+  const updatePromptEditorDeleteState = () => {
+    if (!promptEditorDeleteBtn) return;
+    const record = getPromptEditorItemById(promptEditorActiveId);
+    const target = getPromptDeletionTarget(record);
+    promptEditorDeleteBtn.disabled = !target;
+  };
+
   const renderPromptEditorList = () => {
     if (!promptEditorList) return;
     if (!promptEditorItems.length) {
       promptEditorList.innerHTML = '<p class="prompt-editor__empty">No prompts yet.</p>';
+      updatePromptEditorDeleteState();
       return;
     }
     promptEditorList.innerHTML = promptEditorItems
@@ -473,6 +497,7 @@ async function initEditor() {
       resetPromptEditorForm();
       setPromptEditorStatus('No prompts found. Create a new template to get started.', 'info');
     }
+    updatePromptEditorDeleteState();
   };
 
   const refreshPromptEditorList = async ({ focusId, fallbackToFirst = true } = {}) => {
@@ -507,6 +532,7 @@ async function initEditor() {
         resetPromptEditorForm();
         setPromptEditorStatus('No prompts found. Create a new template to get started.', 'info');
       }
+      updatePromptEditorDeleteState();
     } catch (error) {
       console.error('Prompt editor load error', error);
       promptEditorItems = [];
@@ -515,6 +541,7 @@ async function initEditor() {
       promptEditorList.innerHTML = `<p class="prompt-editor__empty">${escapeHtml(message)}</p>`;
       resetPromptEditorForm();
       setPromptEditorStatus(detail ? `Supabase error: ${detail}` : 'Unable to load prompts from Supabase.', 'error');
+      updatePromptEditorDeleteState();
     }
   };
 
@@ -551,6 +578,7 @@ async function initEditor() {
     if (promptEditorName) {
       setTimeout(() => promptEditorName.focus(), 30);
     }
+    updatePromptEditorDeleteState();
   };
 
   const readPromptEditorForm = () => {
@@ -716,6 +744,52 @@ async function initEditor() {
       setPromptEditorStatus(detail || error.message || 'Unable to save prompt.', 'error');
     } finally {
       if (promptEditorSaveBtn) promptEditorSaveBtn.disabled = false;
+    }
+  };
+
+  const deletePromptEditor = async () => {
+    if (!promptEditorDeleteBtn) return;
+    const record = getPromptEditorItemById(promptEditorActiveId);
+    if (!record) {
+      setPromptEditorStatus('Select a saved prompt before deleting.', 'error');
+      updatePromptEditorDeleteState();
+      return;
+    }
+    const recordId = resolvePromptRecordId(record);
+    const target = getPromptDeletionTarget(record);
+    if (!target) {
+      setPromptEditorStatus('Unable to determine which prompt to delete.', 'error');
+      updatePromptEditorDeleteState();
+      return;
+    }
+    const label = record.name || record.slug || record.id || recordId || 'prompt';
+    let confirmed = true;
+    if (typeof window !== 'undefined' && typeof window.confirm === 'function') {
+      confirmed = window.confirm(`Delete prompt "${label}"? This cannot be undone.`);
+    }
+    if (!confirmed) return;
+    setPromptEditorStatus('Deleting prompt…', 'info');
+    promptEditorDeleteBtn.disabled = true;
+    if (promptEditorSaveBtn) promptEditorSaveBtn.disabled = true;
+    try {
+      const query = supabase.from(PROMPT_TABLE).delete().eq(target.column, target.value);
+      const { error } = await query;
+      if (error) throw error;
+      if (recordId) {
+        promptEditorItems = promptEditorItems.filter((item) => resolvePromptRecordId(item) !== recordId);
+      }
+      promptEditorActiveId = null;
+      await refreshPromptOptions();
+      await refreshPromptEditorList({ fallbackToFirst: true });
+      setPromptEditorStatus('Prompt deleted.', 'success');
+    } catch (error) {
+      console.error('Prompt delete error', error);
+      const detail = describeSupabaseError(error);
+      setPromptEditorStatus(detail || error.message || 'Unable to delete prompt.', 'error');
+    } finally {
+      if (promptEditorSaveBtn) promptEditorSaveBtn.disabled = false;
+      promptEditorDeleteBtn.disabled = false;
+      updatePromptEditorDeleteState();
     }
   };
 
@@ -1130,6 +1204,12 @@ async function initEditor() {
   if (promptEditorNewBtn) {
     promptEditorNewBtn.addEventListener('click', () => {
       startNewPrompt();
+    });
+  }
+
+  if (promptEditorDeleteBtn) {
+    promptEditorDeleteBtn.addEventListener('click', async () => {
+      await deletePromptEditor();
     });
   }
 
