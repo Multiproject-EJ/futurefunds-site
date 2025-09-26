@@ -573,30 +573,66 @@ async function initEditor() {
 
     setPromptEditorStatus('Saving…', 'info');
     if (promptEditorSaveBtn) promptEditorSaveBtn.disabled = true;
-    try {
-      const payload = {
-        id: recordId,
-        name: values.name,
-        description: values.description || null,
-        prompt_text: values.prompt_text,
-        sort_order: Number.isFinite(values.sort_order) ? values.sort_order : null,
-        is_default: values.is_default,
-        archived: values.archived,
-      };
-      payload.slug = slugValue || null;
-      const { data, error } = await supabase
-        .from(PROMPT_TABLE)
-        .upsert(payload, { onConflict: 'id' })
-        .select()
-        .maybeSingle();
+    const basePayload = {
+      name: values.name,
+      description: values.description || null,
+      prompt_text: values.prompt_text,
+      sort_order: Number.isFinite(values.sort_order) ? values.sort_order : null,
+      is_default: values.is_default,
+      archived: values.archived,
+    };
+    if (slugValue) {
+      basePayload.slug = slugValue || null;
+    }
+
+    const attemptUpsert = async ({ includeId = true } = {}) => {
+      const payload = { ...basePayload };
+      const options = {};
+      if (includeId && recordId) {
+        payload.id = recordId;
+        options.onConflict = 'id';
+      } else if (editingExisting && currentId) {
+        payload.id = currentId;
+        options.onConflict = 'id';
+      } else if (slugValue) {
+        options.onConflict = 'slug';
+      }
+      const query = supabase.from(PROMPT_TABLE).upsert(payload, options);
+      const { data, error } = await query.select().maybeSingle();
       if (error) throw error;
-      const saved = data || null;
-      const savedId = resolvePromptRecordId(saved) || values.slug || values.id || null;
-      if (values.is_default && saved?.id) {
-        try {
-          await supabase.from(PROMPT_TABLE).update({ is_default: false }).neq('id', saved.id);
-        } catch (err) {
-          console.warn('Prompt default reset error', err);
+      return data || null;
+    };
+
+    try {
+      let saved = null;
+      try {
+        saved = await attemptUpsert({ includeId: true });
+      } catch (error) {
+        if (!editingExisting && recordId && isUuidSyntaxError(error)) {
+          console.warn('Prompt save fallback without explicit id', error);
+          saved = await attemptUpsert({ includeId: false });
+        } else {
+          throw error;
+        }
+      }
+
+      const savedId = resolvePromptRecordId(saved) || slugValue || recordId || values.slug || values.id || null;
+      const savedPrimaryId = saved?.id || null;
+      if (promptEditorId) {
+        promptEditorId.value = savedId || '';
+      }
+      if (values.is_default) {
+        const resetQuery = savedPrimaryId
+          ? supabase.from(PROMPT_TABLE).update({ is_default: false }).neq('id', savedPrimaryId)
+          : savedId
+          ? supabase.from(PROMPT_TABLE).update({ is_default: false }).neq('slug', savedId)
+          : null;
+        if (resetQuery) {
+          try {
+            await resetQuery;
+          } catch (err) {
+            console.warn('Prompt default reset error', err);
+          }
         }
       }
       await refreshPromptOptions();
@@ -609,7 +645,8 @@ async function initEditor() {
       setPromptEditorStatus('Prompt saved.', 'success');
     } catch (error) {
       console.error('Prompt save error', error);
-      setPromptEditorStatus(error.message || 'Unable to save prompt.', 'error');
+      const detail = describeSupabaseError(error);
+      setPromptEditorStatus(detail || error.message || 'Unable to save prompt.', 'error');
     } finally {
       if (promptEditorSaveBtn) promptEditorSaveBtn.disabled = false;
     }
@@ -1366,6 +1403,14 @@ function parseTags(value) {
     .split(',')
     .map((tag) => tag.trim())
     .filter(Boolean);
+}
+
+function isUuidSyntaxError(error) {
+  if (!error) return false;
+  const code = error.code || error?.cause?.code;
+  if (code && String(code) === '22P02') return true;
+  const message = String(error.message || error.details || '').toLowerCase();
+  return message.includes('invalid input syntax for type uuid');
 }
 
 function slugify(value) {
