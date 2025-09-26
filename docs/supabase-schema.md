@@ -17,7 +17,7 @@ The site ships seven application tables in the `public` schema:
 | `editor_prompts` | Configurable AI prompt templates surfaced in the research editor. |
 | `editor_models` | Configurable AI model catalogue used by the editor UI. |
 | `editor_api_credentials` | Stores AI provider secrets the editor can retrieve at runtime. |
-| `stock_analysis_list` | Tracks stock analysis coverage (company, status, type, and analysis date). |
+| `stock_analysis_todo` | Tracks stock analysis coverage (company, status, type, and analysis date). |
 
 The tables rely on three helper routines:
 
@@ -257,7 +257,7 @@ providers or adjusting defaults.
 
 - The initial migration inserts an OpenRouter key (`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`). Run the seed with a service-role key so the secret never passes through the anon client.
 
-### `stock_analysis_list`
+### `stock_analysis_todo`
 
 *Primary key*: `id bigint generated always as identity`.
 
@@ -314,7 +314,7 @@ end;
 $$;
 ```
 
-Attach this `BEFORE UPDATE` trigger to tables with an `updated_at` column (`profiles`, `memberships`, `universe`, `editor_prompts`, `editor_models`, `stock_analysis_list`).
+Attach this `BEFORE UPDATE` trigger to tables with an `updated_at` column (`profiles`, `memberships`, `universe`, `editor_prompts`, `editor_models`, `stock_analysis_todo`).
 
 ### `is_paid_member(uid uuid)`
 
