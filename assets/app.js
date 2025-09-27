@@ -8,6 +8,7 @@ const fmt = {
 };
 
 document.addEventListener('DOMContentLoaded', () => {
+  ensureFavicon();
   initResponsiveNav();
   initNewsletterCapture();
   const y = $('#year'); if (y) y.textContent = new Date().getFullYear();
@@ -16,6 +17,18 @@ document.addEventListener('DOMContentLoaded', () => {
   renderPortfoliosHub();
   renderStrategyDetail();
 });
+
+function ensureFavicon() {
+  const head = document.head;
+  if (!head) return;
+  const existing = head.querySelector('link[rel="icon"][href*="logo.webp"]');
+  if (existing) return;
+  const link = document.createElement('link');
+  link.rel = 'icon';
+  link.type = 'image/webp';
+  link.href = '/images/logo.webp';
+  head.appendChild(link);
+}
 
 function initResponsiveNav() {
   const toggle = document.getElementById('navToggle');

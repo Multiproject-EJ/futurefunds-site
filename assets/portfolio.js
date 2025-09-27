@@ -2,6 +2,12 @@
 // Uses theme tokens (CSS variables) for chart colors so it fits light/dark.
 
 (function(){
+  const defaultNotes = [
+    'Strategy insights placeholder — AI monitoring keeps rebalancing disciplined.',
+    'Risk guardrails watch drawdowns and volatility while sizing positions.',
+    'Expect ongoing tuning as datasets expand and new signals ship.'
+  ];
+
   const portfolios = [
     mkPortfolio('quality-core', 'Quality Core', 'Live'),
     mkPortfolio('value-explorer', 'Value Explorer', 'Live'),
@@ -9,6 +15,13 @@
     mkPortfolio('global-moat', 'Global Moat', 'Live'),
     mkPortfolio('tech-growth', 'Tech Growth', 'Experimental'),
     mkPortfolio('income-shield', 'Income Shield', 'Live'),
+    mkPortfolio('insurance', 'Insurance', 'Live', {
+      notes: [
+        `(why - its needed because the world is a scary place, then combined with the idea that chance, will yield and destroy, and ist like mine swiper, but you dont have to play, you can open the entire play all at once (owning it all), and so its important that the the whole, of it, is represented , - i guess after an initial survival phase, and "hype" products, can either transform of die. Har to know, but not too many hypes should be ipo'ed`
+      ]
+    }),
+    mkPortfolio('food-pleasure', "Food — it's a pleasurable thing", 'Experimental'),
+    mkPortfolio('tech-health-tech', 'Tech & Health Tech', 'Experimental'),
   ];
 
   const access = {
@@ -16,7 +29,7 @@
     isSignedIn: false,
   };
 
-  function mkPortfolio(id, name, status){
+  function mkPortfolio(id, name, status, options = {}){
     // demo series
     const n = 60;
     let v = 100; const series = [];
@@ -41,20 +54,45 @@
         notes: (Math.random()>.7 ? 'Earnings soon' : '')
       };
     });
-    return { id, name, status, series, kpis: {return: ret, dd, vol, sharpe: sh}, holdings };
+    const notes = Array.isArray(options.notes) && options.notes.length ? options.notes : defaultNotes;
+    return { id, name, status, series, kpis: {return: ret, dd, vol, sharpe: sh}, holdings, notes: [...notes] };
   }
 
   // Helpers
   const $$ = sel => Array.from(document.querySelectorAll(sel));
   const getCssVal = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 
+  const combinedSeries = computeCombinedSeries();
+
+  function computeCombinedSeries(){
+    if (!portfolios.length) return [];
+    const longest = Math.max(...portfolios.map(p => p.series.length));
+    return Array.from({ length: longest }, (_, idx) => {
+      let total = 0;
+      let count = 0;
+      portfolios.forEach(portfolio => {
+        if (idx < portfolio.series.length) {
+          total += portfolio.series[idx];
+          count += 1;
+        }
+      });
+      return count ? total / count : 0;
+    });
+  }
+
   // Draw simple line chart
   function drawLine(canvas, values){
+    if (!canvas) return;
     const dpr = window.devicePixelRatio || 1;
     const W = canvas.clientWidth, H = canvas.clientHeight;
     canvas.width = W * dpr; canvas.height = H * dpr;
     const ctx = canvas.getContext('2d');
     ctx.scale(dpr,dpr);
+
+    if (!values || !values.length) {
+      ctx.clearRect(0, 0, W, H);
+      return;
+    }
 
     const pad = 10;
     const min = Math.min(...values), max = Math.max(...values);
@@ -79,6 +117,11 @@
     grad.addColorStop(1, 'transparent');
     ctx.lineTo(W-pad, H-pad); ctx.lineTo(pad, H-pad); ctx.closePath();
     ctx.globalAlpha = .15; ctx.fillStyle = grad; ctx.fill();
+  }
+
+  function drawOverview(){
+    if (!overviewChart) return;
+    drawLine(overviewChart, combinedSeries);
   }
 
   // Render cards
@@ -119,6 +162,8 @@
   // Modal wiring
   const modal = document.getElementById('pfModal');
   const bigChart = document.getElementById('pfBigChart');
+  const overviewChart = document.getElementById('portfolioCombinedChart');
+  const notesList = document.getElementById('pfNotes');
   const body = document.body;
 
   function openModal(id){
@@ -148,6 +193,11 @@
       </tr>`
     )).join('');
 
+    if (notesList) {
+      const items = Array.isArray(p.notes) && p.notes.length ? p.notes : defaultNotes;
+      notesList.innerHTML = items.map(note => `<li>${note}</li>`).join('');
+    }
+
     drawLine(bigChart, p.series);
 
     modal.classList.add('active');
@@ -174,6 +224,7 @@
       const p = portfolios.find(x=>x.name===id);
       if(p) drawLine(bigChart, p.series);
     }
+    drawOverview();
   });
   const themeBtn = document.getElementById('themeToggle');
   if(themeBtn){
@@ -186,6 +237,7 @@
           const p = portfolios.find(x=>x.name===id);
           if(p) drawLine(bigChart, p.series);
         }
+        drawOverview();
       }, 20);
     });
   }
@@ -302,6 +354,7 @@
   // init
   window.addEventListener('DOMContentLoaded', () => {
     hydrateCards();
+    drawOverview();
     applyAccess();
     initAccessWatcher();
   });
