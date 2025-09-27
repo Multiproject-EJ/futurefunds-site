@@ -26,6 +26,41 @@ body.page-portfolio .tag{
   border:1px solid var(--line); font-size:12px; color:var(--muted-local);
 }
 
+body.page-portfolio:not(.theme-dark):not(.theme-earth) .hero{
+  background: none;
+}
+
+body.page-portfolio .portfolio-overview{
+  margin: 18px 0 24px;
+  padding: 20px clamp(18px, 3vw, 28px);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+body.page-portfolio .overview-head{
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 16px;
+}
+body.page-portfolio .overview-head h2{
+  margin: 0;
+  font-size: clamp(1.3rem, 3vw, 1.75rem);
+}
+body.page-portfolio .overview-head p{
+  margin: 0;
+  color: var(--muted-local);
+}
+body.page-portfolio .mega-chart{
+  width: 100%;
+  height: clamp(240px, 45vw, 320px);
+  display: block;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: color-mix(in oklab, var(--panel), #fff 1.5%);
+}
+
 /* Grid (2 per row on desktop) */
 body.page-portfolio .portfolio-grid{
   display:grid;
@@ -187,6 +222,20 @@ body.page-portfolio .pf-chart canvas{
   border:1px solid var(--line); border-radius:12px;
   background: color-mix(in oklab, var(--panel), #fff 1.5%);
   margin-bottom: 14px;
+}
+
+body.page-portfolio .pf-notes{
+  margin: 14px 0 18px;
+}
+body.page-portfolio .pf-notes h4{
+  margin: 0 0 8px;
+}
+body.page-portfolio .pf-notes__list{
+  margin: 0;
+  padding-left: 1.1rem;
+  color: var(--muted-local);
+  display: grid;
+  gap: 6px;
 }
 
 /* Holdings table (scrollable container) */

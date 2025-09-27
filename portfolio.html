@@ -4,6 +4,7 @@
   <meta charset="utf-8" />
   <title>FutureFunds.ai — Portfolios</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="icon" href="/images/logo.webp" type="image/webp" />
   <link rel="stylesheet" href="/assets/styles.css" />
   <link rel="stylesheet" href="/assets/portfolio.css" />
 </head>
@@ -40,9 +41,17 @@
       <div class="tag">EXPERIMENT</div>
       <h1>Portfolios</h1>
       <p class="muted">
-        Six live experiment portfolios managed by AI-driven rules. Click any card for a deeper look:
+        Nine live experiment portfolios managed by AI-driven rules. Click any card for a deeper look:
         full stats, a larger chart, and the complete holdings table.
       </p>
+    </section>
+
+    <section class="portfolio-overview panel" aria-labelledby="portfolioOverviewTitle">
+      <header class="overview-head">
+        <h2 id="portfolioOverviewTitle">Combined performance</h2>
+        <p class="muted">A high-level look at how the full collection of FutureFunds portfolios is trending.</p>
+      </header>
+      <canvas id="portfolioCombinedChart" class="mega-chart" aria-label="Combined portfolio performance chart"></canvas>
     </section>
 
     <!-- Grid of Portfolio Cards -->
@@ -156,6 +165,60 @@
         </table>
       </article>
 
+      <article class="p-card" data-id="insurance" tabindex="0" role="button" aria-pressed="false">
+        <header class="p-head">
+          <h3>Insurance</h3>
+          <span class="pill live">Live</span>
+        </header>
+        <canvas class="mini-chart" aria-label="Insurance performance chart"></canvas>
+        <ul class="facts">
+          <li class="fact"><b class="kpi" data-kpi="return">—</b><span>Return (YTD)</span></li>
+          <li class="fact"><b class="kpi" data-kpi="dd">—</b><span>Max DD</span></li>
+          <li class="fact"><b class="kpi" data-kpi="vol">—</b><span>Vol</span></li>
+          <li class="fact"><b class="kpi" data-kpi="sharpe">—</b><span>Sharpe</span></li>
+        </ul>
+        <table class="preview">
+          <thead><tr><th>Ticker</th><th>Weight</th><th>P/L</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </article>
+
+      <article class="p-card" data-id="food-pleasure" tabindex="0" role="button" aria-pressed="false">
+        <header class="p-head">
+          <h3>Food — it's a pleasurable thing</h3>
+          <span class="pill experimental">Experimental</span>
+        </header>
+        <canvas class="mini-chart" aria-label="Food portfolio performance chart"></canvas>
+        <ul class="facts">
+          <li class="fact"><b class="kpi" data-kpi="return">—</b><span>Return (YTD)</span></li>
+          <li class="fact"><b class="kpi" data-kpi="dd">—</b><span>Max DD</span></li>
+          <li class="fact"><b class="kpi" data-kpi="vol">—</b><span>Vol</span></li>
+          <li class="fact"><b class="kpi" data-kpi="sharpe">—</b><span>Sharpe</span></li>
+        </ul>
+        <table class="preview">
+          <thead><tr><th>Ticker</th><th>Weight</th><th>P/L</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </article>
+
+      <article class="p-card" data-id="tech-health-tech" tabindex="0" role="button" aria-pressed="false">
+        <header class="p-head">
+          <h3>Tech &amp; Health Tech</h3>
+          <span class="pill experimental">Experimental</span>
+        </header>
+        <canvas class="mini-chart" aria-label="Tech &amp; Health Tech performance chart"></canvas>
+        <ul class="facts">
+          <li class="fact"><b class="kpi" data-kpi="return">—</b><span>Return (YTD)</span></li>
+          <li class="fact"><b class="kpi" data-kpi="dd">—</b><span>Max DD</span></li>
+          <li class="fact"><b class="kpi" data-kpi="vol">—</b><span>Vol</span></li>
+          <li class="fact"><b class="kpi" data-kpi="sharpe">—</b><span>Sharpe</span></li>
+        </ul>
+        <table class="preview">
+          <thead><tr><th>Ticker</th><th>Weight</th><th>P/L</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </article>
+
       <article id="portfolioPaywall" class="p-card paywall-card" hidden>
         <header class="p-head">
           <h3>Unlock the full portfolio suite</h3>
@@ -194,6 +257,11 @@
 
       <section class="pf-chart">
         <canvas id="pfBigChart" aria-label="Portfolio performance chart"></canvas>
+      </section>
+
+      <section class="pf-notes">
+        <h4>Notes</h4>
+        <ul id="pfNotes" class="pf-notes__list"></ul>
       </section>
 
       <section class="pf-table">
