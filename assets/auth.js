@@ -236,7 +236,10 @@ function applyStateToUI() {
   updateGatedElements();
   updateProfileView();
   document.body?.classList.toggle('is-authed', !!state.user);
-  document.body?.classList.toggle('is-member', isMembershipActive(state.membership));
+  document.body?.classList.toggle(
+    'is-member',
+    isMembershipActive(state.membership, { profile: state.profile, user: state.user })
+  );
   if (els.modal?.classList.contains('open')) {
     const currentView = els.modal.getAttribute('data-view');
     if (currentView === 'signin' && state.user) showView('profile');
@@ -253,7 +256,8 @@ function updateHeaderButton() {
     btn.textContent = btn.dataset.originalLabel;
     btn.setAttribute('data-open-auth', 'signin');
   } else {
-    btn.textContent = isMembershipActive(state.membership) ? 'Members Area' : 'Account';
+    const membershipActive = isMembershipActive(state.membership, { profile: state.profile, user: state.user });
+    btn.textContent = membershipActive ? 'Members Area' : 'Account';
     btn.setAttribute('data-open-auth', 'profile');
   }
 }
@@ -264,7 +268,7 @@ function updateGatedElements() {
     const requirement = (block.dataset.gated || 'auth').toLowerCase();
     let locked = false;
     if (requirement === 'member') {
-      locked = !isMembershipActive(state.membership);
+      locked = !isMembershipActive(state.membership, { profile: state.profile, user: state.user });
     } else {
       locked = !state.user;
     }
@@ -281,7 +285,7 @@ function updateProfileView() {
   }
   const email = state.user.email || '';
   els.profileEmail.innerHTML = `Signed in as <strong>${escapeHtml(email)}</strong>`;
-  const membershipActive = isMembershipActive(state.membership);
+  const membershipActive = isMembershipActive(state.membership, { profile: state.profile, user: state.user });
   if (membershipActive) {
     const until = state.membership?.current_period_end
       ? new Date(state.membership.current_period_end).toLocaleString()

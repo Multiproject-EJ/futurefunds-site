@@ -664,7 +664,9 @@ async function UniversePage() {
         ? payload
         : payload.detail || {};
       const membership = account?.membership || null;
-      const isMember = isMembershipActive ? isMembershipActive(membership) : false;
+      const isMember = isMembershipActive
+        ? isMembershipActive(membership, { profile: account?.profile, user: account?.user })
+        : false;
       const isSignedIn = !!account?.user;
       const changed = isMember !== state.isMember || isSignedIn !== state.isSignedIn || !state.authReady;
       state.isMember = isMember;

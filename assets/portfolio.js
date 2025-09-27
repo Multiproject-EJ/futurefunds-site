@@ -242,15 +242,77 @@
     });
   }
 
-  function membershipIsActive(record){
-    if(!record) return false;
-    const status = (record.status || '').toLowerCase();
-    if (status && status !== 'active') return false;
-    if (record.current_period_end){
-      const expiry = new Date(record.current_period_end).getTime();
-      if (!Number.isNaN(expiry) && expiry < Date.now()) return false;
+  function membershipIsActive(record, account){
+    if(record){
+      const status = (record.status || '').toLowerCase();
+      if (status && status !== 'active') return accountHasAdminRole(account);
+      if (record.current_period_end){
+        const expiry = new Date(record.current_period_end).getTime();
+        if (!Number.isNaN(expiry) && expiry < Date.now()) return accountHasAdminRole(account);
+      }
+      return true;
     }
-    return true;
+    return accountHasAdminRole(account);
+  }
+
+  function normalizeRole(value){
+    if (value == null) return [];
+    if (Array.isArray(value)) return value.flatMap((entry)=>normalizeRole(entry));
+    if (typeof value === 'object') return Object.values(value).flatMap((entry)=>normalizeRole(entry));
+    return String(value ?? '')
+      .split(/[\s,]+/)
+      .map((part)=>part.trim().toLowerCase())
+      .filter(Boolean);
+  }
+
+  function accountHasAdminRole(account){
+    if (!account) return false;
+    const profile = account.profile || {};
+    const membership = account.membership || {};
+    const user = account.user || {};
+    const appMeta = user.app_metadata || {};
+    const userMeta = user.user_metadata || {};
+
+    const buckets = new Set();
+    const collect = (value) => {
+      normalizeRole(value).forEach((role) => buckets.add(role));
+    };
+
+    collect(profile.role);
+    collect(profile.role_name);
+    collect(profile.user_role);
+    collect(profile.access_level);
+    collect(profile.roles);
+    collect(profile.role_tags);
+
+    collect(appMeta.role);
+    collect(appMeta.roles);
+    collect(appMeta.access_level);
+    collect(appMeta.permissions);
+
+    collect(userMeta.role);
+    collect(userMeta.roles);
+    collect(userMeta.access_level);
+
+    collect(membership.role);
+    collect(membership.roles);
+    collect(membership.access_level);
+    collect(membership.plan);
+    collect(membership.plan_name);
+
+    const flagSources = [profile, membership, appMeta, userMeta];
+    const flagKeys = ['is_admin', 'admin', 'isAdmin', 'is_superadmin', 'superuser', 'staff', 'is_staff'];
+    if (flagSources.some((source) => flagKeys.some((key) => Boolean(source?.[key])))) {
+      return true;
+    }
+
+    const elevated = new Set(['admin', 'administrator', 'superadmin', 'owner', 'editor', 'staff']);
+    for (const role of buckets) {
+      if (role === 'admin' || elevated.has(role)) {
+        return true;
+      }
+    }
+    return false;
   }
 
   function computeVisibleCount(){
@@ -311,7 +373,7 @@
       ? payload
       : payload.detail || {};
     const membership = account?.membership || null;
-    const isMember = membershipIsActive(membership);
+    const isMember = membershipIsActive(membership, account);
     const isSignedIn = !!account?.user;
     const changed = isMember !== access.isMember || isSignedIn !== access.isSignedIn;
     access.isMember = isMember;
