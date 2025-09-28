@@ -75,7 +75,18 @@ const DEFAULT_MODELS = [
 
 const DEFAULT_OPENROUTER_API_KEY = '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';
 
-const normalizeOpenRouterApiKey = (value) => (value || '').trim().replace(/^bearer\s+/i, '');
+// Normalise OpenRouter keys that may include "Bearer" prefixes or hidden whitespace when pasted
+// from password managers / database consoles.
+const normalizeOpenRouterApiKey = (value) => {
+  if (!value) return '';
+  return value
+    .toString()
+    .normalize('NFKC')
+    .replace(/[\u200B\u200C\u200D\uFEFF]/g, '')
+    .trim()
+    .replace(/^bearer\s+/i, '')
+    .replace(/\s+/g, '');
+};
 
 document.addEventListener('DOMContentLoaded', () => {
   initEditor().catch((err) => console.error('Editor init error', err));
