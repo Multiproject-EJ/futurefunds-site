@@ -28,6 +28,9 @@
     .coverage-meta label{display:block;font-size:.85rem;font-weight:600;color:var(--muted,#64748b);margin-bottom:6px}
     .coverage-meta input{width:100%;padding:12px 14px;border:1px solid var(--border,#e5e7eb);border-radius:12px;background:var(--panel,#fff);color:var(--text,#0f172a)}
     .coverage-meta .muted-small{margin:6px 0 0}
+    .ai-config{margin:-12px 0 32px;padding:20px;border:1px solid var(--border,#e5e7eb);border-radius:18px;background:var(--panel,#fff);box-shadow:0 12px 24px rgba(15,23,42,.06);display:grid;gap:16px}
+    .ai-config__title{margin:0;font-size:1.1rem;font-weight:600;color:var(--text,#0f172a)}
+    .ai-config .muted-small{margin:6px 0 0}
     .editor-summary-grid{display:grid;gap:18px;margin-bottom:28px}
     @media (min-width:768px){.editor-summary-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
     .summary-card{border:1px solid var(--border,#e5e7eb);border-radius:18px;background:var(--panel,#fff);padding:18px;display:grid;gap:12px;box-shadow:0 10px 22px rgba(15,23,42,.05)}
@@ -279,6 +282,30 @@
       </div>
     </section>
 
+    <section class="ai-config" aria-label="AI settings">
+      <h2 class="ai-config__title">AI settings</h2>
+      <div class="field-row">
+        <div>
+          <label for="aiModel">Model</label>
+          <div class="select-edit">
+            <select id="aiModel"></select>
+            <button type="button" class="btn small ghost" id="editModelList">Edit list</button>
+          </div>
+          <p class="muted-small">Select from saved OpenRouter models or edit the list for this workspace.</p>
+        </div>
+        <div>
+          <label for="aiKey">AI API key</label>
+          <input id="aiKey" type="password" placeholder="Paste your OpenRouter key" autocomplete="off" />
+          <div class="ai-key-actions">
+            <button type="button" class="btn small ghost" id="refreshAiKey">Refresh from Supabase</button>
+            <span class="muted-small" id="aiKeyStatus" role="status" aria-live="polite"></span>
+          </div>
+          <p class="muted-small">Stored locally in this browser. Admins can refresh to sync the server key used for AI calls.</p>
+          <p class="ai-key-preview" id="aiKeyPreview" hidden>Active key: <code id="aiKeyPreviewValue"></code></p>
+        </div>
+      </div>
+    </section>
+
     <div class="editor-summary-grid" aria-label="Workflow overview">
       <article class="summary-card">
         <h2 class="summary-card__title">Process Progress</h2>
@@ -428,26 +455,7 @@
             <p class="muted-small" id="promptSummary">Loading prompts…</p>
             <pre id="promptPreview" class="prompt-preview" hidden></pre>
           </div>
-          <div class="field-row">
-            <div>
-              <label for="aiModel">Model</label>
-              <div class="select-edit">
-                <select id="aiModel"></select>
-                <button type="button" class="btn small ghost" id="editModelList">Edit list</button>
-              </div>
-              <p class="muted-small">Select from saved OpenRouter models or edit the list for this workspace.</p>
-            </div>
-            <div>
-              <label for="aiKey">AI API key</label>
-              <input id="aiKey" type="password" placeholder="Paste your OpenRouter key" autocomplete="off" />
-              <div class="ai-key-actions">
-                <button type="button" class="btn small ghost" id="refreshAiKey">Refresh from Supabase</button>
-                <span class="muted-small" id="aiKeyStatus" role="status" aria-live="polite"></span>
-              </div>
-              <p class="muted-small">Stored locally in this browser. Admins can refresh to sync the server key used for AI calls.</p>
-              <p class="ai-key-preview" id="aiKeyPreview" hidden>Active key: <code id="aiKeyPreviewValue"></code></p>
-            </div>
-          </div>
+          <p class="muted-small">Update the AI settings above to select a model and manage the API key before generating.</p>
           <div>
             <label for="aiNotes">Angle or extra guidance (optional)</label>
             <textarea id="aiNotes" placeholder="Key catalysts, data points or tone adjustments"></textarea>
