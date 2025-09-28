@@ -88,6 +88,142 @@ const normalizeOpenRouterApiKey = (value) => {
     .replace(/\s+/g, '');
 };
 
+function setupProcessProgress(listEl) {
+  if (!listEl) return null;
+
+  const steps = Array.from(listEl.querySelectorAll('[data-step-id]')).map((element, index) => {
+    const icon = element.querySelector('.process-step__icon');
+    if (icon && !icon.dataset.step) {
+      icon.dataset.step = String(index + 1);
+    }
+
+    return {
+      id: element.dataset.stepId || `step-${index + 1}`,
+      element,
+      icon,
+    };
+  });
+
+  if (!steps.length) return null;
+
+  const allowedStatuses = new Set(['complete', 'active', 'upcoming']);
+
+  const normalizeStatus = (status) => (allowedStatuses.has(status) ? status : 'upcoming');
+
+  const setStatusForIndex = (index, status) => {
+    const step = steps[index];
+    if (!step) return;
+    const normalized = normalizeStatus(status);
+    step.element.dataset.status = normalized;
+    if (step.icon) {
+      step.icon.dataset.state = normalized;
+    }
+  };
+
+  const resolveIndex = (value) => {
+    if (typeof value === 'number') return value;
+    if (typeof value === 'string') {
+      return steps.findIndex((step) => step.id === value);
+    }
+    return -1;
+  };
+
+  let currentIndex = steps.findIndex((step) => step.element.dataset.status === 'active');
+
+  const setActiveIndex = (index) => {
+    if (index < 0 || index >= steps.length) return;
+    currentIndex = index;
+    steps.forEach((step, idx) => {
+      if (idx < index) {
+        setStatusForIndex(idx, 'complete');
+      } else if (idx === index) {
+        setStatusForIndex(idx, 'active');
+      } else {
+        setStatusForIndex(idx, 'upcoming');
+      }
+    });
+  };
+
+  const markCompleteIndex = (index) => {
+    if (index < 0 || index >= steps.length) return;
+    setStatusForIndex(index, 'complete');
+    if (index === currentIndex) {
+      if (index < steps.length - 1) {
+        setActiveIndex(index + 1);
+      } else {
+        currentIndex = steps.length;
+      }
+    }
+  };
+
+  if (currentIndex >= 0) {
+    setActiveIndex(currentIndex);
+  } else {
+    const nextIndex = steps.findIndex((step) => step.element.dataset.status !== 'complete');
+    if (nextIndex === -1) {
+      steps.forEach((_, idx) => setStatusForIndex(idx, 'complete'));
+      currentIndex = steps.length;
+    } else {
+      setActiveIndex(nextIndex);
+    }
+  }
+
+  const controller = {
+    list: listEl,
+    steps: steps.map((step) => step.id),
+    get currentIndex() {
+      return currentIndex;
+    },
+    setActive(target) {
+      const index = resolveIndex(target);
+      if (index < 0 || index >= steps.length) return;
+      setActiveIndex(index);
+    },
+    markComplete(target) {
+      const index = resolveIndex(target);
+      if (index < 0 || index >= steps.length) return;
+      markCompleteIndex(index);
+    },
+    advance() {
+      if (currentIndex < 0 || currentIndex >= steps.length) return;
+      markCompleteIndex(currentIndex);
+    },
+    reset() {
+      if (!steps.length) return;
+      currentIndex = 0;
+      steps.forEach((_, idx) => {
+        setStatusForIndex(idx, idx === 0 ? 'active' : 'upcoming');
+      });
+    },
+  };
+
+  listEl.ffEditorProgress = controller;
+  if (typeof window !== 'undefined') {
+    window.ffEditorProgress = controller;
+  }
+
+  if (listEl.dataset.autoCycle === 'true') {
+    controller.reset();
+    const intervalValue = Number(listEl.dataset.demoInterval);
+    const isFiniteNumber = typeof Number.isFinite === 'function' ? Number.isFinite(intervalValue) : isFinite(intervalValue);
+    const interval = isFiniteNumber && intervalValue > 0 ? intervalValue : 2400;
+    let pointer = 0;
+
+    const runDemo = () => {
+      if (pointer >= steps.length) return;
+      setTimeout(() => {
+        controller.markComplete(pointer);
+        pointer += 1;
+        runDemo();
+      }, interval);
+    };
+
+    runDemo();
+  }
+
+  return controller;
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   initEditor().catch((err) => console.error('Editor init error', err));
 });
@@ -160,6 +296,8 @@ async function initEditor() {
   const aiSettingsModel = document.getElementById('aiSettingsModel');
   const aiSettingsPrompt = document.getElementById('aiSettingsPrompt');
   const aiSettingsKey = document.getElementById('aiSettingsKey');
+
+  setupProcessProgress(document.getElementById('analysisProgress'));
 
   const AI_KEY_STORAGE = 'ff-editor-ai-key';
   const AI_MODEL_STORAGE = 'ff-editor-ai-model';
