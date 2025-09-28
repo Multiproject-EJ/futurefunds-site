@@ -7,28 +7,36 @@
   <link rel="stylesheet" href="/assets/styles.css" />
   <style>
     .editor-wrap{max-width:960px;margin:32px auto;padding:0 16px}
-    .analyst-id-card{display:flex;align-items:center;gap:18px;margin-bottom:28px;padding:18px;border:1px solid var(--border,#e5e7eb);border-radius:18px;background:var(--panel,#fff);box-shadow:0 12px 24px rgba(15,23,42,.06)}
-    .analyst-id-card__photo{width:88px;height:88px;border-radius:16px;overflow:hidden;background:var(--panel-muted,#f8fafc);flex-shrink:0;display:flex;align-items:center;justify-content:center;border:1px solid var(--border,#e5e7eb)}
-    .analyst-id-card__photo img{width:100%;height:100%;object-fit:cover}
-    .analyst-id-card__meta{display:grid;gap:6px}
-    .analyst-id-card__name{font-size:1.35rem;font-weight:700;color:var(--text,#0f172a);margin:0}
-    .analyst-id-card__role{font-size:.95rem;color:var(--muted,#64748b);margin:0}
-    .analyst-id-card__stamp{font-size:.85rem;color:var(--muted,#64748b);margin:0}
-    .editor-title{font-size:1.9rem;margin:0 0 8px;color:var(--text,#0f172a);font-weight:700}
-    .editor-intro{margin-bottom:24px}
+    .analyst-header{display:grid;gap:18px;margin-bottom:28px}
+    .analyst-header__info{display:grid;gap:8px}
+    .analyst-header__info .editor-title{margin:0}
+    .analyst-header__info .editor-intro{margin:0}
+    .analyst-badge{justify-self:start;display:grid;place-items:center;gap:10px;padding:16px;border:1px solid var(--border,#e5e7eb);border-radius:18px;background:var(--panel,#fff);box-shadow:0 12px 24px rgba(15,23,42,.06);width:164px;min-height:164px;text-align:center}
+    .analyst-badge__photo{width:68px;height:68px;border-radius:14px;overflow:hidden;background:var(--panel-muted,#f8fafc);display:flex;align-items:center;justify-content:center;border:1px solid var(--border,#e5e7eb)}
+    .analyst-badge__photo img{width:100%;height:100%;object-fit:cover}
+    .analyst-badge__name{font-size:1.05rem;font-weight:600;color:var(--text,#0f172a);margin:0}
+    .analyst-badge__role{font-size:.78rem;color:var(--muted,#64748b);margin:0}
+    .analyst-badge__stamp{font-size:.75rem;color:var(--muted,#64748b);margin:0}
+    @media (min-width:768px){
+      .analyst-header{grid-template-columns:1fr auto;align-items:center}
+    }
+    .editor-title{font-size:1.9rem;margin:0;color:var(--text,#0f172a);font-weight:700}
+    .editor-intro{margin:0;color:var(--muted,#64748b)}
     .editor-summary-grid{display:grid;gap:18px;margin-bottom:28px}
     @media (min-width:768px){.editor-summary-grid{grid-template-columns:3fr 7fr}}
     .summary-card{border:1px solid var(--border,#e5e7eb);border-radius:18px;background:var(--panel,#fff);padding:18px;display:grid;gap:12px;box-shadow:0 10px 22px rgba(15,23,42,.05)}
     .summary-card__title{margin:0;font-size:1.05rem;font-weight:600;color:var(--text,#0f172a)}
     .summary-card__content{font-size:.92rem;color:var(--muted,#64748b);display:grid;gap:8px}
-    .process-steps{list-style:none;margin:0;padding:0;display:grid;gap:10px}
-    .process-step{display:flex;align-items:flex-start;gap:12px;padding:10px 12px;border-radius:14px;border:1px solid var(--border,#e5e7eb);background:var(--panel-muted,#f8fafc);transition:background .2s ease,border-color .2s ease,box-shadow .2s ease}
-    .process-step__icon{position:relative;flex-shrink:0;width:32px;height:32px;border-radius:999px;display:inline-flex;align-items:center;justify-content:center;color:var(--muted,#64748b)}
+    .process-steps{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+    .process-step{display:flex;align-items:center;gap:12px;padding:8px 12px;border-radius:14px;border:1px solid var(--border,#e5e7eb);background:var(--panel-muted,#f8fafc);transition:background .2s ease,border-color .2s ease,box-shadow .2s ease}
+    .process-step__icon{position:relative;flex-shrink:0;width:30px;height:30px;border-radius:999px;display:inline-flex;align-items:center;justify-content:center;color:var(--muted,#64748b)}
     .process-step__icon::after{content:attr(data-step);display:flex;align-items:center;justify-content:center;width:100%;height:100%;border-radius:inherit;background:#fff;border:2px solid currentColor;font-size:.85rem;font-weight:600;box-sizing:border-box;transition:background .2s ease,color .2s ease,border-color .2s ease}
     .process-step__icon::before{content:"";position:absolute;inset:6px;border-radius:inherit;border:2px solid transparent;opacity:0}
-    .process-step__body{display:grid;gap:4px}
-    .process-step__title{margin:0;font-weight:600;color:var(--text,#0f172a);font-size:.93rem}
-    .process-step__meta{margin:0;color:var(--muted,#64748b);font-size:.82rem;line-height:1.4}
+    .process-step__body{flex:1}
+    .process-step__line{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0;font-size:.86rem;color:var(--muted,#64748b)}
+    .process-step__title{font-weight:600;color:var(--text,#0f172a);font-size:.9rem}
+    .process-step__meta{color:var(--muted,#64748b);font-size:.82rem}
+    .process-step__meta::before{content:"•";margin-right:6px;opacity:.55}
     .process-step[data-status="complete"]{background:rgba(49,208,163,.12);border-color:rgba(49,208,163,.32)}
     .process-step[data-status="complete"] .process-step__icon{color:var(--ok,#31d0a3)}
     .process-step[data-status="complete"] .process-step__icon::after{content:"✓";background:var(--ok,#31d0a3);color:#fff;border-color:var(--ok,#31d0a3)}
@@ -227,19 +235,20 @@
   </header>
 
   <main class="editor-wrap">
-    <section class="analyst-id-card" aria-label="Portfolio manager identification">
-      <div class="analyst-id-card__photo">
-        <img src="/images/ai-chip-placeholder.svg" alt="AI chip placeholder" />
+    <section class="analyst-header" aria-label="Portfolio manager identification">
+      <div class="analyst-header__info">
+        <h1 class="editor-title">Equity Analyst</h1>
+        <p class="muted editor-intro">Create and publish research entries into the Universe feed. Admin access only.</p>
       </div>
-      <div class="analyst-id-card__meta">
-        <p class="analyst-id-card__name">ValueBot <span id="analystLastName">Model</span></p>
-        <p class="analyst-id-card__role">Portfolio Manager ID · Equity Analyst Desk</p>
-        <p class="analyst-id-card__stamp">Credentials issued <span id="analystDateStamp"></span></p>
+      <div class="analyst-badge">
+        <div class="analyst-badge__photo" aria-hidden="true">
+          <img src="/images/ai-chip-placeholder.svg" alt="AI chip placeholder" />
+        </div>
+        <p class="analyst-badge__name">ValueBot <span id="analystLastName">Model</span></p>
+        <p class="analyst-badge__role">Portfolio Manager ID · Equity Analyst Desk</p>
+        <p class="analyst-badge__stamp">Issued <span id="analystDateStamp"></span></p>
       </div>
     </section>
-
-    <h1 class="editor-title">Equity Analyst</h1>
-    <p class="muted editor-intro">Create and publish research entries into the Universe feed. Admin access only.</p>
 
     <div class="editor-summary-grid" aria-label="Workflow overview">
       <article class="summary-card">
@@ -249,71 +258,91 @@
             <li class="process-step" data-step-id="round-1" data-status="active">
               <span class="process-step__icon" data-step="1" aria-hidden="true"></span>
               <div class="process-step__body">
-                <p class="process-step__title">Round 1 — Discovery kickoff question</p>
-                <p class="process-step__meta">Capture new tickers and catalysts for the desk.</p>
+                <p class="process-step__line">
+                  <span class="process-step__title">Round 1 — Discovery kickoff question</span>
+                  <span class="process-step__meta">Capture new tickers and catalysts for the desk.</span>
+                </p>
               </div>
             </li>
             <li class="process-step" data-step-id="round-2" data-status="upcoming">
               <span class="process-step__icon" data-step="2" aria-hidden="true"></span>
               <div class="process-step__body">
-                <p class="process-step__title">Round 2 — Market context question</p>
-                <p class="process-step__meta">Sync macro signals and the universe list to prioritise coverage.</p>
+                <p class="process-step__line">
+                  <span class="process-step__title">Round 2 — Market context question</span>
+                  <span class="process-step__meta">Sync macro signals and the universe list to prioritise coverage.</span>
+                </p>
               </div>
             </li>
             <li class="process-step" data-step-id="round-3" data-status="upcoming">
               <span class="process-step__icon" data-step="3" aria-hidden="true"></span>
               <div class="process-step__body">
-                <p class="process-step__title">Round 3 — Hypothesis framing question</p>
-                <p class="process-step__meta">Translate discovery notes into the thesis we need to test.</p>
+                <p class="process-step__line">
+                  <span class="process-step__title">Round 3 — Hypothesis framing question</span>
+                  <span class="process-step__meta">Translate discovery notes into the thesis we need to test.</span>
+                </p>
               </div>
             </li>
             <li class="process-step" data-step-id="round-4" data-status="upcoming">
               <span class="process-step__icon" data-step="4" aria-hidden="true"></span>
               <div class="process-step__body">
-                <p class="process-step__title">Round 4 — Evidence gathering question</p>
-                <p class="process-step__meta">Pull filings, transcripts and KPI references for validation.</p>
+                <p class="process-step__line">
+                  <span class="process-step__title">Round 4 — Evidence gathering question</span>
+                  <span class="process-step__meta">Pull filings, transcripts and KPI references for validation.</span>
+                </p>
               </div>
             </li>
             <li class="process-step" data-step-id="round-5" data-status="upcoming">
               <span class="process-step__icon" data-step="5" aria-hidden="true"></span>
               <div class="process-step__body">
-                <p class="process-step__title">Round 5 — Model wiring question</p>
-                <p class="process-step__meta">Draft the valuation scaffolding and anchor the inputs.</p>
+                <p class="process-step__line">
+                  <span class="process-step__title">Round 5 — Model wiring question</span>
+                  <span class="process-step__meta">Draft the valuation scaffolding and anchor the inputs.</span>
+                </p>
               </div>
             </li>
             <li class="process-step" data-step-id="round-6" data-status="upcoming">
               <span class="process-step__icon" data-step="6" aria-hidden="true"></span>
               <div class="process-step__body">
-                <p class="process-step__title">Round 6 — Thesis validation question</p>
-                <p class="process-step__meta">Pressure-test assumptions versus the collected data quality.</p>
+                <p class="process-step__line">
+                  <span class="process-step__title">Round 6 — Thesis validation question</span>
+                  <span class="process-step__meta">Pressure-test assumptions versus the collected data quality.</span>
+                </p>
               </div>
             </li>
             <li class="process-step" data-step-id="round-7" data-status="upcoming">
               <span class="process-step__icon" data-step="7" aria-hidden="true"></span>
               <div class="process-step__body">
-                <p class="process-step__title">Round 7 — Risk audit question</p>
-                <p class="process-step__meta">Score downside scenarios and mitigation paths.</p>
+                <p class="process-step__line">
+                  <span class="process-step__title">Round 7 — Risk audit question</span>
+                  <span class="process-step__meta">Score downside scenarios and mitigation paths.</span>
+                </p>
               </div>
             </li>
             <li class="process-step" data-step-id="round-8" data-status="upcoming">
               <span class="process-step__icon" data-step="8" aria-hidden="true"></span>
               <div class="process-step__body">
-                <p class="process-step__title">Round 8 — Timing window question</p>
-                <p class="process-step__meta">Review catalysts, liquidity and market timing cues.</p>
+                <p class="process-step__line">
+                  <span class="process-step__title">Round 8 — Timing window question</span>
+                  <span class="process-step__meta">Review catalysts, liquidity and market timing cues.</span>
+                </p>
               </div>
             </li>
             <li class="process-step" data-step-id="round-9" data-status="upcoming">
               <span class="process-step__icon" data-step="9" aria-hidden="true"></span>
               <div class="process-step__body">
-                <p class="process-step__title">Round 9 — Publication assembly question</p>
-                <p class="process-step__meta">Compose the research narrative and compliance checklist.</p>
+                <p class="process-step__line">
+                  <span class="process-step__title">Round 9 — Publication assembly question</span>
+                  <span class="process-step__meta">Compose the research narrative and compliance checklist.</span>
+                </p>
               </div>
             </li>
             <li class="process-step" data-step-id="round-10" data-status="upcoming">
               <span class="process-step__icon" data-step="10" aria-hidden="true"></span>
               <div class="process-step__body">
-                <p class="process-step__title">Round 10 — Share-out &amp; next questions</p>
-                <p class="process-step__meta">Publish to the Universe and push follow-up questions to the team.</p>
+                <p class="process-step__line">
+                  <span class="process-step__title">Round 10 — Share-out &amp; next questions</span>
+                  <span class="process-step__meta">Publish to the Universe and push follow-up questions to the team.</span>
+                </p>
               </div>
             </li>
           </ul>
