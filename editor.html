@@ -22,6 +22,12 @@
     }
     .editor-title{font-size:1.9rem;margin:0;color:var(--text,#0f172a);font-weight:700}
     .editor-intro{margin:0;color:var(--muted,#64748b)}
+    .coverage-meta{margin:32px 0;padding:20px;border:1px solid var(--border,#e5e7eb);border-radius:18px;background:var(--panel,#fff);box-shadow:0 12px 24px rgba(15,23,42,.06);display:grid;gap:16px}
+    .coverage-meta__title{margin:0;font-size:1.15rem;font-weight:600;color:var(--text,#0f172a)}
+    .coverage-meta__fields{display:grid;gap:16px;grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}
+    .coverage-meta label{display:block;font-size:.85rem;font-weight:600;color:var(--muted,#64748b);margin-bottom:6px}
+    .coverage-meta input{width:100%;padding:12px 14px;border:1px solid var(--border,#e5e7eb);border-radius:12px;background:var(--panel,#fff);color:var(--text,#0f172a)}
+    .coverage-meta .muted-small{margin:6px 0 0}
     .editor-summary-grid{display:grid;gap:18px;margin-bottom:28px}
     @media (min-width:768px){.editor-summary-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
     .summary-card{border:1px solid var(--border,#e5e7eb);border-radius:18px;background:var(--panel,#fff);padding:18px;display:grid;gap:12px;box-shadow:0 10px 22px rgba(15,23,42,.05)}
@@ -254,6 +260,25 @@
       </div>
     </section>
 
+    <section class="coverage-meta" aria-label="Coverage target">
+      <h2 class="coverage-meta__title">Coverage target</h2>
+      <div class="coverage-meta__fields">
+        <div>
+          <label for="aiCompany">Company</label>
+          <input id="aiCompany" placeholder="Insmed Incorporated" autocomplete="off" />
+          <p class="muted-small">Only the company name is required to run a prompt.</p>
+        </div>
+        <div>
+          <label for="aiTicker">Ticker (optional)</label>
+          <input id="aiTicker" placeholder="INSM" autocomplete="off" />
+        </div>
+        <div>
+          <label for="aiExchange">Exchange (optional)</label>
+          <input id="aiExchange" placeholder="NASDAQ" autocomplete="off" />
+        </div>
+      </div>
+    </section>
+
     <div class="editor-summary-grid" aria-label="Workflow overview">
       <article class="summary-card">
         <h2 class="summary-card__title">Process Progress</h2>
@@ -392,21 +417,7 @@
           <p class="analysis-source__panel-note">Paste the full master analysis markdown below, then parse it to fill the fields automatically.</p>
         </div>
         <div class="analysis-source__panel analysis-ai-grid" data-panel="ai" hidden>
-          <div class="field-row">
-            <div>
-              <label for="aiCompany">Company</label>
-              <input id="aiCompany" placeholder="Insmed Incorporated" autocomplete="off" />
-              <p class="muted-small">Only the company name is required to run a prompt.</p>
-            </div>
-            <div>
-              <label for="aiTicker">Ticker (optional)</label>
-              <input id="aiTicker" placeholder="INSM" autocomplete="off" />
-            </div>
-            <div>
-              <label for="aiExchange">Exchange (optional)</label>
-              <input id="aiExchange" placeholder="NASDAQ" autocomplete="off" />
-            </div>
-          </div>
+          <p class="muted-small">Update the coverage target above to tailor the AI prompt.</p>
           <div>
             <label>Prompt template</label>
             <div class="prompt-selector">
