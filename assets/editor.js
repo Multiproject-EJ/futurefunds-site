@@ -155,6 +155,11 @@ async function initEditor() {
   const promptEditorDeleteBtn = document.getElementById('deletePromptEditor');
   const promptEditorBackdrop = promptEditorModal?.querySelector('[data-close-prompt]');
   const promptEditorSaveBtn = document.getElementById('savePromptEditor');
+  const analystLastName = document.getElementById('analystLastName');
+  const analystDateStamp = document.getElementById('analystDateStamp');
+  const aiSettingsModel = document.getElementById('aiSettingsModel');
+  const aiSettingsPrompt = document.getElementById('aiSettingsPrompt');
+  const aiSettingsKey = document.getElementById('aiSettingsKey');
 
   const AI_KEY_STORAGE = 'ff-editor-ai-key';
   const AI_MODEL_STORAGE = 'ff-editor-ai-model';
@@ -172,11 +177,64 @@ async function initEditor() {
   let promptLoadUsedFallback = false;
   let promptSlugColumnSupported = true;
   const promptEditorSlugHelpDefaultText = (promptEditorSlugHelp?.textContent || '').trim();
+  const aiSettingsModelDefault = (aiSettingsModel?.textContent || '').trim();
+  const aiSettingsPromptDefault = (aiSettingsPrompt?.textContent || '').trim();
+  const aiSettingsKeyDefault = (aiSettingsKey?.textContent || '').trim();
 
   if (!form || !locked) return;
 
   const lockMsg = document.getElementById('editorLockMsg');
   const lockActionBtn = locked?.querySelector('[data-open-auth]');
+
+  const formatDate = (date) => {
+    try {
+      return date.toLocaleDateString(undefined, {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+      });
+    } catch {
+      return date.toISOString().split('T')[0];
+    }
+  };
+
+  const setAnalystDate = () => {
+    if (!analystDateStamp) return;
+    const today = new Date();
+    analystDateStamp.textContent = formatDate(today);
+  };
+
+  const updateAiKeyStatusDisplay = (value) => {
+    if (!aiSettingsKey) return;
+    const normalized = normalizeOpenRouterApiKey(value);
+    if (normalized) {
+      aiSettingsKey.textContent = 'Key detected in secure storage';
+    } else {
+      aiSettingsKey.textContent = aiSettingsKeyDefault || 'Missing — add your OpenRouter key';
+    }
+  };
+
+  const updateAnalystIdentity = () => {
+    const option = aiModel?.selectedOptions?.[0] || null;
+    const optionLabel = (option?.textContent || option?.label || '').trim();
+    const storedPreference = (desiredModelValue || '').trim();
+    const displayName = optionLabel || storedPreference;
+    if (analystLastName) analystLastName.textContent = displayName || 'Model';
+    if (aiSettingsModel) aiSettingsModel.textContent = displayName || aiSettingsModelDefault || 'Pending selection';
+  };
+
+  const updatePromptSettingsSummary = () => {
+    if (!aiSettingsPrompt) return;
+    if (selectedPrompt) {
+      aiSettingsPrompt.textContent = selectedPrompt.name;
+    } else if (promptOptions.length) {
+      aiSettingsPrompt.textContent = 'Select a prompt template';
+    } else if (promptLoadErrorMessage) {
+      aiSettingsPrompt.textContent = 'Unable to load prompts';
+    } else {
+      aiSettingsPrompt.textContent = aiSettingsPromptDefault || 'Auto-selected based on last session';
+    }
+  };
 
   const setMessage = (text, tone = 'info') => {
     if (!msg) return;
@@ -235,6 +293,7 @@ async function initEditor() {
       aiKeyPreview.hidden = true;
       aiKeyPreviewValue.textContent = '';
     }
+    updateAiKeyStatusDisplay(normalized);
   };
 
   const setAiKeyInput = (value) => {
@@ -328,6 +387,8 @@ async function initEditor() {
 
   const loadAiConfig = async ({ includeRemote = false, forceRemote = false } = {}) => {
     loadLocalAiPreferences();
+    setAnalystDate();
+    updateAnalystIdentity();
     if (includeRemote) {
       await ensureSupabaseAiKey({ force: forceRemote });
     }
@@ -900,6 +961,7 @@ async function initEditor() {
         promptPreview.textContent = '';
       }
     }
+    updatePromptSettingsSummary();
     renderPromptMenu();
   };
 
@@ -1057,6 +1119,7 @@ async function initEditor() {
       aiModel.value = fallback;
       desiredModelValue = fallback;
     }
+    updateAnalystIdentity();
   };
 
   const refreshModelOptions = async () => {
@@ -1204,6 +1267,7 @@ async function initEditor() {
   if (aiModel) {
     aiModel.addEventListener('change', () => {
       persistAiConfig();
+      updateAnalystIdentity();
     });
   }
 
