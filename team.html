@@ -1,0 +1,379 @@
+<!doctype html>
+<html lang="en" data-lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>FutureFunds.ai — Team</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="/assets/styles.css" />
+  <link rel="stylesheet" href="/assets/team.css" />
+</head>
+
+<body class="page-team">
+  <!-- Global Header -->
+  <header class="site-header">
+    <a class="brand" href="/">
+      <img src="/images/logo.webp" alt="FutureFunds.ai logo" class="logo" />
+      <span>FutureFunds.ai</span>
+    </a>
+    <button class="nav-toggle" id="navToggle" type="button" aria-expanded="false" aria-controls="siteNav">
+      <span class="sr-only">Menu</span>
+      <span class="nav-toggle__bar"></span>
+    </button>
+    <nav class="nav" id="siteNav" aria-label="Primary navigation">
+      <a href="/team.html" class="active" data-i18n="nav.team">Team</a>
+      <a href="/tools.html" data-i18n="nav.investmentTools">Investment Tools</a>
+      <a href="/ai-economy.html" data-i18n="nav.aiEconomy">The AI Economy</a>
+      <a href="/portfolio.html" data-i18n="nav.portfolios">Portfolios</a>
+      <a href="/universe.html" data-i18n="nav.universe">Universe</a>
+      <button id="langBtn" class="btn small">EN ▾</button>
+      <button id="themeToggle" class="btn small ghost theme-toggle" aria-label="Toggle theme">
+        <span class="theme-toggle__icon" aria-hidden="true">🌗</span>
+        <span class="theme-toggle__label" data-i18n="nav.themeToggle">Theme</span>
+      </button>
+      <a id="patreonLogin" class="btn danger" href="/membership.html" data-i18n="cta.membership">Membership</a>
+    </nav>
+  </header>
+
+  <main class="wrap">
+    <section id="team" class="panel team-hero">
+      <p class="hero-eyebrow"><em>Who ships FutureFunds.ai?</em></p>
+      <h1>Meet the team building the FutureFunds.ai experiment</h1>
+      <p>
+        We are a small crew pairing human judgment with AI copilots to explore how autonomous research and
+        portfolio management can work in the open. Our roles stretch across data engineering, analysis,
+        storytelling, and member experience so the entire loop stays tight.
+      </p>
+      <div class="team-subnav" aria-label="Team quick links">
+        <a href="#team-members">👥 Team roster</a>
+        <a href="#operating">🛠 Operating cadence</a>
+        <a href="#strategy">🧭 Strategy experiment</a>
+      </div>
+    </section>
+
+    <section id="team-members" class="section">
+      <div class="panel">
+        <h2>Team members</h2>
+        <p class="muted">Every person (and copilot) carries a clear problem set and a versioned playbook so we can learn fast.</p>
+      </div>
+      <div class="team-grid">
+        <article class="panel team-card">
+          <div class="team-card__head">
+            <h3 class="team-card__name">Lena Ortiz</h3>
+            <span class="team-card__version">Power v1.8</span>
+          </div>
+          <p class="team-card__role">Head of Research Automation</p>
+          <dl>
+            <dt>Area of responsibility</dt>
+            <dd>Data ingestion, model prompts, and orchestrating the research agents that read filings at scale.</dd>
+            <dt>Problems on deck</dt>
+            <dd>
+              <div class="team-focus">
+                <span>Universe triage</span>
+                <span>Filings summarization</span>
+                <span>Signal freshness</span>
+              </div>
+              <ul>
+                <li>Reduce the time from data drop to usable narrative insight.</li>
+                <li>Improve cross-checks so AI notes stay grounded in verified filings.</li>
+              </ul>
+            </dd>
+            <dt>Currently shipping</dt>
+            <dd>Rolling out multi-agent QA workflows for the watchlist and training prompts for quality drift detection.</dd>
+          </dl>
+        </article>
+
+        <article class="panel team-card">
+          <div class="team-card__head">
+            <h3 class="team-card__name">Noah Chen</h3>
+            <span class="team-card__version">Power v1.5</span>
+          </div>
+          <p class="team-card__role">Lead Portfolio Engineer</p>
+          <dl>
+            <dt>Area of responsibility</dt>
+            <dd>Portfolio simulation, risk frameworks, and wiring strategy outputs into live trading experiments.</dd>
+            <dt>Problems on deck</dt>
+            <dd>
+              <div class="team-focus">
+                <span>Dynamic rebalancing</span>
+                <span>Risk parity</span>
+                <span>Scenario testing</span>
+              </div>
+              <ul>
+                <li>Give each virtual PM a transparent reason to hold, size, or exit names.</li>
+                <li>Map drawdown controls to real-time watchlist pings.</li>
+              </ul>
+            </dd>
+            <dt>Currently shipping</dt>
+            <dd>Expanding the portfolio AI sandbox with new value and momentum presets plus live performance telemetry.</dd>
+          </dl>
+        </article>
+
+        <article class="panel team-card">
+          <div class="team-card__head">
+            <h3 class="team-card__name">Maya Patel</h3>
+            <span class="team-card__version">Power v1.3</span>
+          </div>
+          <p class="team-card__role">Member Operations &amp; Narrative</p>
+          <dl>
+            <dt>Area of responsibility</dt>
+            <dd>Member onboarding, comms, and translating research into plain-language updates.</dd>
+            <dt>Problems on deck</dt>
+            <dd>
+              <div class="team-focus">
+                <span>Feedback loops</span>
+                <span>Content velocity</span>
+                <span>Education</span>
+              </div>
+              <ul>
+                <li>Route community feedback into weekly build priorities.</li>
+                <li>Package experiment learnings into digestible member briefings.</li>
+              </ul>
+            </dd>
+            <dt>Currently shipping</dt>
+            <dd>Launching a revamped member brief template and coordinating community town halls.</dd>
+          </dl>
+        </article>
+
+        <article class="panel team-card">
+          <div class="team-card__head">
+            <h3 class="team-card__name">Atlas</h3>
+            <span class="team-card__version">Power v0.9</span>
+          </div>
+          <p class="team-card__role">Strategy Copilot (AI)</p>
+          <dl>
+            <dt>Area of responsibility</dt>
+            <dd>Assisting with scenario analysis, research note drafting, and surfacing anomalies across the dataset.</dd>
+            <dt>Problems on deck</dt>
+            <dd>
+              <div class="team-focus">
+                <span>Explainability</span>
+                <span>Anomaly detection</span>
+                <span>Prompt safety</span>
+              </div>
+              <ul>
+                <li>Keep recommendations auditable with traceable evidence chains.</li>
+                <li>Reduce hallucinations through retrieval-augmented prompting.</li>
+              </ul>
+            </dd>
+            <dt>Currently shipping</dt>
+            <dd>Pairing with Lena on a structured note generator that references filings, transcripts, and quant outputs.</dd>
+          </dl>
+        </article>
+      </div>
+    </section>
+
+    <section id="operating" class="section">
+      <div class="panel">
+        <h2>How we operate</h2>
+        <p class="muted">Tight loops and explicit cadences keep the experiment moving while remaining transparent to members.</p>
+        <div class="ops-grid">
+          <div class="panel ops-card">
+            <h3>Weekly synthesis</h3>
+            <p>Monday standups reset the backlog, align research and portfolio changes, and review member input.</p>
+          </div>
+          <div class="panel ops-card">
+            <h3>Versioned releases</h3>
+            <p>Each tool and AI agent receives a semantic version so we can publish changelogs and rollback safely.</p>
+          </div>
+          <div class="panel ops-card">
+            <h3>Member signals</h3>
+            <p>Feedback from Discord, email, and surveys is tagged, scored, and translated into problem statements.</p>
+          </div>
+        </div>
+      </div>
+      <div class="panel callout" role="note">
+        <h3>Strategy lives here</h3>
+        <p>
+          The full strategy walkthrough now sits alongside the team so you can see who owns each phase and how the
+          process evolves. Jump into the sections below to explore the experiment in detail.
+        </p>
+      </div>
+    </section>
+
+    <!-- Strategy Content -->
+    <section id="strategy" class="section">
+      <div class="panel hero strategy-hero">
+        <p class="hero-eyebrow"><em>A simple question</em></p>
+        <h2>What happens if AI runs the investment process?</h2>
+        <p>
+          FutureFunds.ai is a live research project: we codify rules, wire them into AI-powered tools,
+          and track portfolios. It’s about learning in the open—wins and losses included.
+        </p>
+        <p class="muted"><b>Our strategy</b>: from the whole market to a focused, AI-tracked universe.</p>
+        <div class="badges">
+          <div class="badge"><b id="badge-universe">42,031</b><span>Stocks in global universe</span></div>
+          <div class="badge"><b id="badge-pass">18%</b><span>Pass initial risk screen</span></div>
+          <div class="badge"><b id="badge-pings">127</b><span>Watchlist pings (last 30 days)</span></div>
+          <div class="badge"><b id="badge-articles">311</b><span>Research articles published</span></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="funnel" class="section">
+      <div class="panel stepflow">
+        <div class="stepflow-head">
+          <h2>Strategy Walkthrough</h2>
+          <p class="muted">Click down the rail to follow the experiment.</p>
+        </div>
+        <div class="rail" id="rail" aria-label="Process steps">
+          <div class="track"></div>
+          <div class="fill" id="railFill"></div>
+          <button class="node active" data-step="0" aria-current="step"><span class="dot"></span><span>1 · Start with the entire market</span></button>
+          <button class="node" data-step="1"><span class="dot"></span><span>2 · Initial risk assessment</span></button>
+          <button class="node" data-step="2"><span class="dot"></span><span>3 · Assign the right analysis</span></button>
+          <button class="node" data-step="3"><span class="dot"></span><span>4 · Deep research → outputs</span></button>
+          <button class="node" data-step="4"><span class="dot"></span><span>5 · Smart Watchlist</span></button>
+          <button class="node" data-step="5"><span class="dot"></span><span>6 · Portfolio AI managers</span></button>
+        </div>
+        <div class="stage">
+          <div class="step-card" id="stepCard">
+            <div class="kicker" id="kicker">STEP 1</div>
+            <h3 id="stepTitle">Start with the entire market</h3>
+            <p class="muted" id="stepText">We consider every listed company globally. No early bias, no blind spots by design.</p>
+            <div class="actions">
+              <button class="btn ghost" id="prevStep">Back</button>
+              <button class="btn primary" id="nextStep">Next</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section grid cols-2">
+      <div class="panel spark-wrap">
+        <h3>Signals per Week</h3>
+        <p class="muted">A lightweight view of recent watchlist pings (demo data). Wire this to your backend later.</p>
+        <canvas id="spark"></canvas>
+      </div>
+      <div class="panel log split">
+        <h3>AI Version Log</h3>
+        <div class="log-grid">
+          <div class="log-col">
+            <div class="ai-head">
+              <span class="ai-name">ValueBot.ai</span>
+              <span class="ai-tag">Financial analyst</span>
+            </div>
+            <div class="log-scroll">
+              <ul class="log-list">
+                <li><b>v0.7.3</b> — Expanded coverage to small caps; reject stale filings. <span class="muted">2025-03-10</span></li>
+                <li><b>v0.7.2</b> — Improved risk screen calibration; added quality-drift metric; faster article generation. <span class="muted">2025-03-03</span></li>
+                <li><b>v0.7.1</b> — Sector-specific lenses; fixed ADR detection. <span class="muted">2025-02-20</span></li>
+                <li><b>v0.7.0</b> — New anomaly detector for guidance changes. <span class="muted">2025-02-01</span></li>
+              </ul>
+            </div>
+          </div>
+          <div class="log-col">
+            <div class="ai-head">
+              <span class="ai-name">PortfolioManager.ai</span>
+              <span class="ai-tag">Portfolio management</span>
+            </div>
+            <div class="log-scroll">
+              <ul class="log-list">
+                <li><b>v0.4.6</b> — Added risk parity preset; volatility floor for sizing. <span class="muted">2025-03-08</span></li>
+                <li><b>v0.4.5</b> — Position sizing tuned; rebalancer uses watchlist pings; drawdown guard. <span class="muted">2025-03-01</span></li>
+                <li><b>v0.4.4</b> — New Momentum archetype; improved turnover cap. <span class="muted">2025-02-10</span></li>
+                <li><b>v0.4.3</b> — Better cash handling; taxes-aware sell rules. <span class="muted">2025-01-28</span></li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section grid cols-2">
+      <div class="panel card">
+        <h3>Smart Watchlist</h3>
+        <p class="muted">A radar for interesting setups. When metrics flip, we get a ping. Great for revisits and timing.</p>
+        <ul class="muted">
+          <li>• Threshold alerts (valuation, momentum, earnings)</li>
+          <li>• Universe-only or open-universe modes</li>
+          <li>• Links straight to the latest write-ups</li>
+        </ul>
+      </div>
+      <div class="panel card">
+        <h3>Portfolio AIs</h3>
+        <p class="muted">Multiple “virtual PMs” with distinct styles simulate selection, sizing, and rebalancing.</p>
+        <ul class="muted">
+          <li>• Quality / Value / Momentum archetypes</li>
+          <li>• Rules + discretion (AI prompts) hybrid</li>
+          <li>• Performance tracked as an experiment</li>
+        </ul>
+      </div>
+    </section>
+
+    <section id="north-star" class="section">
+      <div class="panel card">
+        <h3>North Star</h3>
+        <p><b>DIY, in public.</b> We don’t predict the future—we test our way into it. Every model is a draft and every portfolio a hypothesis. As the tools get smarter, the loop tightens: better screens → sharper research → faster signals → bolder portfolios. We publish the learnings—wins, misses, and the pivots they force.</p>
+      </div>
+    </section>
+
+    <section class="section grid cols-2">
+      <div class="faq">
+        <h3>Is this financial advice?</h3>
+        <p class="muted">No. This site shares research and tools for educational use only.</p>
+      </div>
+      <div class="faq">
+        <h3>How often is this updated?</h3>
+        <p class="muted">Updates are iterative; cadence varies with data, code changes, and research focus.</p>
+      </div>
+    </section>
+  </main>
+
+  <!-- Global Footer -->
+  <footer class="site-footer">
+    <div class="footer-inner">
+      <div class="footer-col footer-about">
+        <a class="brand" href="/">
+          <img src="/images/logo.webp" alt="FutureFunds.ai logo" class="logo" />
+          <span>FutureFunds.ai</span>
+        </a>
+        <p class="muted">Researching how AI can run the investment process in public. Educational only.</p>
+      </div>
+      <div class="footer-col footer-links">
+        <h3 class="footer-heading">Explore</h3>
+        <ul class="footer-links-list">
+          <li><a href="/team.html">Team</a></li>
+          <li><a href="/tools.html">Investment Tools</a></li>
+          <li><a href="/portfolio.html">Portfolios</a></li>
+          <li><a href="/blog.html">Commentary</a></li>
+        </ul>
+      </div>
+      <div class="footer-col footer-links">
+        <h3 class="footer-heading">Legal &amp; Access</h3>
+        <ul class="footer-links-list">
+          <li><a href="/disclaimer.html">Disclaimer &amp; Disclosures</a></li>
+          <li><a href="/membership.html">Membership</a></li>
+          <li><a href="/login.html">Member Login</a></li>
+          <li><a href="/editor.html">Editor (admin)</a></li>
+        </ul>
+      </div>
+      <div class="footer-col footer-newsletter">
+        <h3 class="footer-heading">Stay in the loop</h3>
+        <p class="muted">Sign up for updates on new research drops and product releases.</p>
+        <form class="newsletter-form" novalidate>
+          <label class="sr-only" for="newsletter-email">Email address</label>
+          <input id="newsletter-email" type="email" name="email" placeholder="you@example.com" autocomplete="email" required />
+          <button type="submit" class="btn primary">Join the list</button>
+        </form>
+        <p class="newsletter-status muted" aria-live="polite"></p>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <small>© <span id="year"></span> FutureFunds.ai. Educational experiment. Not investment advice.</small>
+      <div class="footer-legal">
+        <a href="/disclaimer.html">Disclaimer</a>
+        <a href="/sitemap.xml">Sitemap</a>
+        <a href="/editor.html">Editor</a>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Global Scripts -->
+  <script src="/assets/app.js" defer></script>
+  <script src="/assets/i18n.js" defer></script>
+  <script src="/assets/paywall.js" defer></script>
+  <script type="module" src="/assets/auth.js"></script>
+  <script src="/assets/strategy.js" defer></script>
+</body>
+</html>

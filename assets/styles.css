@@ -216,6 +216,16 @@ body.nav-open .nav-toggle__bar::after{top:0;transform:rotate(-45deg);}
   font-size:.85em;
 }
 
+body.theme-dark .btn.theme-toggle{
+  color:#8ab4ff;
+  border-color:rgba(138,180,255,.5);
+  background:rgba(138,180,255,.1);
+}
+body.theme-dark .btn.theme-toggle:hover{
+  background:rgba(138,180,255,.18);
+  border-color:rgba(138,180,255,.7);
+}
+
 /* Hero (base) */
 .hero{
   padding:6rem 2rem;
