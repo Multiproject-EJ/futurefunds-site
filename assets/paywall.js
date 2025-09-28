@@ -1,6 +1,6 @@
 // DEV MODES (toggle in the console while building)
 window.__DEV__ = {
-  forcePatron: false,    // simulate Patreon access
+  forceMember: false,    // simulate membership access
   forceLicense: false,   // simulate valid purchase/license
   forceSubscriber: false // simulate free-subscriber access
 };
@@ -15,11 +15,11 @@ async function gateToolAccess(t){
   const accessType = t.access || 'free';
 
   // Simulated dev unlocks
-  if (window.__DEV__.forcePatron && (accessType==='patreon' || accessType==='member')) return {allowed:true};
+  if (window.__DEV__.forceMember && accessType==='member') return {allowed:true};
   if (window.__DEV__.forceLicense && t.access==='paid') return {allowed:true};
 
   // Real checks (when wired):
-  if (accessType==='patreon' || accessType==='member') {
+  if (accessType==='member') {
     const gate = await ensureMemberAccess({
       title: t.title,
       subtitle: t.subtitle,
@@ -62,7 +62,7 @@ function lockedPaidHTML(t){
 
 /* ---- Supabase membership helpers ---- */
 async function ensureMemberAccess(context={}){
-  if (window.__DEV__.forcePatron) return { allowed:true };
+  if (window.__DEV__.forceMember) return { allowed:true };
   if (!window.ffAuth) {
     await waitForAuthReady();
   }
@@ -166,7 +166,7 @@ function membershipLockedHTML({ title, subtitle, backHref, signedIn }){
   return `
     ${heading}
     ${sub}
-    <div class="chips"><span class="chip patreon">Membership</span></div>
+    <div class="chips"><span class="chip membership">Membership</span></div>
     <p>${status}</p>
     <p><button class="btn primary" data-open-auth="${openView}">Open account</button>${backLink}</p>
     <div class="note-box"><strong>Need help?</strong> Email <a href="mailto:support@futurefunds.ai">support@futurefunds.ai</a> and we’ll get you sorted.</div>
@@ -204,7 +204,7 @@ async function verifyLicenseForTool(provider, sku, key){
 }
 
 /* ==================================================
-   Portfolio gating (public | subscriber | patreon)
+   Portfolio gating (public | subscriber | member)
    ================================================== */
 async function gatePortfolioAccess(p){
   if (!p) return { allowed:false, reason:'Unknown portfolio', ctaHTML:'<a class="btn" href="/portfolio.html">Back</a>' };
@@ -217,7 +217,7 @@ async function gatePortfolioAccess(p){
 
   // Dev overrides
   if (window.__DEV__.forceSubscriber && access === 'subscriber') return { allowed:true };
-  if (window.__DEV__.forcePatron && (access === 'patreon' || access === 'member')) return { allowed:true };
+  if (window.__DEV__.forceMember && access === 'member') return { allowed:true };
 
   if (access === 'subscriber'){
     return {
@@ -227,7 +227,7 @@ async function gatePortfolioAccess(p){
     };
   }
 
-  if (access === 'patreon' || access === 'member'){
+  if (access === 'member'){
     const gate = await ensureMemberAccess({
       title: p.title,
       subtitle: p.summary || 'Members unlock full portfolio details.',

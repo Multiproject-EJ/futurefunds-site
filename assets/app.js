@@ -142,7 +142,7 @@ async function renderToolsIndex() {
 function toolCardHTML(t) {
   const chips = `<div class="chips">
     ${t.access === 'free' ? '<span class="chip free">Free</span>' : ''}
-    ${t.access === 'patreon' ? '<span class="chip patreon">Patreon</span>' : ''}
+    ${t.access === 'member' ? '<span class="chip membership">Membership</span>' : ''}
     ${t.access === 'paid' ? `<span class="chip paid">Paid${t.price ? ' · ' + t.price : ''}</span>` : ''}
   </div>`;
   const lock = (t.access !== 'free') ? '<div class="lock">🔒</div>' : '';
@@ -173,7 +173,7 @@ async function renderToolDetail() {
     <p class="muted">${t.subtitle || ''}</p>
     <div class="chips">
       ${t.access === 'free' ? '<span class="chip free">Free</span>' : ''}
-      ${t.access === 'patreon' ? '<span class="chip patreon">Patreon</span>' : ''}
+      ${t.access === 'member' ? '<span class="chip membership">Membership</span>' : ''}
       ${t.access === 'paid' ? '<span class="chip paid">Paid</span>' : ''}
     </div>
 

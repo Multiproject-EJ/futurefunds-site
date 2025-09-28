@@ -4,8 +4,8 @@
       "id": "ff-pms",
       "title": "FutureFunds Portfolio Management System",
       "subtitle": "Build, track, and iterate AI-driven strategies end-to-end",
-      "access": "patreon",
-      "patreon": { "minCents": 500, "currency": "USD" },
+      "access": "member",
+      "membership": { "minCents": 500, "currency": "USD" },
       "visibility": "public",
       "comingSoon": false,
       "description": [
@@ -59,7 +59,7 @@
         "site": "https://www.valuebot.ai/"
       },
       "notes": [
-        "License includes 1 year of updates; patrons get discounts."
+        "License includes 1 year of updates; members get discounts."
       ]
     }
   ]

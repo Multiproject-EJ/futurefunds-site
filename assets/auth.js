@@ -127,7 +127,7 @@ function ensureModalMounted() {
             <li data-i18n="membership.perks.list.discount">50% off future investor tool bundles.</li>
             <li data-i18n="membership.perks.list.feedback">Shape the roadmap via the member Strategy Document.</li>
           </ul>
-          <p class="auth-benefits__price" data-i18n="membership.perks.price">Membership starts at $5/mo via Patreon.</p>
+          <p class="auth-benefits__price" data-i18n="membership.perks.price">Membership starts at $5/mo.</p>
           <div class="auth-benefits__actions">
             <button class="btn primary" type="button" data-open-auth="signup" data-i18n="membership.perks.ctaJoin">Join now</button>
             <button class="btn ghost" type="button" data-open-auth="signin" data-i18n="membership.perks.ctaSignIn">Already a member? Sign in</button>
@@ -147,7 +147,7 @@ function queryElements() {
   els.subtitle = document.getElementById('authSubtitle');
   els.msg = document.getElementById('authMsg');
   els.views = document.getElementById('authViews');
-  els.headerMembershipBtn = document.getElementById('patreonLogin') || document.getElementById('membershipBtn');
+  els.headerMembershipBtn = document.getElementById('membershipLogin') || document.getElementById('membershipBtn');
   if (els.headerMembershipBtn && !els.headerMembershipBtn.hasAttribute('data-open-auth')) {
     els.headerMembershipBtn.setAttribute('data-open-auth', 'signin');
   }

@@ -12,7 +12,7 @@ The site ships seven application tables in the `public` schema:
 | Table | Purpose |
 | --- | --- |
 | `profiles` | Stores metadata about each authenticated user (role, email, timestamps). |
-| `memberships` | Mirrors Patreon/Stripe membership state so the site can gate premium content. |
+| `memberships` | Mirrors membership billing state so the site can gate premium content. |
 | `universe` | Holds the research briefs that power `/universe.html` and the editor workflow. |
 | `editor_prompts` | Configurable AI prompt templates surfaced in the research editor. |
 | `editor_models` | Configurable AI model catalogue used by the editor UI. |
@@ -60,14 +60,14 @@ The tables rely on three helper routines:
 | `status` | `text` | `'inactive'` | The UI treats anything other than `active` as locked content.【F:assets/supabase.js†L59-L67】 |
 | `current_period_end` | `timestamptz` | `null` | Optional expiry the UI compares against `Date.now()` to expire access.【F:assets/supabase.js†L59-L67】 |
 | `tier` | `text` | `null` | Optional descriptive tier (Starter, Pro, etc.). |
-| `source` | `text` | `'patreon'` | Indicates the billing platform (Patreon, Stripe). |
+| `source` | `text` | `'membership'` | Indicates the billing platform (Stripe, Lemon Squeezy, manual, etc.). |
 | `created_at` | `timestamptz` | `now()` | Managed automatically. |
 | `updated_at` | `timestamptz` | `now()` | Managed by `set_updated_at` trigger. |
 
 **Policies**
 
 - `SELECT`: `auth.uid() = user_id` so members see their own status in the account modal.【F:assets/auth.js†L218-L298】
-- `INSERT` / `UPDATE`: restricted to service-role integrations that sync Patreon/Stripe data.
+- `INSERT` / `UPDATE`: restricted to service-role integrations that sync membership billing data.
 - Helper function `is_paid_member(auth.uid())` is used by content tables (e.g., `universe`) to gate read access; keep its logic aligned with `isMembershipActive` in the frontend.【F:assets/supabase.js†L59-L67】
 
 ### `universe`
