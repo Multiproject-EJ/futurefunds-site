@@ -266,11 +266,13 @@ async function initEditor() {
   const promptSummary = document.getElementById('promptSummary');
   const promptPreview = document.getElementById('promptPreview');
   const editModelBtn = document.getElementById('editModelList');
-  const modelEditor = document.getElementById('modelEditor');
   const modelEditorInput = document.getElementById('modelEditorInput');
   const modelEditorStatus = document.getElementById('modelEditorStatus');
   const saveModelBtn = document.getElementById('saveModelList');
   const cancelModelBtn = document.getElementById('cancelModelList');
+  const modelEditorModal = document.getElementById('modelEditorModal');
+  const modelEditorBackdrop = modelEditorModal?.querySelector('[data-close-model]');
+  const modelEditorCloseBtn = document.getElementById('closeModelEditor');
   const promptEditorOpenBtn = document.getElementById('openPromptEditor');
   const promptEditorModal = document.getElementById('promptEditorModal');
   const promptEditorList = document.getElementById('promptEditorList');
@@ -1270,18 +1272,21 @@ async function initEditor() {
   };
 
   const openModelEditor = () => {
-    if (!modelEditor || !modelEditorInput) return;
+    if (!modelEditorModal || !modelEditorInput) return;
     if (!modelOptions.length) modelOptions = DEFAULT_MODELS.slice();
-    modelEditor.hidden = false;
+    modelEditorModal.hidden = false;
     modelEditorInput.value = modelOptions.map((opt) => `${opt.value} | ${opt.label}`).join('\n');
     if (modelEditorStatus) {
       modelEditorStatus.textContent = '';
       modelEditorStatus.dataset.tone = '';
     }
+    setTimeout(() => {
+      modelEditorInput?.focus();
+    }, 50);
   };
 
   const closeModelEditor = () => {
-    if (modelEditor) modelEditor.hidden = true;
+    if (modelEditorModal) modelEditorModal.hidden = true;
     if (modelEditorStatus) {
       modelEditorStatus.textContent = '';
       modelEditorStatus.dataset.tone = '';
@@ -1442,6 +1447,7 @@ async function initEditor() {
     if (event.key === 'Escape') {
       closePromptMenu();
       if (!promptEditorModal?.hidden) closePromptEditor();
+      if (!modelEditorModal?.hidden) closeModelEditor();
     }
   });
 
@@ -1500,8 +1506,20 @@ async function initEditor() {
 
   if (editModelBtn) {
     editModelBtn.addEventListener('click', () => {
-      if (modelEditor?.hidden) openModelEditor();
+      if (modelEditorModal?.hidden) openModelEditor();
       else closeModelEditor();
+    });
+  }
+
+  if (modelEditorCloseBtn) {
+    modelEditorCloseBtn.addEventListener('click', () => {
+      closeModelEditor();
+    });
+  }
+
+  if (modelEditorBackdrop) {
+    modelEditorBackdrop.addEventListener('click', () => {
+      closeModelEditor();
     });
   }
 

@@ -102,9 +102,12 @@
     .prompt-preview{margin-top:6px;padding:12px;border:1px solid var(--border,#e5e7eb);border-radius:12px;background:var(--panel,#fff);max-height:220px;overflow:auto;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;font-size:.78rem;line-height:1.4;color:var(--text,#0f172a);width:100%;max-width:100%;box-sizing:border-box;white-space:pre-wrap;word-break:break-word;overflow-wrap:anywhere}
     .select-edit{display:flex;align-items:center;gap:8px}
     .select-edit select{flex:1 1 auto}
-    .model-editor{margin-top:10px;border:1px dashed var(--border,#e5e7eb);border-radius:12px;padding:12px;display:grid;gap:10px;background:rgba(148,163,184,.08)}
-    .model-editor textarea{min-height:120px;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace}
-    .model-editor__actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+    .model-editor{display:grid;gap:14px}
+    .model-editor textarea{min-height:140px;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace}
+    .model-editor__status{min-height:18px;font-size:.85rem;color:var(--muted,#64748b)}
+    .model-editor__status[data-tone="error"]{color:var(--danger,#ff6b6b)}
+    .model-editor__status[data-tone="success"]{color:var(--ok,#31d0a3)}
+    .model-editor__status[data-tone="info"]{color:var(--muted,#64748b)}
     .modal{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;padding:20px;z-index:120}
     .modal[hidden]{display:none}
     .modal__backdrop{position:absolute;inset:0;background:rgba(15,23,42,.55)}
@@ -135,6 +138,7 @@
     .prompt-editor__toggle{display:flex;gap:8px;align-items:center;font-size:.9rem;color:var(--muted,#64748b)}
     .prompt-editor__toggle input{margin:0}
     .prompt-editor__status{min-height:18px}
+    .modal__content--stack{padding:24px;display:grid;gap:18px}
   </style>
 </head>
 <body>
@@ -421,16 +425,6 @@
                 <button type="button" class="btn small ghost" id="editModelList">Edit list</button>
               </div>
               <p class="muted-small">Select from saved OpenRouter models or edit the list for this workspace.</p>
-              <div class="model-editor" id="modelEditor" hidden>
-                <label for="modelEditorInput" style="font-weight:600">Update model options</label>
-                <textarea id="modelEditorInput" placeholder="openrouter/auto | OpenRouter Auto"></textarea>
-                <p class="muted-small">One model per line. Use <code>model-id | Friendly label</code>. First model becomes the default.</p>
-                <div class="model-editor__actions">
-                  <button type="button" class="btn small primary" id="saveModelList">Save list</button>
-                  <button type="button" class="btn small ghost" id="cancelModelList">Cancel</button>
-                  <span class="muted-small" id="modelEditorStatus"></span>
-                </div>
-              </div>
             </div>
             <div>
               <label for="aiKey">AI API key</label>
@@ -512,6 +506,30 @@
       <div id="recentList" class="recent-list"></div>
     </section>
   </main>
+
+  <div id="modelEditorModal" class="modal" hidden role="dialog" aria-modal="true" aria-labelledby="modelEditorTitle">
+    <div class="modal__backdrop" data-close-model></div>
+    <div class="modal__dialog" style="max-width:620px">
+      <header class="modal__header">
+        <h2 id="modelEditorTitle" style="margin:0;font-size:1.1rem">Update model options</h2>
+        <button type="button" class="btn small ghost" id="closeModelEditor">Close</button>
+      </header>
+      <div class="modal__content modal__content--stack">
+        <div class="model-editor" id="modelEditor">
+          <div>
+            <label for="modelEditorInput" style="font-weight:600">OpenRouter models for this workspace</label>
+            <textarea id="modelEditorInput" placeholder="openrouter/auto | OpenRouter Auto"></textarea>
+            <p class="muted-small">One model per line. Use <code>model-id | Friendly label</code>. First model becomes the default.</p>
+          </div>
+          <p class="model-editor__status" id="modelEditorStatus" role="status" aria-live="polite"></p>
+        </div>
+      </div>
+      <footer class="modal__footer">
+        <button type="button" class="btn small ghost" id="cancelModelList">Cancel</button>
+        <button type="button" class="btn small primary" id="saveModelList">Save list</button>
+      </footer>
+    </div>
+  </div>
 
   <div id="promptEditorModal" class="modal" hidden role="dialog" aria-modal="true" aria-labelledby="promptEditorTitle">
     <div class="modal__backdrop" data-close-prompt></div>
