@@ -108,6 +108,10 @@ async function initEditor() {
   const aiExchange = document.getElementById('aiExchange');
   const aiNotes = document.getElementById('aiNotes');
   const aiKey = document.getElementById('aiKey');
+  const aiKeyRefreshBtn = document.getElementById('refreshAiKey');
+  const aiKeyStatus = document.getElementById('aiKeyStatus');
+  const aiKeyPreview = document.getElementById('aiKeyPreview');
+  const aiKeyPreviewValue = document.getElementById('aiKeyPreviewValue');
   const aiModel = document.getElementById('aiModel');
   const promptSelectBtn = document.getElementById('promptSelectBtn');
   const promptSelectLabel = document.getElementById('promptSelectLabel');
@@ -197,9 +201,36 @@ async function initEditor() {
     }
   };
 
+  const setAiKeyStatus = (text, tone = 'info') => {
+    if (!aiKeyStatus) return;
+    aiKeyStatus.textContent = text || '';
+    aiKeyStatus.dataset.tone = text ? tone : '';
+    const color =
+      tone === 'error'
+        ? 'var(--danger,#ff6b6b)'
+        : tone === 'success'
+        ? 'var(--ok,#31d0a3)'
+        : 'var(--muted,#64748b)';
+    aiKeyStatus.style.color = text ? color : 'var(--muted,#64748b)';
+  };
+
+  const updateAiKeyPreview = (value) => {
+    if (!aiKeyPreview || !aiKeyPreviewValue) return;
+    const normalized = normalizeOpenRouterApiKey(value);
+    if (normalized) {
+      aiKeyPreview.hidden = false;
+      aiKeyPreviewValue.textContent = normalized;
+    } else {
+      aiKeyPreview.hidden = true;
+      aiKeyPreviewValue.textContent = '';
+    }
+  };
+
   const setAiKeyInput = (value) => {
     if (!aiKey) return;
-    aiKey.value = normalizeOpenRouterApiKey(value);
+    const normalized = normalizeOpenRouterApiKey(value);
+    aiKey.value = normalized;
+    updateAiKeyPreview(normalized);
   };
 
   const loadLocalAiPreferences = () => {
@@ -226,12 +257,17 @@ async function initEditor() {
     }
   };
 
-  const ensureSupabaseAiKey = async ({ force = false } = {}) => {
+  const ensureSupabaseAiKey = async ({ force = false, onStatus } = {}) => {
     if (supabaseAiKeyCache && !force) {
       setAiKeyInput(supabaseAiKeyCache);
+      if (typeof onStatus === 'function') {
+        onStatus({ value: supabaseAiKeyCache, source: 'cache', error: null });
+      }
       return supabaseAiKeyCache;
     }
     let fetchedKey = null;
+    let fetchError = null;
+    const previousValue = supabaseAiKeyCache;
     try {
       const { data, error } = await supabase
         .from('editor_api_credentials')
@@ -244,18 +280,37 @@ async function initEditor() {
       if (error) throw error;
       fetchedKey = data?.api_key ? normalizeOpenRouterApiKey(data.api_key) : null;
     } catch (error) {
-      supabaseAiKeyCache = supabaseAiKeyCache || null;
+      fetchError = error;
       console.warn('AI key fetch error', error);
     }
+    let source = 'none';
+    let usedDefaultFallback = false;
     if (!fetchedKey && DEFAULT_OPENROUTER_API_KEY) {
       fetchedKey = normalizeOpenRouterApiKey(DEFAULT_OPENROUTER_API_KEY);
+      usedDefaultFallback = true;
     }
     if (fetchedKey) {
       supabaseAiKeyCache = fetchedKey;
-      setAiKeyInput(supabaseAiKeyCache);
+      source = usedDefaultFallback ? 'default' : 'supabase';
+    } else if (previousValue) {
+      supabaseAiKeyCache = previousValue;
+      source = 'cache';
+    } else {
+      supabaseAiKeyCache = null;
+      source = 'none';
+    }
+    setAiKeyInput(supabaseAiKeyCache);
+    if (supabaseAiKeyCache) {
       try {
         localStorage.setItem(AI_KEY_STORAGE, supabaseAiKeyCache);
       } catch {}
+    } else {
+      try {
+        localStorage.removeItem(AI_KEY_STORAGE);
+      } catch {}
+    }
+    if (typeof onStatus === 'function') {
+      onStatus({ value: supabaseAiKeyCache, source, error: fetchError });
     }
     return supabaseAiKeyCache;
   };
@@ -1439,6 +1494,46 @@ async function initEditor() {
 
   if (dateInput) {
     dateInput.value = new Date().toISOString().slice(0, 10);
+  }
+
+  if (aiKey) {
+    aiKey.addEventListener('input', () => {
+      const value = normalizeOpenRouterApiKey(aiKey.value);
+      updateAiKeyPreview(value);
+      setAiKeyStatus('', 'info');
+    });
+  }
+
+  if (aiKeyRefreshBtn) {
+    aiKeyRefreshBtn.addEventListener('click', async () => {
+      aiKeyRefreshBtn.disabled = true;
+      setAiKeyStatus('Refreshing key from Supabase…');
+      await ensureSupabaseAiKey({
+        force: true,
+        onStatus: ({ value, source, error }) => {
+          if (error) {
+            if (value && source === 'cache') {
+              setAiKeyStatus('Supabase request failed. Using cached key.', 'error');
+            } else if (value && source === 'default') {
+              setAiKeyStatus('Supabase request failed. Using default OpenRouter key.', 'error');
+            } else {
+              setAiKeyStatus('Unable to load key from Supabase.', 'error');
+            }
+            return;
+          }
+          if (source === 'supabase') {
+            setAiKeyStatus('Loaded active OpenRouter key from Supabase.', 'success');
+          } else if (value && source === 'cache') {
+            setAiKeyStatus('Using previously cached key. No newer Supabase key found.', 'info');
+          } else if (value && source === 'default') {
+            setAiKeyStatus('Using default OpenRouter key configured for this workspace.', 'info');
+          } else {
+            setAiKeyStatus('No OpenRouter key available. Add one locally or in Supabase.', 'error');
+          }
+        },
+      });
+      aiKeyRefreshBtn.disabled = false;
+    });
   }
 
   await onAuthReady();

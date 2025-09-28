@@ -37,6 +37,8 @@
     .analysis-ai-grid{display:grid;gap:12px}
     .analysis-ai-grid .field-row{margin:0}
     .analysis-ai-grid textarea{min-height:100px}
+    .ai-key-actions{display:flex;gap:10px;align-items:center;margin-top:8px;flex-wrap:wrap}
+    .ai-key-preview{margin-top:6px;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;word-break:break-all;color:var(--muted,#64748b)}
     .prompt-selector{position:relative;display:inline-flex;align-items:center;gap:8px;flex-wrap:wrap}
     .prompt-menu{position:absolute;top:calc(100% + 6px);left:0;min-width:260px;padding:8px;border:1px solid var(--border,#e5e7eb);border-radius:12px;background:var(--panel,#fff);box-shadow:0 12px 30px rgba(15,23,42,.12);display:grid;gap:6px;z-index:40}
     .prompt-menu[hidden]{display:none}
@@ -180,7 +182,12 @@
             <div>
               <label for="aiKey">AI API key</label>
               <input id="aiKey" type="password" placeholder="Paste your OpenRouter key" autocomplete="off" />
-              <p class="muted-small">Stored locally in this browser.</p>
+              <div class="ai-key-actions">
+                <button type="button" class="btn small ghost" id="refreshAiKey">Refresh from Supabase</button>
+                <span class="muted-small" id="aiKeyStatus" role="status" aria-live="polite"></span>
+              </div>
+              <p class="muted-small">Stored locally in this browser. Admins can refresh to sync the server key used for AI calls.</p>
+              <p class="ai-key-preview" id="aiKeyPreview" hidden>Active key: <code id="aiKeyPreviewValue"></code></p>
             </div>
           </div>
           <div>
