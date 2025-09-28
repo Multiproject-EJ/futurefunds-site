@@ -1,0 +1,314 @@
+/* ===== Team & Strategy hub (scoped) =====
+   Everything is scoped under body.page-team so it won't leak.
+   It reuses your global tokens via CSS vars.
+*/
+
+body.page-team{
+  /* derive from global tokens so themes apply */
+  --panel: var(--card);
+  --ink:   var(--text);
+  --muted-local: var(--muted);
+  --line: var(--border, #e6e9ee);
+  --accent: var(--accent);
+  --accent-2: var(--accent2);
+  --radius: 16px;
+}
+
+/* Layout shell */
+body.page-team .wrap{ width:min(1100px,92vw); margin:0 auto; }
+body.page-team a{ color:var(--accent); text-decoration:none; }
+body.page-team a:hover{ text-decoration:underline; }
+
+body.page-team .section{ padding:28px 0; }
+body.page-team .section h2{ font-size:clamp(22px,3.8vw,28px); margin:0 0 12px; }
+body.page-team .muted{ color:var(--muted-local); }
+
+/* Panels & grid */
+body.page-team .panel{
+  background:var(--panel);
+  border:1px solid var(--line);
+  border-radius:var(--radius);
+  padding:22px;
+  box-shadow:var(--shadow);
+}
+body.page-team .grid{ display:grid; gap:18px; align-items:stretch; }
+body.page-team .grid.cols-2{ grid-template-columns:1fr; }
+body.page-team .grid.cols-3{ grid-template-columns:1fr; }
+@media (min-width:880px){
+  body.page-team .grid.cols-2{ grid-template-columns:1fr 1fr; }
+  body.page-team .grid.cols-3{ grid-template-columns:1fr 1fr 1fr; }
+}
+
+/* Hero (centered) */
+body.page-team .hero{ padding:28px 0 8px; text-align:center; }
+body.page-team .hero h1,
+body.page-team .hero h2{
+  font-size:clamp(28px,4.8vw,44px);
+  line-height:1.15;
+  margin:10px 0 8px;
+}
+body.page-team .hero-eyebrow{
+  margin:0; color:var(--muted-local);
+  font-size:clamp(16px,2.4vw,20px); font-style:italic;
+}
+body.page-team .hero p{
+  max-width:900px;
+  margin-left:auto;
+  margin-right:auto;
+}
+
+/* Team overview */
+body.page-team .team-hero{ text-align:left; padding:36px 32px; position:relative; overflow:hidden; }
+body.page-team .team-hero h1{ font-size:clamp(32px,5vw,52px); margin-bottom:16px; }
+body.page-team .team-hero p{ max-width:640px; margin:0; }
+body.page-team .team-hero::after{
+  content:"";
+  position:absolute;
+  inset:auto -40px -40px auto;
+  width:220px;
+  height:220px;
+  background:radial-gradient(circle at center,var(--accent) 0%,transparent 70%);
+  opacity:.25;
+  transform:rotate(15deg);
+}
+body.page-team .team-subnav{ margin-top:20px; display:flex; flex-wrap:wrap; gap:10px; }
+body.page-team .team-subnav a{
+  display:inline-flex; align-items:center; gap:8px;
+  border:1px solid color-mix(in oklab,var(--accent) 40%,var(--line));
+  padding:8px 14px; border-radius:999px; font-weight:500;
+  background:color-mix(in oklab,var(--panel),var(--accent) 6%);
+  color:var(--accent);
+  text-decoration:none;
+}
+body.page-team .team-subnav a:hover{ background:color-mix(in oklab,var(--panel),var(--accent) 12%); }
+
+/* Team grid */
+body.page-team .team-grid{ display:grid; gap:18px; margin-top:18px; }
+@media (min-width:880px){ body.page-team .team-grid{ grid-template-columns:repeat(2,1fr); } }
+body.page-team .team-card{ display:flex; flex-direction:column; gap:14px; }
+body.page-team .team-card__head{ display:flex; align-items:center; justify-content:space-between; gap:10px; }
+body.page-team .team-card__name{ font-size:1.2rem; font-weight:600; }
+body.page-team .team-card__role{ color:var(--muted-local); margin:0; }
+body.page-team .team-card__version{
+  font-size:.8rem;
+  border:1px solid color-mix(in oklab,var(--accent) 40%,var(--line));
+  border-radius:999px;
+  padding:4px 10px;
+  background:color-mix(in oklab,var(--panel),var(--accent) 8%);
+  color:var(--accent);
+  font-weight:600;
+}
+body.page-team .team-card dl{ margin:0; display:grid; gap:6px; }
+body.page-team .team-card dt{ font-weight:600; font-size:.85rem; text-transform:uppercase; letter-spacing:.08em; color:var(--muted-local); }
+body.page-team .team-card dd{ margin:0; font-size:.95rem; }
+body.page-team .team-focus{ display:flex; flex-wrap:wrap; gap:8px; margin-top:6px; }
+body.page-team .team-focus span{
+  font-size:.75rem;
+  padding:4px 8px;
+  border-radius:8px;
+  background:color-mix(in oklab,var(--panel),var(--accent) 8%);
+  color:var(--accent);
+  border:1px solid color-mix(in oklab,var(--accent) 45%,var(--line));
+}
+body.page-team .team-card ul{ margin:6px 0 0; padding-left:1.1rem; color:var(--muted-local); }
+body.page-team .team-card li{ margin-bottom:4px; }
+
+/* Team ops */
+body.page-team .ops-grid{ display:grid; gap:18px; }
+@media (min-width:880px){ body.page-team .ops-grid{ grid-template-columns:repeat(3,1fr); } }
+body.page-team .ops-card h3{ margin:0 0 10px; }
+body.page-team .ops-card p{ margin:0; color:var(--muted-local); }
+
+body.page-team .callout{ border-left:4px solid var(--accent); padding-left:18px; margin:0; }
+
+/* Buttons – override site buttons only within page content */
+body.page-team main .btn{
+  appearance:none;
+  border:1px solid var(--line);
+  background:var(--panel);
+  color:var(--ink);
+  padding:10px 14px;
+  border-radius:12px;
+  cursor:pointer;
+  box-shadow:var(--shadow);
+  transition:.15s transform,.15s box-shadow;
+}
+body.page-team main .btn:hover{ transform:translateY(-1px); }
+body.page-team main .btn.primary{
+  background:linear-gradient(135deg,var(--accent),var(--accent-2));
+  color:#001024; border:0;
+}
+body.page-team main .btn.ghost{ background:transparent; border-color:var(--line); color:var(--ink); }
+
+/* Metrics row (center the four chips) */
+body.page-team .tag{
+  display:inline-block; padding:4px 8px; border-radius:999px;
+  border:1px solid var(--line); font-size:12px; color:var(--muted-local);
+}
+body.page-team .badges{
+  display:flex; flex-wrap:wrap; gap:16px;
+  justify-content:center; margin-top:14px;
+}
+body.page-team .badge{
+  border:1px solid var(--line);
+  border-radius:12px;
+  padding:10px 12px;
+  background:color-mix(in oklab,var(--panel),#fff 1.5%);
+  text-align:center;
+  min-width:240px;
+}
+body.page-team .badge b{ font-size:18px; }
+body.page-team .badge span{ display:block; color:var(--muted-local); font-size:12px; margin-top:4px; }
+
+/* Stepflow rail */
+body.page-team .stepflow{
+  display:grid; gap:18px; align-items:start;
+  grid-template-columns:320px 1fr;
+}
+@media (max-width:900px){ body.page-team .stepflow{ grid-template-columns:1fr; } }
+body.page-team .stepflow-head{ grid-column:1 / -1; margin-bottom:4px; }
+body.page-team .stepflow-head h2{ margin:0; }
+body.page-team .stepflow-head p{ margin:0; }
+
+body.page-team .rail{ position:relative; padding:8px 0; max-height:640px; overflow:auto; }
+body.page-team .rail .track{
+  position:absolute; left:26px; top:0; bottom:0; width:4px;
+  background:var(--line); border-radius:2px;
+}
+body.page-team .rail .fill{
+  position:absolute; left:26px; top:0; width:4px; height:0;
+  background:linear-gradient(180deg,var(--accent),var(--accent-2));
+  border-radius:2px; transition:height .4s ease;
+}
+body.page-team .node{
+  appearance:none; background:transparent; border:1px dashed transparent; color:inherit;
+  display:flex; align-items:center; gap:10px;
+  padding:12px 10px 12px 52px; border-radius:12px;
+  position:relative; text-align:left; cursor:pointer;
+}
+body.page-team .node:hover{ background:color-mix(in oklab,var(--panel),#fff 3%); border-color:var(--line); }
+body.page-team .node .dot{
+  position:absolute; left:18px; top:50%; transform:translateY(-50%);
+  width:16px; height:16px; border-radius:999px;
+  background:var(--panel); border:2px solid var(--line); box-shadow:var(--shadow);
+}
+body.page-team .node.active .dot{
+  border-color:var(--accent);
+  background:linear-gradient(135deg,var(--accent),var(--accent-2));
+}
+
+body.page-team .stage{ min-height:260px; display:flex; align-items:flex-start; }
+body.page-team .step-card{
+  background:var(--panel); border:1px solid var(--line);
+  border-radius:16px; padding:18px; box-shadow:var(--shadow);
+  width:100%; animation:pop .35s ease;
+}
+body.page-team .step-card .kicker{
+  color:var(--muted-local); font-size:12px; text-transform:uppercase;
+  letter-spacing:.12em; margin-bottom:8px;
+}
+body.page-team .actions{ display:flex; gap:10px; justify-content:flex-end; margin-top:12px; }
+@keyframes pop{ from{opacity:0; transform:translateY(6px)} to{opacity:1; transform:none} }
+
+/* Sparkline */
+body.page-team .spark-wrap{ display:grid; gap:10px; }
+body.page-team canvas{
+  width:100%; height:120px; border-radius:12px;
+  background:color-mix(in oklab,var(--panel),#fff 1%); border:1px solid var(--line);
+}
+
+/* ===== AI Version Log (2-column, scroll, subtle scrollbar) ===== */
+
+/* Make the whole log panel flex so the scroll area can expand to fill it */
+body.page-team .panel.log{
+  display:flex;
+  flex-direction:column;
+  /* Give it a slightly taller baseline so it visually matches the left card */
+  min-height: 520px; /* adjust if you want more/less height */
+}
+
+/* Grid of the two columns; fill available height */
+body.page-team .log.split .log-grid{
+  display:grid; grid-template-columns:1fr 1fr; gap:14px;
+  flex:1;          /* fill the panel's height */
+  min-height:0;    /* allow children to shrink within flex parent */
+}
+
+/* Each column stacks header + scroll area */
+body.page-team .log.split .log-col{
+  display:flex; flex-direction:column;
+  min-height:0; /* required so the scroll child can size properly */
+}
+
+/* Normal (non-sticky) header */
+body.page-team .log .ai-head{
+  display:flex; align-items:baseline; justify-content:space-between; gap:8px;
+  margin-bottom:6px;
+}
+body.page-team .log .ai-name{ font-weight:600; }
+body.page-team .log .ai-tag{
+  border:1px solid var(--line); padding:2px 8px; border-radius:999px;
+  font-size:12px; color:var(--muted-local);
+}
+
+/* Scroll area fills the rest and scrolls internally */
+body.page-team .log .log-scroll{
+  flex:1;
+  min-height:0;
+  overflow:auto;
+  padding-right:6px;
+  scrollbar-width:thin;
+  scrollbar-color: color-mix(in oklab, var(--ink) 12%, transparent) transparent;
+}
+/* WebKit scrollbars (subtle) */
+body.page-team .log .log-scroll::-webkit-scrollbar{ width:6px; }
+body.page-team .log .log-scroll::-webkit-scrollbar-thumb{
+  background: color-mix(in oklab, var(--ink) 12%, transparent);
+  border-radius:6px;
+}
+body.page-team .log .log-scroll::-webkit-scrollbar-track{ background: transparent; }
+
+/* List styling */
+body.page-team .log .log-list{ list-style:none; margin:12px 0 0 0; padding:0; display:grid; gap:10px; }
+body.page-team .log .log-list li{ border-left:3px solid var(--line); padding-left:12px; }
+body.page-team .log .log-list .muted{ margin-left:6px; }
+
+/* FAQ plain style */
+body.page-team .faq{ background:transparent; border:0; padding:0; box-shadow:none; }
+body.page-team .faq h3{ margin:0 0 6px; }
+body.page-team .faq p{ color:var(--muted-local); }
+
+/* Optional North Star card */
+body.page-team .northstar{
+  background:var(--panel);
+  border:2px solid color-mix(in oklab, var(--accent) 60%, var(--line));
+  box-shadow: var(--shadow), 0 0 0 6px color-mix(in oklab, var(--accent) 20%, transparent), 0 10px 30px rgba(0,0,0,.08);
+  border-radius: var(--radius);
+}
+body.page-team .northstar h2{
+  margin-top:0; font-size:clamp(24px,4.2vw,32px); letter-spacing:.2px;
+}
+
+/* ===== Responsive tweaks ===== */
+@media (max-width:780px){
+  body.page-team .wrap{width:100%;max-width:1100px;padding:0 1.4rem;}
+  body.page-team .section{padding:22px 0;}
+  body.page-team .panel{padding:18px;}
+  body.page-team .hero{padding:24px 0 6px;}
+  body.page-team .badges{gap:12px;}
+  body.page-team .badge{flex:1 1 150px;min-width:0;}
+  body.page-team .stepflow{gap:16px;}
+  body.page-team .stage{min-height:auto;}
+  body.page-team .node{padding:12px 10px 12px 46px;}
+  body.page-team .actions{flex-direction:column;align-items:stretch;gap:8px;}
+  body.page-team .actions .btn{width:100%;}
+  body.page-team .panel.log{min-height:0;}
+}
+
+@media (max-width:540px){
+  body.page-team .wrap{padding:0 1rem;}
+  body.page-team .panel{padding:16px;}
+  body.page-team .badge{flex:1 1 100%;}
+  body.page-team .log.split .log-grid{grid-template-columns:1fr;}
+  body.page-team .spark-wrap canvas{height:110px;}
+}
