@@ -31,11 +31,124 @@
     </nav>
   </header>
 
-  <main class="container narrow">
-    <h1>The AI Economy</h1>
-    <p class="muted">A series of entertaining, eye-opening articles exploring how AI reshapes business, politics, and daily life. Each piece includes a short film at the top to spark reflection.</p>
+  <main class="newsletter-page">
+    <section class="newsletter-hero">
+      <div class="container">
+        <div class="newsletter-hero__inner">
+          <div class="newsletter-hero__copy">
+            <p class="newsletter-eyebrow">Weekly dispatch</p>
+            <h1>The AI Economy Briefing</h1>
+            <p class="newsletter-lead">Actionable insights and provocative perspectives on how automation is rewiring markets, labor, and power. Delivered fresh to your inbox every Thursday morning.</p>
+            <ul class="newsletter-hero__highlights">
+              <li>Step-by-step playbooks for investors and operators navigating AI disruption.</li>
+              <li>One big idea, one chart, and one policy pulse in every issue.</li>
+              <li>Curated reads and interviews from FutureFunds.ai researchers.</li>
+            </ul>
+          </div>
+          <div class="newsletter-hero__card">
+            <h2>Join 28,000+ readers keeping score on the machine economy.</h2>
+            <form class="newsletter-form newsletter-form--stacked" novalidate>
+              <label class="sr-only" for="newsletter-email-hero">Email address</label>
+              <input id="newsletter-email-hero" type="email" name="email" placeholder="you@example.com" autocomplete="email" required />
+              <button type="submit" class="btn primary">Get the briefing</button>
+            </form>
+            <p class="newsletter-status muted" aria-live="polite"></p>
+            <p class="newsletter-privacy">No spam, no fluff. Just signal.</p>
+          </div>
+        </div>
+      </div>
+    </section>
 
-    <div id="aiEconomyGrid" class="grid"></div>
+    <section class="newsletter-latest">
+      <div class="container narrow">
+        <div class="newsletter-latest__meta">Issue No. 19 · March 2024</div>
+        <h2>The Labor Dividend &mdash; When Cobots Become Colleagues</h2>
+        <p class="newsletter-latest__summary">This week we unpack how collaborative robots are reshaping manufacturing output, the legislative wave forming around synthetic data, and the equity strategies that benefit from AI-enabled productivity surges.</p>
+        <ul class="newsletter-latest__list">
+          <li><strong>Field Note:</strong> Inside a midwest plant where AI copilots every workstation.</li>
+          <li><strong>Signal Chart:</strong> Capital expenditures shifting from hardware to orchestration layers.</li>
+          <li><strong>Policy Pulse:</strong> Why the EU’s transparency clauses could become the global norm.</li>
+        </ul>
+        <div class="newsletter-latest__cta">
+          <a class="btn primary" href="/ai-article.html">Read the latest issue</a>
+          <a class="btn ghost" href="#newsletter-archive">Browse the archive</a>
+        </div>
+      </div>
+    </section>
+
+    <section class="newsletter-value">
+      <div class="container">
+        <h2>What subscribers receive</h2>
+        <div class="newsletter-value__grid">
+          <article class="newsletter-value__item">
+            <h3>Macro positioning</h3>
+            <p>Scenario analysis and portfolio tilts for public markets as AI adoption accelerates across sectors.</p>
+          </article>
+          <article class="newsletter-value__item">
+            <h3>Operator playbooks</h3>
+            <p>Tactics for revenue leaders, product teams, and policy shapers rolling out intelligent systems responsibly.</p>
+          </article>
+          <article class="newsletter-value__item">
+            <h3>Research briefs</h3>
+            <p>Digestible write-ups from FutureFunds.ai labs with models, benchmarks, and implementation notes.</p>
+          </article>
+          <article class="newsletter-value__item">
+            <h3>Community intel</h3>
+            <p>Signal from portfolio companies, regulators, and academics sourced directly from the FutureFunds.ai network.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="newsletter-archive" id="newsletter-archive">
+      <div class="container narrow">
+        <div class="newsletter-archive__header">
+          <h2>Recent issues</h2>
+          <p class="muted">Catch up on the latest dispatches to prepare your organization for the AI-native economy.</p>
+        </div>
+        <div class="newsletter-archive__grid">
+          <article class="newsletter-archive__item">
+            <div class="newsletter-archive__meta">Issue No. 18 · March 2024</div>
+            <h3>Capital Allocation in the Age of Agents</h3>
+            <p>How treasury teams are weighing human-in-the-loop guardrails as AI agents take over procurement.</p>
+            <a class="archive-link" href="/posts/capital-allocation-agents.html">Read issue</a>
+          </article>
+          <article class="newsletter-archive__item">
+            <div class="newsletter-archive__meta">Issue No. 17 · February 2024</div>
+            <h3>The On-Demand Workforce OS</h3>
+            <p>From policy proposals to productivity data, we map the rise of automated labor marketplaces.</p>
+            <a class="archive-link" href="/posts/on-demand-workforce.html">Read issue</a>
+          </article>
+          <article class="newsletter-archive__item">
+            <div class="newsletter-archive__meta">Issue No. 16 · February 2024</div>
+            <h3>Energy Grids Meet Large Models</h3>
+            <p>Why inference demand is rewriting utility curves and what investors should track in the next 24 months.</p>
+            <a class="archive-link" href="/posts/energy-grids-large-models.html">Read issue</a>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="newsletter-proof">
+      <div class="container">
+        <div class="newsletter-proof__grid">
+          <div class="newsletter-proof__stat">
+            <span class="newsletter-proof__number">82%</span>
+            <p>of readers report making a strategic decision informed by the briefing within 30 days.</p>
+          </div>
+          <div class="newsletter-proof__testimonial">
+            <blockquote>
+              “FutureFunds.ai is my cheat code for board meetings. The newsletter translates dense AI research into moves a CFO can actually execute.”
+            </blockquote>
+            <cite>&mdash; Layla Chen, CFO, Helios Robotics</cite>
+          </div>
+          <div class="newsletter-proof__stat">
+            <span class="newsletter-proof__number">45</span>
+            <p>countries represented across our readership of founders, policymakers, and institutional allocators.</p>
+          </div>
+        </div>
+      </div>
+    </section>
   </main>
 
   <footer class="site-footer">
