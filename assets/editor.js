@@ -264,6 +264,7 @@ async function initEditor() {
   const taskTitle = document.getElementById('analysisTaskTitle');
   const taskLaunchBtn = document.getElementById('openTaskModal');
   const taskLaunchTitle = document.getElementById('taskLaunchTitle');
+  const taskLaunchSubtitle = taskLaunchBtn?.querySelector('.task-launch-card__subtitle');
   const taskModal = document.getElementById('analysisTaskModal');
   const taskModalBackdrop = taskModal?.querySelector('[data-close-task]');
   const taskModalCloseBtn = document.getElementById('closeTaskModal');
@@ -332,6 +333,27 @@ async function initEditor() {
   const aiSettingsKeyDefault = (aiSettingsKey?.textContent || '').trim();
   const taskTitleDefault = (taskTitle?.textContent || '').trim();
   const taskLaunchTitleDefault = (taskLaunchTitle?.textContent || '').trim();
+  const taskLaunchSubtitleDefault = (taskLaunchSubtitle?.textContent || '').trim();
+
+  let isTaskLaunchLocked = false;
+
+  const updateTaskTitle = () => {
+    if (!taskTitle) return;
+    const value = (taskNameInput?.value || '').trim();
+    const display = value ? `Task - ${value}` : taskTitleDefault || 'Task';
+    taskTitle.textContent = display;
+    if (taskLaunchTitle) taskLaunchTitle.textContent = display || taskLaunchTitleDefault || 'Task';
+    if (taskLaunchSubtitle) {
+      taskLaunchSubtitle.textContent = isTaskLaunchLocked
+        ? 'Admin sign-in required'
+        : taskLaunchSubtitleDefault || 'Open the task workspace';
+    }
+    if (taskLaunchBtn) {
+      const baseLabel = `Open ${display}`;
+      const label = isTaskLaunchLocked ? `${baseLabel} (admin sign-in required)` : baseLabel;
+      taskLaunchBtn.setAttribute('aria-label', label);
+    }
+  };
 
   if (!form || !locked) return;
 
@@ -399,10 +421,17 @@ async function initEditor() {
     }
   };
 
-  const setTaskLaunchAvailability = (enabled) => {
+  function setTaskLaunchAvailability(enabled) {
     if (!taskLaunchBtn) return;
-    taskLaunchBtn.setAttribute('aria-disabled', enabled ? 'false' : 'true');
-  };
+    isTaskLaunchLocked = !enabled;
+    taskLaunchBtn.dataset.state = isTaskLaunchLocked ? 'locked' : 'ready';
+    if (isTaskLaunchLocked) {
+      taskLaunchBtn.setAttribute('aria-describedby', 'editorLockMsg');
+    } else {
+      taskLaunchBtn.removeAttribute('aria-describedby');
+    }
+    updateTaskTitle();
+  }
 
   const closeTaskModal = () => {
     if (!taskModal) return;
@@ -410,7 +439,7 @@ async function initEditor() {
     taskModal.hidden = true;
     unlockBodyScroll();
     if (taskLockedMessage) taskLockedMessage.hidden = true;
-    if (taskLaunchBtn && taskLaunchBtn.getAttribute('aria-disabled') !== 'true') {
+    if (taskLaunchBtn && !isTaskLaunchLocked) {
       setTimeout(() => taskLaunchBtn.focus(), 30);
     }
   };
@@ -452,15 +481,6 @@ async function initEditor() {
       }, 60);
     }
   }
-
-  const updateTaskTitle = () => {
-    if (!taskTitle) return;
-    const value = (taskNameInput?.value || '').trim();
-    const display = value ? `Task - ${value}` : taskTitleDefault || 'Task';
-    taskTitle.textContent = display;
-    if (taskLaunchTitle) taskLaunchTitle.textContent = display || taskLaunchTitleDefault || 'Task';
-    if (taskLaunchBtn) taskLaunchBtn.setAttribute('aria-label', `Open ${display}`);
-  };
 
   const updatePromptSettingsSummary = () => {
     if (!aiSettingsPrompt) return;
