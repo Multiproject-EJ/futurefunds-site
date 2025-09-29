@@ -262,6 +262,11 @@ async function initEditor() {
   const aiModel = document.getElementById('aiModel');
   const taskNameInput = document.getElementById('taskName');
   const taskTitle = document.getElementById('analysisTaskTitle');
+  const taskLaunchBtn = document.getElementById('openTaskModal');
+  const taskLaunchTitle = document.getElementById('taskLaunchTitle');
+  const taskModal = document.getElementById('analysisTaskModal');
+  const taskModalBackdrop = taskModal?.querySelector('[data-close-task]');
+  const taskModalCloseBtn = document.getElementById('closeTaskModal');
   const promptSelectBtn = document.getElementById('promptSelectBtn');
   const promptSelectLabel = document.getElementById('promptSelectLabel');
   const promptMenu = document.getElementById('promptMenu');
@@ -323,8 +328,11 @@ async function initEditor() {
   const aiSettingsPromptDefault = (aiSettingsPrompt?.textContent || '').trim();
   const aiSettingsKeyDefault = (aiSettingsKey?.textContent || '').trim();
   const taskTitleDefault = (taskTitle?.textContent || '').trim();
+  const taskLaunchTitleDefault = (taskLaunchTitle?.textContent || '').trim();
 
   if (!form || !locked) return;
+
+  setTaskLaunchAvailability(!form.hidden);
 
   const lockMsg = document.getElementById('editorLockMsg');
   const lockActionBtn = locked?.querySelector('[data-open-auth]');
@@ -366,10 +374,61 @@ async function initEditor() {
     if (aiSettingsModel) aiSettingsModel.textContent = displayName || aiSettingsModelDefault || 'Pending selection';
   };
 
+  let bodyScrollLockCount = 0;
+  let bodyScrollPreviousOverflow = '';
+
+  const lockBodyScroll = () => {
+    if (typeof document === 'undefined' || !document.body) return;
+    if (bodyScrollLockCount === 0) {
+      bodyScrollPreviousOverflow = document.body.style.overflow;
+      document.body.style.overflow = 'hidden';
+    }
+    bodyScrollLockCount += 1;
+  };
+
+  const unlockBodyScroll = () => {
+    if (typeof document === 'undefined' || !document.body) return;
+    if (bodyScrollLockCount === 0) return;
+    bodyScrollLockCount -= 1;
+    if (bodyScrollLockCount === 0) {
+      document.body.style.overflow = bodyScrollPreviousOverflow || '';
+      bodyScrollPreviousOverflow = '';
+    }
+  };
+
+  const setTaskLaunchAvailability = (enabled) => {
+    if (!taskLaunchBtn) return;
+    taskLaunchBtn.disabled = !enabled;
+    taskLaunchBtn.setAttribute('aria-disabled', enabled ? 'false' : 'true');
+  };
+
+  const openTaskModal = () => {
+    if (!taskModal || !form || form.hidden) return;
+    if (taskLaunchBtn?.disabled) return;
+    taskModal.hidden = false;
+    lockBodyScroll();
+    setTimeout(() => {
+      taskNameInput?.focus();
+    }, 60);
+  };
+
+  const closeTaskModal = () => {
+    if (!taskModal) return;
+    if (taskModal.hidden) return;
+    taskModal.hidden = true;
+    unlockBodyScroll();
+    if (taskLaunchBtn && !taskLaunchBtn.disabled) {
+      setTimeout(() => taskLaunchBtn.focus(), 30);
+    }
+  };
+
   const updateTaskTitle = () => {
     if (!taskTitle) return;
     const value = (taskNameInput?.value || '').trim();
-    taskTitle.textContent = value ? `Task - ${value}` : taskTitleDefault || 'Task';
+    const display = value ? `Task - ${value}` : taskTitleDefault || 'Task';
+    taskTitle.textContent = display;
+    if (taskLaunchTitle) taskLaunchTitle.textContent = display || taskLaunchTitleDefault || 'Task';
+    if (taskLaunchBtn) taskLaunchBtn.setAttribute('aria-label', `Open ${display}`);
   };
 
   const updatePromptSettingsSummary = () => {
@@ -821,16 +880,11 @@ async function initEditor() {
     }
   };
 
-  let previousBodyOverflow = '';
-
   const openPromptEditor = async () => {
     if (!promptEditorModal) return;
     setPromptEditorStatus('Loading prompts…', 'info');
     promptEditorModal.hidden = false;
-    if (typeof document !== 'undefined' && document.body) {
-      previousBodyOverflow = document.body.style.overflow;
-      document.body.style.overflow = 'hidden';
-    }
+    lockBodyScroll();
     await refreshPromptEditorList({ fallbackToFirst: true });
     if (promptEditorName) {
       setTimeout(() => promptEditorName.focus(), 60);
@@ -840,10 +894,7 @@ async function initEditor() {
   const closePromptEditor = () => {
     if (!promptEditorModal) return;
     promptEditorModal.hidden = true;
-    if (typeof document !== 'undefined' && document.body) {
-      document.body.style.overflow = previousBodyOverflow || '';
-      previousBodyOverflow = '';
-    }
+    unlockBodyScroll();
   };
 
   const startNewPrompt = () => {
@@ -1428,6 +1479,25 @@ async function initEditor() {
     ['input', 'change'].forEach((evt) => taskNameInput.addEventListener(evt, updateTaskTitle));
   }
 
+  if (taskLaunchBtn) {
+    taskLaunchBtn.addEventListener('click', () => {
+      if (taskLaunchBtn.disabled) return;
+      openTaskModal();
+    });
+  }
+
+  if (taskModalBackdrop) {
+    taskModalBackdrop.addEventListener('click', () => {
+      closeTaskModal();
+    });
+  }
+
+  if (taskModalCloseBtn) {
+    taskModalCloseBtn.addEventListener('click', () => {
+      closeTaskModal();
+    });
+  }
+
   if (promptSelectBtn) {
     promptSelectBtn.addEventListener('click', async () => {
       if (!promptOptions.length) {
@@ -1460,8 +1530,17 @@ async function initEditor() {
   document.addEventListener('keydown', (event) => {
     if (event.key === 'Escape') {
       closePromptMenu();
-      if (!promptEditorModal?.hidden) closePromptEditor();
-      if (!modelEditorModal?.hidden) closeModelEditor();
+      if (!promptEditorModal?.hidden) {
+        closePromptEditor();
+        return;
+      }
+      if (!modelEditorModal?.hidden) {
+        closeModelEditor();
+        return;
+      }
+      if (!taskModal?.hidden) {
+        closeTaskModal();
+      }
     }
   });
 
@@ -1672,6 +1751,8 @@ async function initEditor() {
     updateLockButton(action, actionLabel);
     closePromptMenu();
     closePromptEditor();
+    setTaskLaunchAvailability(false);
+    closeTaskModal();
   };
 
   const hideLocked = () => {
@@ -1730,6 +1811,7 @@ async function initEditor() {
     hideLocked();
     if (form) form.hidden = false;
     if (recentSection) recentSection.hidden = false;
+    setTaskLaunchAvailability(true);
     await runAdminBootstrap();
   };
 
