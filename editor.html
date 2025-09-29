@@ -32,9 +32,17 @@
     .coverage-meta label{display:block;font-size:.85rem;font-weight:600;color:var(--muted,#64748b);margin-bottom:6px}
     .coverage-meta input{width:100%;padding:12px 14px;border:1px solid var(--border,#e5e7eb);border-radius:12px;background:var(--panel,#fff);color:var(--text,#0f172a)}
     .coverage-meta .muted-small{margin:6px 0 0}
-    .ai-config{margin:-12px 0 32px;padding:20px;border:1px solid var(--border,#e5e7eb);border-radius:18px;background:var(--panel,#fff);box-shadow:0 12px 24px rgba(15,23,42,.06);display:grid;gap:16px}
-    .ai-config__title{margin:0;font-size:1.1rem;font-weight:600;color:var(--text,#0f172a)}
-    .ai-config .muted-small{margin:6px 0 0}
+    .summary-card--combined{display:grid;gap:18px}
+    .summary-card__sections{display:grid;gap:16px}
+    @media (min-width:960px){.summary-card__sections{grid-template-columns:1.4fr 1fr}}
+    .summary-subcard{border:1px solid var(--border,#e5e7eb);border-radius:16px;background:var(--panel-muted,#f8fafc);padding:16px;display:grid;gap:14px}
+    .summary-subcard__title{margin:0;font-size:1.05rem;font-weight:600;color:var(--text,#0f172a)}
+    .summary-subcard__content{display:grid;gap:14px}
+    .summary-subcard__content .muted-small{margin:4px 0 0}
+    .ai-structures{display:grid;gap:14px}
+    .ai-structures .field-row{margin:0;gap:12px}
+    .ai-structures .field-row>div{min-width:0}
+    .ai-structures .ai-key-actions{margin-top:6px}
     .editor-summary-grid{display:grid;gap:18px;margin-bottom:28px}
     @media (min-width:768px){.editor-summary-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
     .summary-card{border:1px solid var(--border,#e5e7eb);border-radius:18px;background:var(--panel,#fff);padding:18px;display:grid;gap:12px;box-shadow:0 10px 22px rgba(15,23,42,.05)}
@@ -79,6 +87,11 @@
     .editor-grid textarea{min-height:120px;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;resize:vertical;box-sizing:border-box}
     .field-row{display:grid;gap:16px;grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}
     .muted-small{color:var(--muted,#64748b);font-size:.9rem;margin:4px 0 0}
+    .analysis-export{border:1px solid var(--border,#e5e7eb);border-radius:18px;background:var(--panel,#fff);box-shadow:0 10px 22px rgba(15,23,42,.05);padding:20px;display:grid;gap:18px}
+    .analysis-export__title{margin:0;font-size:1.15rem;font-weight:600;color:var(--text,#0f172a)}
+    .analysis-export__fields{display:grid;gap:18px}
+    .analysis-export__actions{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
+    .analysis-export__actions .muted{margin:0}
     .recent-list{margin-top:22px;display:grid;gap:12px}
     .recent-card{border:1px solid var(--border,#e5e7eb);border-radius:12px;padding:16px;background:var(--panel,#fff);}
     .recent-card h3{margin:0 0 6px}
@@ -287,35 +300,13 @@
       </div>
     </section>
 
-    <section class="ai-config" aria-label="AI settings">
-      <h2 class="ai-config__title">AI settings</h2>
-      <div class="field-row">
-        <div>
-          <label for="aiModel">Model</label>
-          <div class="select-edit">
-            <select id="aiModel"></select>
-            <button type="button" class="btn small ghost" id="editModelList">Edit list</button>
-          </div>
-          <p class="muted-small">Select from saved OpenRouter models or edit the list for this workspace.</p>
-        </div>
-        <div>
-          <label for="aiKey">AI API key</label>
-          <input id="aiKey" type="password" placeholder="Paste your OpenRouter key" autocomplete="off" />
-          <div class="ai-key-actions">
-            <button type="button" class="btn small ghost" id="refreshAiKey">Refresh from Supabase</button>
-            <span class="muted-small" id="aiKeyStatus" role="status" aria-live="polite"></span>
-          </div>
-          <p class="muted-small">Stored locally in this browser. Admins can refresh to sync the server key used for AI calls.</p>
-          <p class="ai-key-preview" id="aiKeyPreview" hidden>Active key: <code id="aiKeyPreviewValue"></code></p>
-        </div>
-      </div>
-    </section>
-
-    <div class="editor-summary-grid" aria-label="Workflow overview">
-      <article class="summary-card">
-        <h2 class="summary-card__title">Process Progress</h2>
-        <div class="summary-card__content">
-          <ul class="process-steps" id="analysisProgress" data-auto-cycle="true" data-demo-interval="2600">
+    <div class="editor-summary-grid" aria-label="Workflow console">
+      <article class="summary-card summary-card--combined">
+        <div class="summary-card__sections">
+          <section class="summary-subcard" aria-label="Process progress">
+            <h3 class="summary-subcard__title">Process Progress</h3>
+            <div class="summary-subcard__content">
+              <ul class="process-steps" id="analysisProgress" data-auto-cycle="true" data-demo-interval="2600">
             <li class="process-step" data-step-id="round-1" data-status="active">
               <span class="process-step__icon" data-step="1" aria-hidden="true"></span>
               <div class="process-step__body">
@@ -406,26 +397,50 @@
                 </p>
               </div>
             </li>
-          </ul>
-        </div>
-      </article>
-      <article class="summary-card">
-        <h2 class="summary-card__title">AI Settings</h2>
-        <div class="summary-card__content">
-          <ul class="ai-settings-list">
-            <li>
-              <strong>Primary model</strong>
-              <span id="aiSettingsModel">Pending selection</span>
-            </li>
-            <li>
-              <strong>Prompt template</strong>
-              <span id="aiSettingsPrompt">Auto-selected based on last session</span>
-            </li>
-            <li>
-              <strong>API key status</strong>
-              <span id="aiSettingsKey">Secure storage</span>
-            </li>
-          </ul>
+              </ul>
+            </div>
+          </section>
+          <section class="summary-subcard" aria-label="Ai structures">
+            <h3 class="summary-subcard__title">Ai structures</h3>
+            <div class="summary-subcard__content">
+              <div class="ai-structures">
+                <div class="field-row">
+                  <div>
+                    <label for="aiModel">Model</label>
+                    <div class="select-edit">
+                      <select id="aiModel"></select>
+                      <button type="button" class="btn small ghost" id="editModelList">Edit list</button>
+                    </div>
+                    <p class="muted-small">Select from saved OpenRouter models or edit the list for this workspace.</p>
+                  </div>
+                  <div>
+                    <label for="aiKey">AI API key</label>
+                    <input id="aiKey" type="password" placeholder="Paste your OpenRouter key" autocomplete="off" />
+                    <div class="ai-key-actions">
+                      <button type="button" class="btn small ghost" id="refreshAiKey">Refresh from Supabase</button>
+                      <span class="muted-small" id="aiKeyStatus" role="status" aria-live="polite"></span>
+                    </div>
+                    <p class="muted-small">Stored locally in this browser. Admins can refresh to sync the server key used for AI calls.</p>
+                    <p class="ai-key-preview" id="aiKeyPreview" hidden>Active key: <code id="aiKeyPreviewValue"></code></p>
+                  </div>
+                </div>
+              </div>
+              <ul class="ai-settings-list">
+                <li>
+                  <strong>Primary model</strong>
+                  <span id="aiSettingsModel">Pending selection</span>
+                </li>
+                <li>
+                  <strong>Prompt template</strong>
+                  <span id="aiSettingsPrompt">Auto-selected based on last session</span>
+                </li>
+                <li>
+                  <strong>API key status</strong>
+                  <span id="aiSettingsKey">Secure storage</span>
+                </li>
+              </ul>
+            </div>
+          </section>
         </div>
       </article>
     </div>
@@ -460,7 +475,7 @@
             <p class="muted-small" id="promptSummary">Loading prompts…</p>
             <pre id="promptPreview" class="prompt-preview" hidden></pre>
           </div>
-          <p class="muted-small">Update the AI settings above to select a model and manage the API key before generating.</p>
+          <p class="muted-small">Update the Ai structures above to select a model and manage the API key before generating.</p>
           <div>
             <label for="aiNotes">Angle or extra guidance (optional)</label>
             <textarea id="aiNotes" placeholder="Key catalysts, data points or tone adjustments"></textarea>
@@ -478,48 +493,52 @@
         </div>
       </section>
 
-      <div class="field-row">
-        <div>
-          <label for="analysisDate">Date</label>
-          <input id="analysisDate" name="date" type="date" required />
+      <section class="analysis-export" aria-label="Export results">
+        <h2 class="analysis-export__title">Export - Results</h2>
+        <div class="analysis-export__fields">
+          <div class="field-row">
+            <div>
+              <label for="analysisDate">Date</label>
+              <input id="analysisDate" name="date" type="date" required />
+            </div>
+            <div>
+              <label for="analysisTags">Tags (comma separated)</label>
+              <input id="analysisTags" name="tags" placeholder="AI, Earnings, Value" />
+              <p class="muted-small">Used for filtering. Example: AI, Earnings, Value.</p>
+            </div>
+          </div>
+
+          <div>
+            <label for="analysisTopic">Topic</label>
+            <input id="analysisTopic" name="topic" placeholder="Reverse DCF — Company" required />
+          </div>
+
+          <div>
+            <label for="analysisConclusion">Conclusion</label>
+            <textarea id="analysisConclusion" name="conclusion" placeholder="Summarize the key takeaway." required></textarea>
+          </div>
+
+          <div>
+            <label for="analysisFindings">Key findings (one per line)</label>
+            <textarea id="analysisFindings" name="findings" placeholder="Finding #1\nFinding #2"></textarea>
+          </div>
+
+          <div>
+            <label for="analysisVisual">Visual/Table markdown</label>
+            <textarea id="analysisVisual" name="visual" placeholder="|Scenario|Rev CAGR|..."></textarea>
+          </div>
+
+          <div>
+            <label for="analysisPrompt">Prompt used (optional, debug)</label>
+            <textarea id="analysisPrompt" name="prompt" placeholder="Paste the LLM prompt for auditing"></textarea>
+          </div>
         </div>
-        <div>
-          <label for="analysisTags">Tags (comma separated)</label>
-          <input id="analysisTags" name="tags" placeholder="AI, Earnings, Value" />
-          <p class="muted-small">Used for filtering. Example: AI, Earnings, Value.</p>
+        <div class="analysis-export__actions">
+          <button class="btn primary" type="submit">Publish to Universe</button>
+          <button class="btn" type="button" id="resetForm">Reset</button>
+          <span id="formMsg" class="muted"></span>
         </div>
-      </div>
-
-      <div>
-        <label for="analysisTopic">Topic</label>
-        <input id="analysisTopic" name="topic" placeholder="Reverse DCF — Company" required />
-      </div>
-
-      <div>
-        <label for="analysisConclusion">Conclusion</label>
-        <textarea id="analysisConclusion" name="conclusion" placeholder="Summarize the key takeaway." required></textarea>
-      </div>
-
-      <div>
-        <label for="analysisFindings">Key findings (one per line)</label>
-        <textarea id="analysisFindings" name="findings" placeholder="Finding #1\nFinding #2"></textarea>
-      </div>
-
-      <div>
-        <label for="analysisVisual">Visual/Table markdown</label>
-        <textarea id="analysisVisual" name="visual" placeholder="|Scenario|Rev CAGR|..."></textarea>
-      </div>
-
-      <div>
-        <label for="analysisPrompt">Prompt used (optional, debug)</label>
-        <textarea id="analysisPrompt" name="prompt" placeholder="Paste the LLM prompt for auditing"></textarea>
-      </div>
-
-      <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center">
-        <button class="btn primary" type="submit">Publish to Universe</button>
-        <button class="btn" type="button" id="resetForm">Reset</button>
-        <span id="formMsg" class="muted"></span>
-      </div>
+      </section>
     </form>
 
     <section id="recentSection" hidden>
