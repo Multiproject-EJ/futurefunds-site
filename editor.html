@@ -33,8 +33,13 @@
     .coverage-meta input{width:100%;padding:12px 14px;border:1px solid var(--border,#e5e7eb);border-radius:12px;background:var(--panel,#fff);color:var(--text,#0f172a)}
     .coverage-meta .muted-small{margin:6px 0 0}
     .summary-card--combined{display:grid;gap:18px}
+    .summary-card__head{display:flex;align-items:center;justify-content:space-between}
     .summary-card__sections{display:grid;gap:16px}
     @media (min-width:960px){.summary-card__sections{grid-template-columns:1.4fr 1fr}}
+    .summary-card--task{gap:20px}
+    .summary-card--task .summary-card__title{font-size:1.25rem}
+    .summary-card--task .summary-card__sections{grid-template-columns:1fr}
+    @media (min-width:960px){.summary-card--task .summary-card__sections{grid-template-columns:1fr}}
     .summary-subcard{border:1px solid var(--border,#e5e7eb);border-radius:16px;background:var(--panel-muted,#f8fafc);padding:16px;display:grid;gap:14px}
     .summary-subcard__title{margin:0;font-size:1.05rem;font-weight:600;color:var(--text,#0f172a)}
     .summary-subcard__content{display:grid;gap:14px}
@@ -45,6 +50,8 @@
     .ai-structures .ai-key-actions{margin-top:6px}
     .editor-summary-grid{display:grid;gap:18px;margin-bottom:28px}
     @media (min-width:768px){.editor-summary-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+    .editor-summary-grid--full{grid-template-columns:1fr}
+    @media (min-width:768px){.editor-summary-grid.editor-summary-grid--full{grid-template-columns:1fr}}
     .summary-card{border:1px solid var(--border,#e5e7eb);border-radius:18px;background:var(--panel,#fff);padding:18px;display:grid;gap:12px;box-shadow:0 10px 22px rgba(15,23,42,.05)}
     .summary-card__title{margin:0;font-size:1.05rem;font-weight:600;color:var(--text,#0f172a)}
     .summary-card__content{font-size:.92rem;color:var(--muted,#64748b);display:grid;gap:8px}
@@ -87,7 +94,7 @@
     .editor-grid textarea{min-height:120px;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;resize:vertical;box-sizing:border-box}
     .field-row{display:grid;gap:16px;grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}
     .muted-small{color:var(--muted,#64748b);font-size:.9rem;margin:4px 0 0}
-    .analysis-export{border:1px solid var(--border,#e5e7eb);border-radius:18px;background:var(--panel,#fff);box-shadow:0 10px 22px rgba(15,23,42,.05);padding:20px;display:grid;gap:18px}
+    .analysis-export{display:grid;gap:18px}
     .analysis-export__title{margin:0;font-size:1.15rem;font-weight:600;color:var(--text,#0f172a)}
     .analysis-export__fields{display:grid;gap:18px}
     .analysis-export__actions{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
@@ -97,7 +104,15 @@
     .recent-card h3{margin:0 0 6px}
     .recent-card .tags{margin-top:6px}
     .note-box button{margin-left:10px}
-    .analysis-source{border:1px solid var(--border,#e5e7eb);border-radius:16px;padding:16px;background:var(--panel,#fff);display:grid;gap:14px}
+    .analysis-task{border:1px solid var(--border,#e5e7eb);border-radius:20px;padding:24px;background:var(--panel,#fff);box-shadow:0 12px 26px rgba(15,23,42,.06);display:grid;gap:24px}
+    .analysis-task__head{display:flex;align-items:center;justify-content:space-between}
+    .analysis-task__title{margin:0;font-size:1.3rem;font-weight:700;color:var(--text,#0f172a)}
+    .analysis-task__grid{display:grid;gap:20px}
+    @media (min-width:960px){.analysis-task__grid{grid-template-columns:minmax(0,1.2fr) minmax(0,1fr)}}
+    .analysis-task__panel{border:1px solid var(--border,#e5e7eb);border-radius:16px;padding:20px;background:var(--panel-muted,#f8fafc);display:grid;gap:16px}
+    .analysis-task__panel .muted-small{margin:4px 0 0}
+    .analysis-task__panel textarea{background:var(--panel,#fff)}
+    .analysis-source{display:grid;gap:14px}
     .analysis-source__head{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between}
     .analysis-source__modes{display:flex;gap:8px;flex-wrap:wrap}
     .analysis-mode-btn{border:1px solid var(--border,#e5e7eb);background:transparent;color:var(--muted,#64748b);padding:8px 12px;border-radius:999px;font-size:.85rem;cursor:pointer;transition:border-color .15s ease,background .15s ease,color .15s ease}
@@ -300,8 +315,11 @@
       </div>
     </section>
 
-    <div class="editor-summary-grid" aria-label="Workflow console">
-      <article class="summary-card summary-card--combined">
+    <div class="editor-summary-grid editor-summary-grid--full" aria-label="Workflow console">
+      <article class="summary-card summary-card--combined summary-card--task" aria-label="Task overview">
+        <header class="summary-card__head">
+          <h2 class="summary-card__title">Task</h2>
+        </header>
         <div class="summary-card__sections">
           <section class="summary-subcard" aria-label="Process progress">
             <h3 class="summary-subcard__title">Process Progress</h3>
@@ -400,8 +418,8 @@
               </ul>
             </div>
           </section>
-          <section class="summary-subcard" aria-label="Ai structures">
-            <h3 class="summary-subcard__title">Ai structures</h3>
+          <section class="summary-subcard" aria-label="Tasks">
+            <h3 class="summary-subcard__title">Tasks</h3>
             <div class="summary-subcard__content">
               <div class="ai-structures">
                 <div class="field-row">
@@ -452,91 +470,98 @@
     </div>
 
     <form id="analysisForm" class="editor-grid" hidden>
-      <section class="analysis-source">
-        <div class="analysis-source__head">
-          <label for="analysisRaw" style="margin:0;font-weight:600">Analysis input</label>
-          <div class="analysis-source__modes" role="tablist">
-            <button type="button" class="analysis-mode-btn active" data-analysis-mode="manual">Paste analysis</button>
-            <button type="button" class="analysis-mode-btn" data-analysis-mode="ai">Generate via AI</button>
-          </div>
-        </div>
-        <div class="analysis-source__panel" data-panel="manual">
-          <p class="analysis-source__panel-note">Paste the full master analysis markdown below, then parse it to fill the fields automatically.</p>
-        </div>
-        <div class="analysis-source__panel analysis-ai-grid" data-panel="ai" hidden>
-          <p class="muted-small">Update the coverage target above to tailor the AI prompt.</p>
-          <div>
-            <label>Prompt template</label>
-            <div class="prompt-selector">
-              <button type="button" class="btn ghost" id="promptSelectBtn"><span id="promptSelectLabel">Select prompt</span> ▾</button>
-              <button type="button" class="btn small ghost" id="openPromptEditor">Prompt editor</button>
-              <div class="prompt-menu" id="promptMenu" hidden role="menu"></div>
+      <section class="analysis-task" aria-label="Task workspace">
+        <header class="analysis-task__head">
+          <h2 class="analysis-task__title">Task</h2>
+        </header>
+        <div class="analysis-task__grid">
+          <section class="analysis-source analysis-task__panel" aria-label="Analysis input">
+            <div class="analysis-source__head">
+              <label for="analysisRaw" style="margin:0;font-weight:600">Analysis input</label>
+              <div class="analysis-source__modes" role="tablist">
+                <button type="button" class="analysis-mode-btn active" data-analysis-mode="manual">Paste analysis</button>
+                <button type="button" class="analysis-mode-btn" data-analysis-mode="ai">Generate via AI</button>
+              </div>
             </div>
-            <p class="muted-small" id="promptSummary">Loading prompts…</p>
-            <pre id="promptPreview" class="prompt-preview" hidden></pre>
-          </div>
-          <p class="muted-small">Update the Ai structures above to select a model and manage the API key before generating.</p>
-          <div>
-            <label for="aiNotes">Angle or extra guidance (optional)</label>
-            <textarea id="aiNotes" placeholder="Key catalysts, data points or tone adjustments"></textarea>
-          </div>
-          <div class="analysis-source__actions">
-            <button type="button" class="btn primary" id="generateAnalysis">Generate analysis</button>
-            <span class="muted-small">The generated report fills the box below.</span>
-          </div>
-        </div>
-        <textarea id="analysisRaw" name="analysis_raw" placeholder="Paste the MASTER STOCK ANALYSIS markdown output here"></textarea>
-        <div class="analysis-source__actions">
-          <button type="button" class="btn" id="parseAnalysis">Parse analysis into fields</button>
-          <button type="button" class="btn ghost" id="clearAnalysis">Clear</button>
-          <span id="analysisStatus" class="analysis-status muted-small" role="status"></span>
-        </div>
-      </section>
-
-      <section class="analysis-export" aria-label="Export results">
-        <h2 class="analysis-export__title">Export - Results</h2>
-        <div class="analysis-export__fields">
-          <div class="field-row">
-            <div>
-              <label for="analysisDate">Date</label>
-              <input id="analysisDate" name="date" type="date" required />
+            <div class="analysis-source__panel" data-panel="manual">
+              <p class="analysis-source__panel-note">Paste the full master analysis markdown below, then parse it to fill the fields automatically.</p>
             </div>
-            <div>
-              <label for="analysisTags">Tags (comma separated)</label>
-              <input id="analysisTags" name="tags" placeholder="AI, Earnings, Value" />
-              <p class="muted-small">Used for filtering. Example: AI, Earnings, Value.</p>
+            <div class="analysis-source__panel analysis-ai-grid" data-panel="ai" hidden>
+              <p class="muted-small">Update the coverage target above to tailor the AI prompt.</p>
+              <div>
+                <label>Prompt template</label>
+                <div class="prompt-selector">
+                  <button type="button" class="btn ghost" id="promptSelectBtn"><span id="promptSelectLabel">Select prompt</span> ▾</button>
+                  <button type="button" class="btn small ghost" id="openPromptEditor">Prompt editor</button>
+                  <div class="prompt-menu" id="promptMenu" hidden role="menu"></div>
+                </div>
+                <p class="muted-small" id="promptSummary">Loading prompts…</p>
+                <pre id="promptPreview" class="prompt-preview" hidden></pre>
+              </div>
+              <p class="muted-small">Update the Tasks panel above to select a model and manage the API key before generating.</p>
+              <div>
+                <label for="aiNotes">Angle or extra guidance (optional)</label>
+                <textarea id="aiNotes" placeholder="Key catalysts, data points or tone adjustments"></textarea>
+              </div>
+              <div class="analysis-source__actions">
+                <button type="button" class="btn primary" id="generateAnalysis">Generate analysis</button>
+                <span class="muted-small">The generated report fills the box below.</span>
+              </div>
             </div>
-          </div>
+            <textarea id="analysisRaw" name="analysis_raw" placeholder="Paste the MASTER STOCK ANALYSIS markdown output here"></textarea>
+            <div class="analysis-source__actions">
+              <button type="button" class="btn" id="parseAnalysis">Parse analysis into fields</button>
+              <button type="button" class="btn ghost" id="clearAnalysis">Clear</button>
+              <span id="analysisStatus" class="analysis-status muted-small" role="status"></span>
+            </div>
+          </section>
 
-          <div>
-            <label for="analysisTopic">Topic</label>
-            <input id="analysisTopic" name="topic" placeholder="Reverse DCF — Company" required />
-          </div>
+          <section class="analysis-export analysis-task__panel" aria-label="Export results">
+            <h3 class="analysis-export__title">Export - Results</h3>
+            <div class="analysis-export__fields">
+              <div class="field-row">
+                <div>
+                  <label for="analysisDate">Date</label>
+                  <input id="analysisDate" name="date" type="date" required />
+                </div>
+                <div>
+                  <label for="analysisTags">Tags (comma separated)</label>
+                  <input id="analysisTags" name="tags" placeholder="AI, Earnings, Value" />
+                  <p class="muted-small">Used for filtering. Example: AI, Earnings, Value.</p>
+                </div>
+              </div>
 
-          <div>
-            <label for="analysisConclusion">Conclusion</label>
-            <textarea id="analysisConclusion" name="conclusion" placeholder="Summarize the key takeaway." required></textarea>
-          </div>
+              <div>
+                <label for="analysisTopic">Topic</label>
+                <input id="analysisTopic" name="topic" placeholder="Reverse DCF — Company" required />
+              </div>
 
-          <div>
-            <label for="analysisFindings">Key findings (one per line)</label>
-            <textarea id="analysisFindings" name="findings" placeholder="Finding #1\nFinding #2"></textarea>
-          </div>
+              <div>
+                <label for="analysisConclusion">Conclusion</label>
+                <textarea id="analysisConclusion" name="conclusion" placeholder="Summarize the key takeaway." required></textarea>
+              </div>
 
-          <div>
-            <label for="analysisVisual">Visual/Table markdown</label>
-            <textarea id="analysisVisual" name="visual" placeholder="|Scenario|Rev CAGR|..."></textarea>
-          </div>
+              <div>
+                <label for="analysisFindings">Key findings (one per line)</label>
+                <textarea id="analysisFindings" name="findings" placeholder="Finding #1\nFinding #2"></textarea>
+              </div>
 
-          <div>
-            <label for="analysisPrompt">Prompt used (optional, debug)</label>
-            <textarea id="analysisPrompt" name="prompt" placeholder="Paste the LLM prompt for auditing"></textarea>
-          </div>
-        </div>
-        <div class="analysis-export__actions">
-          <button class="btn primary" type="submit">Publish to Universe</button>
-          <button class="btn" type="button" id="resetForm">Reset</button>
-          <span id="formMsg" class="muted"></span>
+              <div>
+                <label for="analysisVisual">Visual/Table markdown</label>
+                <textarea id="analysisVisual" name="visual" placeholder="|Scenario|Rev CAGR|..."></textarea>
+              </div>
+
+              <div>
+                <label for="analysisPrompt">Prompt used (optional, debug)</label>
+                <textarea id="analysisPrompt" name="prompt" placeholder="Paste the LLM prompt for auditing"></textarea>
+              </div>
+            </div>
+            <div class="analysis-export__actions">
+              <button class="btn primary" type="submit">Publish to Universe</button>
+              <button class="btn" type="button" id="resetForm">Reset</button>
+              <span id="formMsg" class="muted"></span>
+            </div>
+          </section>
         </div>
       </section>
     </form>
