@@ -1,6 +1,6 @@
 // /assets/editor.js
 import { supabase } from './supabase.js';
-import { onAuthReady, getAccountState, hasRole } from './auth.js';
+import { onAuthReady, getAccountState, hasRole, refreshAuthState } from './auth.js';
 import { describeSupabaseError, composePromptSummary } from './editor-support.js';
 
 const PROMPT_TABLE = 'editor_prompts';
@@ -404,8 +404,36 @@ async function initEditor() {
     taskLaunchBtn.setAttribute('aria-disabled', enabled ? 'false' : 'true');
   };
 
-  const openTaskModal = () => {
+  const closeTaskModal = () => {
     if (!taskModal) return;
+    if (taskModal.hidden) return;
+    taskModal.hidden = true;
+    unlockBodyScroll();
+    if (taskLockedMessage) taskLockedMessage.hidden = true;
+    if (taskLaunchBtn && taskLaunchBtn.getAttribute('aria-disabled') !== 'true') {
+      setTimeout(() => taskLaunchBtn.focus(), 30);
+    }
+  };
+
+  async function ensureLatestAccess({ forceAuthRefresh = false } = {}) {
+    if (forceAuthRefresh) {
+      try {
+        await refreshAuthState();
+      } catch (error) {
+        console.warn('Auth refresh error', error);
+      }
+    }
+    try {
+      await applyAccessState();
+    } catch (error) {
+      console.warn('Access state refresh error', error);
+    }
+  }
+
+  async function openTaskModal() {
+    if (!taskModal) return;
+    const wasLocked = !form || form.hidden;
+    await ensureLatestAccess({ forceAuthRefresh: wasLocked });
     const formHidden = !form || form.hidden;
     taskModal.hidden = false;
     lockBodyScroll();
@@ -423,18 +451,7 @@ async function initEditor() {
         taskNameInput?.focus();
       }, 60);
     }
-  };
-
-  const closeTaskModal = () => {
-    if (!taskModal) return;
-    if (taskModal.hidden) return;
-    taskModal.hidden = true;
-    unlockBodyScroll();
-    if (taskLockedMessage) taskLockedMessage.hidden = true;
-    if (taskLaunchBtn && taskLaunchBtn.getAttribute('aria-disabled') !== 'true') {
-      setTimeout(() => taskLaunchBtn.focus(), 30);
-    }
-  };
+  }
 
   const updateTaskTitle = () => {
     if (!taskTitle) return;
@@ -1493,9 +1510,22 @@ async function initEditor() {
     ['input', 'change'].forEach((evt) => taskNameInput.addEventListener(evt, updateTaskTitle));
   }
 
+  if (lockActionBtn) {
+    lockActionBtn.addEventListener('click', () => {
+      ensureLatestAccess({ forceAuthRefresh: true });
+    });
+  }
+
   if (taskLaunchBtn) {
     taskLaunchBtn.addEventListener('click', () => {
       openTaskModal();
+    });
+  }
+
+  if (taskLockedActionBtn) {
+    taskLockedActionBtn.addEventListener('click', () => {
+      ensureLatestAccess({ forceAuthRefresh: true });
+      closeTaskModal();
     });
   }
 
@@ -1891,6 +1921,12 @@ async function initEditor() {
   await onAuthReady();
   await applyAccessState();
   document.addEventListener('ffauth:change', handleAuthChange);
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+      ensureLatestAccess({ forceAuthRefresh: true });
+    }
+  });
 
   form.addEventListener('submit', async (event) => {
     event.preventDefault();
