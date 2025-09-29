@@ -112,6 +112,8 @@
     .analysis-task__panel{border:1px solid var(--border,#e5e7eb);border-radius:16px;padding:20px;background:var(--panel-muted,#f8fafc);display:grid;gap:16px}
     .analysis-task__panel .muted-small{margin:4px 0 0}
     .analysis-task__panel textarea{background:var(--panel,#fff)}
+    .analysis-task__config{gap:20px}
+    .task-name-field{display:grid;gap:8px}
     .analysis-source{display:grid;gap:14px}
     .analysis-source__head{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between}
     .analysis-source__modes{display:flex;gap:8px;flex-wrap:wrap}
@@ -421,28 +423,6 @@
           <section class="summary-subcard" aria-label="Tasks">
             <h3 class="summary-subcard__title">Tasks</h3>
             <div class="summary-subcard__content">
-              <div class="ai-structures">
-                <div class="field-row">
-                  <div>
-                    <label for="aiModel">Model</label>
-                    <div class="select-edit">
-                      <select id="aiModel"></select>
-                      <button type="button" class="btn small ghost" id="editModelList">Edit list</button>
-                    </div>
-                    <p class="muted-small">Select from saved OpenRouter models or edit the list for this workspace.</p>
-                  </div>
-                  <div>
-                    <label for="aiKey">AI API key</label>
-                    <input id="aiKey" type="password" placeholder="Paste your OpenRouter key" autocomplete="off" />
-                    <div class="ai-key-actions">
-                      <button type="button" class="btn small ghost" id="refreshAiKey">Refresh from Supabase</button>
-                      <span class="muted-small" id="aiKeyStatus" role="status" aria-live="polite"></span>
-                    </div>
-                    <p class="muted-small">Stored locally in this browser. Admins can refresh to sync the server key used for AI calls.</p>
-                    <p class="ai-key-preview" id="aiKeyPreview" hidden>Active key: <code id="aiKeyPreviewValue"></code></p>
-                  </div>
-                </div>
-              </div>
               <ul class="ai-settings-list">
                 <li>
                   <strong>Primary model</strong>
@@ -472,8 +452,37 @@
     <form id="analysisForm" class="editor-grid" hidden>
       <section class="analysis-task" aria-label="Task workspace">
         <header class="analysis-task__head">
-          <h2 class="analysis-task__title">Task</h2>
+          <h2 class="analysis-task__title" id="analysisTaskTitle">Task</h2>
         </header>
+        <section class="analysis-task__panel analysis-task__config" aria-label="Task setup">
+          <div class="task-name-field">
+            <label for="taskName">Task name</label>
+            <input id="taskName" type="text" placeholder="Name this task" autocomplete="off" />
+            <p class="muted-small">Appears in the task header below.</p>
+          </div>
+          <div class="ai-structures">
+            <div class="field-row">
+              <div>
+                <label for="aiModel">Model</label>
+                <div class="select-edit">
+                  <select id="aiModel"></select>
+                  <button type="button" class="btn small ghost" id="editModelList">Edit list</button>
+                </div>
+                <p class="muted-small">Select from saved OpenRouter models or edit the list for this workspace.</p>
+              </div>
+              <div>
+                <label for="aiKey">AI API key</label>
+                <input id="aiKey" type="password" placeholder="Paste your OpenRouter key" autocomplete="off" />
+                <div class="ai-key-actions">
+                  <button type="button" class="btn small ghost" id="refreshAiKey">Refresh from Supabase</button>
+                  <span class="muted-small" id="aiKeyStatus" role="status" aria-live="polite"></span>
+                </div>
+                <p class="muted-small">Stored locally in this browser. Admins can refresh to sync the server key used for AI calls.</p>
+                <p class="ai-key-preview" id="aiKeyPreview" hidden>Active key: <code id="aiKeyPreviewValue"></code></p>
+              </div>
+            </div>
+          </div>
+        </section>
         <div class="analysis-task__grid">
           <section class="analysis-source analysis-task__panel" aria-label="Analysis input">
             <div class="analysis-source__head">

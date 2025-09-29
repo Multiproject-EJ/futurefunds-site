@@ -260,6 +260,8 @@ async function initEditor() {
   const aiKeyPreview = document.getElementById('aiKeyPreview');
   const aiKeyPreviewValue = document.getElementById('aiKeyPreviewValue');
   const aiModel = document.getElementById('aiModel');
+  const taskNameInput = document.getElementById('taskName');
+  const taskTitle = document.getElementById('analysisTaskTitle');
   const promptSelectBtn = document.getElementById('promptSelectBtn');
   const promptSelectLabel = document.getElementById('promptSelectLabel');
   const promptMenu = document.getElementById('promptMenu');
@@ -320,6 +322,7 @@ async function initEditor() {
   const aiSettingsModelDefault = (aiSettingsModel?.textContent || '').trim();
   const aiSettingsPromptDefault = (aiSettingsPrompt?.textContent || '').trim();
   const aiSettingsKeyDefault = (aiSettingsKey?.textContent || '').trim();
+  const taskTitleDefault = (taskTitle?.textContent || '').trim();
 
   if (!form || !locked) return;
 
@@ -361,6 +364,12 @@ async function initEditor() {
     const displayName = optionLabel || storedPreference;
     if (analystLastName) analystLastName.textContent = displayName || 'Model';
     if (aiSettingsModel) aiSettingsModel.textContent = displayName || aiSettingsModelDefault || 'Pending selection';
+  };
+
+  const updateTaskTitle = () => {
+    if (!taskTitle) return;
+    const value = (taskNameInput?.value || '').trim();
+    taskTitle.textContent = value ? `Task - ${value}` : taskTitleDefault || 'Task';
   };
 
   const updatePromptSettingsSummary = () => {
@@ -1396,6 +1405,7 @@ async function initEditor() {
 
   switchAnalysisMode('manual');
   await loadAiConfig({ includeRemote: true });
+  updateTaskTitle();
 
   modeButtons.forEach((btn) => {
     btn.addEventListener('click', () => {
@@ -1412,6 +1422,10 @@ async function initEditor() {
       persistAiConfig();
       updateAnalystIdentity();
     });
+  }
+
+  if (taskNameInput) {
+    ['input', 'change'].forEach((evt) => taskNameInput.addEventListener(evt, updateTaskTitle));
   }
 
   if (promptSelectBtn) {
