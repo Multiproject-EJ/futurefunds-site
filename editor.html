@@ -471,6 +471,11 @@
           <button type="button" class="btn small ghost" id="closeTaskModal">Close</button>
         </header>
         <div class="modal__body modal__body--task">
+          <div id="taskLockedMessage" class="task-locked-message" hidden tabindex="-1" role="alert">
+            <h3>Task workspace locked</h3>
+            <p id="taskLockedMessageText">Sign in with an admin account to open the task workspace.</p>
+            <button class="btn small" type="button" id="taskLockedAction" data-open-auth="signin">Sign in</button>
+          </div>
           <form id="analysisForm" class="editor-grid" hidden>
             <section class="analysis-task" aria-label="Task workspace">
               <section class="analysis-task__panel analysis-task__config" aria-label="Task setup">

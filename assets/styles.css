@@ -1313,3 +1313,37 @@ body.theme-light table.grid pre{
 .auth-profile-actions{display:flex;gap:10px;flex-wrap:wrap}
 .auth-profile .btn{width:auto}
 
+.task-launch-card[aria-disabled="true"]{
+  cursor:not-allowed;
+  opacity:.55;
+}
+
+.task-launch-card[aria-disabled="true"]:focus-visible{
+  outline-color:var(--muted,#64748b);
+}
+
+.task-locked-message{
+  border:1px solid color-mix(in srgb,var(--border,#1a2147) 70%,#5af 30%);
+  border-radius:14px;
+  padding:1.4rem;
+  margin-bottom:1.5rem;
+  background:color-mix(in srgb,var(--card,#121733) 90%,#1b2b6a 10%);
+  display:grid;
+  gap:.75rem;
+  box-shadow:0 12px 30px rgba(15,23,42,.45);
+}
+
+.task-locked-message h3{
+  margin:0;
+  font-size:1.05rem;
+}
+
+.task-locked-message p{
+  margin:0;
+  color:color-mix(in srgb,var(--muted,#94a3b8) 70%,#fff 30%);
+}
+
+.task-locked-message .btn{
+  justify-self:start;
+}
+
