@@ -267,6 +267,9 @@ async function initEditor() {
   const taskModal = document.getElementById('analysisTaskModal');
   const taskModalBackdrop = taskModal?.querySelector('[data-close-task]');
   const taskModalCloseBtn = document.getElementById('closeTaskModal');
+  const taskLockedMessage = document.getElementById('taskLockedMessage');
+  const taskLockedMessageText = document.getElementById('taskLockedMessageText');
+  const taskLockedActionBtn = document.getElementById('taskLockedAction');
   const promptSelectBtn = document.getElementById('promptSelectBtn');
   const promptSelectLabel = document.getElementById('promptSelectLabel');
   const promptMenu = document.getElementById('promptMenu');
@@ -398,18 +401,28 @@ async function initEditor() {
 
   const setTaskLaunchAvailability = (enabled) => {
     if (!taskLaunchBtn) return;
-    taskLaunchBtn.disabled = !enabled;
     taskLaunchBtn.setAttribute('aria-disabled', enabled ? 'false' : 'true');
   };
 
   const openTaskModal = () => {
-    if (!taskModal || !form || form.hidden) return;
-    if (taskLaunchBtn?.disabled) return;
+    if (!taskModal) return;
+    const formHidden = !form || form.hidden;
     taskModal.hidden = false;
     lockBodyScroll();
-    setTimeout(() => {
-      taskNameInput?.focus();
-    }, 60);
+    if (taskLockedMessage) {
+      taskLockedMessage.hidden = !formHidden;
+      if (!taskLockedMessage.hidden) {
+        requestAnimationFrame(() => {
+          taskLockedMessage.focus();
+        });
+      }
+    }
+    if (!formHidden && form) {
+      form.hidden = false;
+      setTimeout(() => {
+        taskNameInput?.focus();
+      }, 60);
+    }
   };
 
   const closeTaskModal = () => {
@@ -417,7 +430,8 @@ async function initEditor() {
     if (taskModal.hidden) return;
     taskModal.hidden = true;
     unlockBodyScroll();
-    if (taskLaunchBtn && !taskLaunchBtn.disabled) {
+    if (taskLockedMessage) taskLockedMessage.hidden = true;
+    if (taskLaunchBtn && taskLaunchBtn.getAttribute('aria-disabled') !== 'true') {
       setTimeout(() => taskLaunchBtn.focus(), 30);
     }
   };
@@ -1481,7 +1495,6 @@ async function initEditor() {
 
   if (taskLaunchBtn) {
     taskLaunchBtn.addEventListener('click', () => {
-      if (taskLaunchBtn.disabled) return;
       openTaskModal();
     });
   }
@@ -1752,6 +1765,16 @@ async function initEditor() {
     closePromptMenu();
     closePromptEditor();
     setTaskLaunchAvailability(false);
+    if (taskLockedMessageText) taskLockedMessageText.textContent = message;
+    if (taskLockedActionBtn) {
+      if (!action) {
+        taskLockedActionBtn.hidden = true;
+      } else {
+        taskLockedActionBtn.hidden = false;
+        taskLockedActionBtn.setAttribute('data-open-auth', action);
+        taskLockedActionBtn.textContent = actionLabel || (action === 'profile' ? 'Manage account' : 'Sign in');
+      }
+    }
     closeTaskModal();
   };
 
@@ -1761,6 +1784,8 @@ async function initEditor() {
       lockMsg.textContent = '';
     }
     updateLockButton(null);
+    if (taskLockedMessage) taskLockedMessage.hidden = true;
+    if (taskLockedActionBtn) taskLockedActionBtn.hidden = false;
   };
 
   let adminBootstrapReady = false;
