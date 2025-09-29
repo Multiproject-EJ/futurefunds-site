@@ -85,6 +85,12 @@
     .ai-settings-list li{display:flex;flex-direction:column;gap:2px}
     .ai-settings-list strong{font-size:.9rem;color:var(--text,#0f172a)}
     .ai-settings-list span{font-size:.85rem;color:var(--muted,#64748b)}
+    .task-launch-card{display:grid;gap:4px;padding:16px;border:1px solid var(--border,#e5e7eb);border-radius:14px;background:var(--panel,#fff);text-align:left;cursor:pointer;transition:transform .15s ease,box-shadow .15s ease,border-color .15s ease;color:inherit;font:inherit;width:100%}
+    .task-launch-card:hover:not(:disabled){border-color:var(--accent,#2563eb);box-shadow:0 14px 26px rgba(37,99,235,.15);transform:translateY(-2px)}
+    .task-launch-card:focus-visible{outline:3px solid rgba(37,99,235,.35);outline-offset:2px;border-color:var(--accent,#2563eb);box-shadow:0 14px 26px rgba(37,99,235,.15);transform:translateY(-2px)}
+    .task-launch-card:disabled{cursor:not-allowed;opacity:.6;box-shadow:none;transform:none}
+    .task-launch-card__title{font-size:1.05rem;font-weight:600;color:var(--text,#0f172a)}
+    .task-launch-card__subtitle{font-size:.85rem;color:var(--muted,#64748b)}
     .editor-grid{display:grid;gap:18px}
     .editor-grid label{display:block;font-size:.9rem;margin-bottom:4px;color:var(--muted,#64748b)}
     .editor-grid input,.editor-grid textarea, .editor-grid select{
@@ -161,6 +167,10 @@
     .modal__body{display:grid;grid-template-columns:260px 1fr;gap:0;min-height:420px}
     .modal__sidebar{background:var(--panel-muted,#f8fafc);border-right:1px solid var(--border,#e5e7eb);padding:18px;overflow:auto}
     .modal__content{padding:18px;overflow:auto;display:grid;gap:16px}
+    .modal__dialog--task{max-width:1020px;width:100%}
+    .modal__header--task{border-bottom:1px solid var(--border,#e5e7eb)}
+    .modal__body--task{padding:0;overflow:auto;background:var(--panel-muted,#f8fafc)}
+    .modal__body--task .analysis-task{margin:0}
     .prompt-editor__sidebar-actions{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;gap:10px}
     .prompt-editor__list{display:grid;gap:8px}
     .prompt-editor__list button{width:100%;text-align:left;border:1px solid transparent;border-radius:10px;padding:10px 12px;background:transparent;color:inherit;cursor:pointer;transition:background .15s ease,border-color .15s ease,color .15s ease}
@@ -423,6 +433,10 @@
           <section class="summary-subcard" aria-label="Tasks">
             <h3 class="summary-subcard__title">Tasks</h3>
             <div class="summary-subcard__content">
+              <button type="button" class="task-launch-card" id="openTaskModal" aria-haspopup="dialog" aria-controls="analysisTaskModal">
+                <span class="task-launch-card__title" id="taskLaunchTitle">Task</span>
+                <span class="task-launch-card__subtitle">Open the task workspace</span>
+              </button>
               <ul class="ai-settings-list">
                 <li>
                   <strong>Primary model</strong>
@@ -449,131 +463,139 @@
       <button class="btn small" data-open-auth="signin">Sign in</button>
     </div>
 
-    <form id="analysisForm" class="editor-grid" hidden>
-      <section class="analysis-task" aria-label="Task workspace">
-        <header class="analysis-task__head">
+    <div id="analysisTaskModal" class="modal" hidden role="dialog" aria-modal="true" aria-labelledby="analysisTaskTitle">
+      <div class="modal__backdrop" data-close-task aria-hidden="true"></div>
+      <div class="modal__dialog modal__dialog--task">
+        <header class="modal__header modal__header--task">
           <h2 class="analysis-task__title" id="analysisTaskTitle">Task</h2>
+          <button type="button" class="btn small ghost" id="closeTaskModal">Close</button>
         </header>
-        <section class="analysis-task__panel analysis-task__config" aria-label="Task setup">
-          <div class="task-name-field">
-            <label for="taskName">Task name</label>
-            <input id="taskName" type="text" placeholder="Name this task" autocomplete="off" />
-            <p class="muted-small">Appears in the task header below.</p>
-          </div>
-          <div class="ai-structures">
-            <div class="field-row">
-              <div>
-                <label for="aiModel">Model</label>
-                <div class="select-edit">
-                  <select id="aiModel"></select>
-                  <button type="button" class="btn small ghost" id="editModelList">Edit list</button>
+        <div class="modal__body modal__body--task">
+          <form id="analysisForm" class="editor-grid" hidden>
+            <section class="analysis-task" aria-label="Task workspace">
+              <section class="analysis-task__panel analysis-task__config" aria-label="Task setup">
+                <div class="task-name-field">
+                  <label for="taskName">Task name</label>
+                  <input id="taskName" type="text" placeholder="Name this task" autocomplete="off" />
+                  <p class="muted-small">Appears in the task header below.</p>
                 </div>
-                <p class="muted-small">Select from saved OpenRouter models or edit the list for this workspace.</p>
-              </div>
-              <div>
-                <label for="aiKey">AI API key</label>
-                <input id="aiKey" type="password" placeholder="Paste your OpenRouter key" autocomplete="off" />
-                <div class="ai-key-actions">
-                  <button type="button" class="btn small ghost" id="refreshAiKey">Refresh from Supabase</button>
-                  <span class="muted-small" id="aiKeyStatus" role="status" aria-live="polite"></span>
+                <div class="ai-structures">
+                  <div class="field-row">
+                    <div>
+                      <label for="aiModel">Model</label>
+                      <div class="select-edit">
+                        <select id="aiModel"></select>
+                        <button type="button" class="btn small ghost" id="editModelList">Edit list</button>
+                      </div>
+                      <p class="muted-small">Select from saved OpenRouter models or edit the list for this workspace.</p>
+                    </div>
+                    <div>
+                      <label for="aiKey">AI API key</label>
+                      <input id="aiKey" type="password" placeholder="Paste your OpenRouter key" autocomplete="off" />
+                      <div class="ai-key-actions">
+                        <button type="button" class="btn small ghost" id="refreshAiKey">Refresh from Supabase</button>
+                        <span class="muted-small" id="aiKeyStatus" role="status" aria-live="polite"></span>
+                      </div>
+                      <p class="muted-small">Stored locally in this browser. Admins can refresh to sync the server key used for AI calls.</p>
+                      <p class="ai-key-preview" id="aiKeyPreview" hidden>Active key: <code id="aiKeyPreviewValue"></code></p>
+                    </div>
+                  </div>
                 </div>
-                <p class="muted-small">Stored locally in this browser. Admins can refresh to sync the server key used for AI calls.</p>
-                <p class="ai-key-preview" id="aiKeyPreview" hidden>Active key: <code id="aiKeyPreviewValue"></code></p>
-              </div>
-            </div>
-          </div>
-        </section>
-        <div class="analysis-task__grid">
-          <section class="analysis-source analysis-task__panel" aria-label="Analysis input">
-            <div class="analysis-source__head">
-              <label for="analysisRaw" style="margin:0;font-weight:600">Analysis input</label>
-              <div class="analysis-source__modes" role="tablist">
-                <button type="button" class="analysis-mode-btn active" data-analysis-mode="manual">Paste analysis</button>
-                <button type="button" class="analysis-mode-btn" data-analysis-mode="ai">Generate via AI</button>
-              </div>
-            </div>
-            <div class="analysis-source__panel" data-panel="manual">
-              <p class="analysis-source__panel-note">Paste the full master analysis markdown below, then parse it to fill the fields automatically.</p>
-            </div>
-            <div class="analysis-source__panel analysis-ai-grid" data-panel="ai" hidden>
-              <p class="muted-small">Update the coverage target above to tailor the AI prompt.</p>
-              <div>
-                <label>Prompt template</label>
-                <div class="prompt-selector">
-                  <button type="button" class="btn ghost" id="promptSelectBtn"><span id="promptSelectLabel">Select prompt</span> ▾</button>
-                  <button type="button" class="btn small ghost" id="openPromptEditor">Prompt editor</button>
-                  <div class="prompt-menu" id="promptMenu" hidden role="menu"></div>
-                </div>
-                <p class="muted-small" id="promptSummary">Loading prompts…</p>
-                <pre id="promptPreview" class="prompt-preview" hidden></pre>
-              </div>
-              <p class="muted-small">Update the Tasks panel above to select a model and manage the API key before generating.</p>
-              <div>
-                <label for="aiNotes">Angle or extra guidance (optional)</label>
-                <textarea id="aiNotes" placeholder="Key catalysts, data points or tone adjustments"></textarea>
-              </div>
-              <div class="analysis-source__actions">
-                <button type="button" class="btn primary" id="generateAnalysis">Generate analysis</button>
-                <span class="muted-small">The generated report fills the box below.</span>
-              </div>
-            </div>
-            <textarea id="analysisRaw" name="analysis_raw" placeholder="Paste the MASTER STOCK ANALYSIS markdown output here"></textarea>
-            <div class="analysis-source__actions">
-              <button type="button" class="btn" id="parseAnalysis">Parse analysis into fields</button>
-              <button type="button" class="btn ghost" id="clearAnalysis">Clear</button>
-              <span id="analysisStatus" class="analysis-status muted-small" role="status"></span>
-            </div>
-          </section>
+              </section>
+              <div class="analysis-task__grid">
+                <section class="analysis-source analysis-task__panel" aria-label="Analysis input">
+                  <div class="analysis-source__head">
+                    <label for="analysisRaw" style="margin:0;font-weight:600">Analysis input</label>
+                    <div class="analysis-source__modes" role="tablist">
+                      <button type="button" class="analysis-mode-btn active" data-analysis-mode="manual">Paste analysis</button>
+                      <button type="button" class="analysis-mode-btn" data-analysis-mode="ai">Generate via AI</button>
+                    </div>
+                  </div>
+                  <div class="analysis-source__panel" data-panel="manual">
+                    <p class="analysis-source__panel-note">Paste the full master analysis markdown below, then parse it to fill the fields automatically.</p>
+                  </div>
+                  <div class="analysis-source__panel analysis-ai-grid" data-panel="ai" hidden>
+                    <p class="muted-small">Update the coverage target above to tailor the AI prompt.</p>
+                    <div>
+                      <label>Prompt template</label>
+                      <div class="prompt-selector">
+                        <button type="button" class="btn ghost" id="promptSelectBtn"><span id="promptSelectLabel">Select prompt</span> ▾</button>
+                        <button type="button" class="btn small ghost" id="openPromptEditor">Prompt editor</button>
+                        <div class="prompt-menu" id="promptMenu" hidden role="menu"></div>
+                      </div>
+                      <p class="muted-small" id="promptSummary">Loading prompts…</p>
+                      <pre id="promptPreview" class="prompt-preview" hidden></pre>
+                    </div>
+                    <p class="muted-small">Update the Tasks panel above to select a model and manage the API key before generating.</p>
+                    <div>
+                      <label for="aiNotes">Angle or extra guidance (optional)</label>
+                      <textarea id="aiNotes" placeholder="Key catalysts, data points or tone adjustments"></textarea>
+                    </div>
+                    <div class="analysis-source__actions">
+                      <button type="button" class="btn primary" id="generateAnalysis">Generate analysis</button>
+                      <span class="muted-small">The generated report fills the box below.</span>
+                    </div>
+                  </div>
+                  <textarea id="analysisRaw" name="analysis_raw" placeholder="Paste the MASTER STOCK ANALYSIS markdown output here"></textarea>
+                  <div class="analysis-source__actions">
+                    <button type="button" class="btn" id="parseAnalysis">Parse analysis into fields</button>
+                    <button type="button" class="btn ghost" id="clearAnalysis">Clear</button>
+                    <span id="analysisStatus" class="analysis-status muted-small" role="status"></span>
+                  </div>
+                </section>
 
-          <section class="analysis-export analysis-task__panel" aria-label="Export results">
-            <h3 class="analysis-export__title">Export - Results</h3>
-            <div class="analysis-export__fields">
-              <div class="field-row">
-                <div>
-                  <label for="analysisDate">Date</label>
-                  <input id="analysisDate" name="date" type="date" required />
-                </div>
-                <div>
-                  <label for="analysisTags">Tags (comma separated)</label>
-                  <input id="analysisTags" name="tags" placeholder="AI, Earnings, Value" />
-                  <p class="muted-small">Used for filtering. Example: AI, Earnings, Value.</p>
-                </div>
-              </div>
+                <section class="analysis-export analysis-task__panel" aria-label="Export results">
+                  <h3 class="analysis-export__title">Export - Results</h3>
+                  <div class="analysis-export__fields">
+                    <div class="field-row">
+                      <div>
+                        <label for="analysisDate">Date</label>
+                        <input id="analysisDate" name="date" type="date" required />
+                      </div>
+                      <div>
+                        <label for="analysisTags">Tags (comma separated)</label>
+                        <input id="analysisTags" name="tags" placeholder="AI, Earnings, Value" />
+                        <p class="muted-small">Used for filtering. Example: AI, Earnings, Value.</p>
+                      </div>
+                    </div>
 
-              <div>
-                <label for="analysisTopic">Topic</label>
-                <input id="analysisTopic" name="topic" placeholder="Reverse DCF — Company" required />
-              </div>
+                    <div>
+                      <label for="analysisTopic">Topic</label>
+                      <input id="analysisTopic" name="topic" placeholder="Reverse DCF — Company" required />
+                    </div>
 
-              <div>
-                <label for="analysisConclusion">Conclusion</label>
-                <textarea id="analysisConclusion" name="conclusion" placeholder="Summarize the key takeaway." required></textarea>
-              </div>
+                    <div>
+                      <label for="analysisConclusion">Conclusion</label>
+                      <textarea id="analysisConclusion" name="conclusion" placeholder="Summarize the key takeaway." required></textarea>
+                    </div>
 
-              <div>
-                <label for="analysisFindings">Key findings (one per line)</label>
-                <textarea id="analysisFindings" name="findings" placeholder="Finding #1\nFinding #2"></textarea>
-              </div>
+                    <div>
+                      <label for="analysisFindings">Key findings (one per line)</label>
+                      <textarea id="analysisFindings" name="findings" placeholder="Finding #1\nFinding #2"></textarea>
+                    </div>
 
-              <div>
-                <label for="analysisVisual">Visual/Table markdown</label>
-                <textarea id="analysisVisual" name="visual" placeholder="|Scenario|Rev CAGR|..."></textarea>
-              </div>
+                    <div>
+                      <label for="analysisVisual">Visual/Table markdown</label>
+                      <textarea id="analysisVisual" name="visual" placeholder="|Scenario|Rev CAGR|..."></textarea>
+                    </div>
 
-              <div>
-                <label for="analysisPrompt">Prompt used (optional, debug)</label>
-                <textarea id="analysisPrompt" name="prompt" placeholder="Paste the LLM prompt for auditing"></textarea>
+                    <div>
+                      <label for="analysisPrompt">Prompt used (optional, debug)</label>
+                      <textarea id="analysisPrompt" name="prompt" placeholder="Paste the LLM prompt for auditing"></textarea>
+                    </div>
+                  </div>
+                  <div class="analysis-export__actions">
+                    <button class="btn primary" type="submit">Publish to Universe</button>
+                    <button class="btn" type="button" id="resetForm">Reset</button>
+                    <span id="formMsg" class="muted"></span>
+                  </div>
+                </section>
               </div>
-            </div>
-            <div class="analysis-export__actions">
-              <button class="btn primary" type="submit">Publish to Universe</button>
-              <button class="btn" type="button" id="resetForm">Reset</button>
-              <span id="formMsg" class="muted"></span>
-            </div>
-          </section>
+            </section>
+          </form>
         </div>
-      </section>
-    </form>
+      </div>
+    </div>
 
     <section id="recentSection" hidden>
       <header style="display:flex;justify-content:space-between;align-items:center;gap:12px;margin:28px 0 12px">
