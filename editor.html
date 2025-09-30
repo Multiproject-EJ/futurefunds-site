@@ -51,14 +51,13 @@
     .coverage-meta input#aiCompany{background:rgba(37,99,235,.12);border-color:rgba(37,99,235,.32)}
     .coverage-meta input#aiCompany:focus{background:var(--panel,#fff);border-color:var(--accent,#2563eb);box-shadow:0 0 0 3px rgba(37,99,235,.18);outline:none}
     .coverage-meta .muted-small{margin:6px 0 0}
-    .coverage-meta__aside{position:relative;overflow:hidden;border:1px solid var(--border,#e5e7eb);border-radius:14px;padding:20px;background:linear-gradient(135deg,rgba(37,99,235,.08),rgba(37,99,235,.02));display:grid;gap:16px;align-content:start}
-    .coverage-meta__automation{display:grid;gap:14px}
+    .coverage-meta__aside{position:relative;overflow:hidden;border:1px solid var(--border,#e5e7eb);border-radius:14px;background:linear-gradient(135deg,rgba(37,99,235,.08),rgba(37,99,235,.02));display:block;transition:transform .15s ease,box-shadow .15s ease,border-color .15s ease}
+    .coverage-meta__aside:hover,.coverage-meta__aside:focus-within{border-color:var(--accent,#2563eb);box-shadow:0 12px 26px rgba(37,99,235,.14);transform:translateY(-1px)}
+    .coverage-meta__automation{display:grid;gap:14px;padding:20px;width:100%;height:100%;border:none;background:transparent;font:inherit;color:inherit;text-align:left;cursor:pointer}
+    .coverage-meta__automation:focus-visible{outline:3px solid rgba(37,99,235,.35);outline-offset:-4px;border-radius:12px}
+    .coverage-meta__automation-head{display:grid;gap:6px}
     .coverage-meta__aside-title{margin:0;font-size:.95rem;font-weight:600;color:var(--text,#0f172a)}
     .coverage-meta__aside-copy{margin:0;font-size:.85rem;color:var(--muted,#475569)}
-    .automation-launch{display:flex;flex-direction:column;align-items:flex-start;gap:4px;padding:14px 16px;border:1px solid rgba(37,99,235,.32);border-radius:12px;background:rgba(37,99,235,.12);color:var(--text,#0f172a);cursor:pointer;font:inherit;text-align:left;transition:transform .15s ease,box-shadow .15s ease,border-color .15s ease,background .15s ease}
-    .automation-launch:hover,.automation-launch:focus-visible{border-color:var(--accent,#2563eb);background:rgba(37,99,235,.16);box-shadow:0 12px 26px rgba(37,99,235,.14);transform:translateY(-1px);outline:none}
-    .automation-launch__label{font-weight:600;font-size:.92rem}
-    .automation-launch__hint{font-size:.8rem;color:rgba(37,99,235,.86)}
     .automation-stats{display:grid;gap:12px;padding:0;margin:0;list-style:none}
     .automation-stats__item{display:flex;align-items:center;gap:12px;padding:12px;border:1px solid rgba(148,163,184,.35);border-radius:12px;background:rgba(248,250,252,.85);box-shadow:0 8px 16px rgba(15,23,42,.08)}
     .automation-stats__icon{width:40px;height:40px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:1.05rem;font-weight:600;color:#fff}
@@ -408,20 +407,16 @@
               </div>
             </div>
             <aside class="coverage-meta__aside" aria-label="Automation workspace launcher">
-              <div class="coverage-meta__automation">
-                <div>
+              <button
+                type="button"
+                class="coverage-meta__automation"
+                data-automation-modal-target="automationSettingsModal"
+                aria-controls="automationSettingsModal"
+              >
+                <div class="coverage-meta__automation-head">
                   <h3 class="coverage-meta__aside-title">Automation</h3>
                   <p class="coverage-meta__aside-copy">Configure scheduled single-run or multi-step desk automations.</p>
                 </div>
-                <button
-                  type="button"
-                  class="automation-launch"
-                  data-automation-modal-target="automationSettingsModal"
-                  aria-controls="automationSettingsModal"
-                >
-                  <span class="automation-launch__label">Open automation settings</span>
-                  <span class="automation-launch__hint">Launch the automation sheet to manage tasks</span>
-                </button>
                 <div
                   class="automation-stats"
                   aria-label="Automation status overview"
@@ -448,7 +443,7 @@
                     </div>
                   </div>
                 </div>
-              </div>
+              </button>
             </aside>
           </div>
         </section>
