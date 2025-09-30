@@ -264,7 +264,6 @@ async function initEditor() {
   const taskTitle = document.getElementById('analysisTaskTitle');
   const taskLaunchButtons = Array.from(document.querySelectorAll('[data-task-modal-target]'));
   const taskLaunchBtn = document.getElementById('openTaskModal');
-  const taskLaunchTitle = document.getElementById('taskLaunchTitle');
   const taskLaunchSubtitle = taskLaunchBtn?.querySelector('.task-launch-card__subtitle');
   const taskModal = document.getElementById('analysisTaskModal');
   const taskModalBackdrop = taskModal?.querySelector('[data-close-task]');
@@ -363,12 +362,55 @@ async function initEditor() {
   const aiSettingsPromptDefault = (aiSettingsPrompt?.textContent || '').trim();
   const aiSettingsKeyDefault = (aiSettingsKey?.textContent || '').trim();
   const taskTitleDefault = (taskTitle?.textContent || '').trim();
-  const taskLaunchTitleDefault = (taskLaunchTitle?.textContent || '').trim();
   const taskLaunchSubtitleDefault = (taskLaunchSubtitle?.textContent || '').trim();
+
+  const taskLaunchCardStates = taskLaunchButtons.map((btn, index) => {
+    const id = Number.parseInt(btn.dataset.taskId || '', 10) || index + 1;
+    const titleEl = btn.querySelector('.task-launch-card__title');
+    const subtitleEl = btn.querySelector('.task-launch-card__subtitle');
+    const defaultTitle = (titleEl?.textContent || '').trim() || `Task ${id}`;
+    const defaultSubtitle = (subtitleEl?.textContent || '').trim() || taskLaunchSubtitleDefault || 'Open the task workspace';
+    return {
+      id,
+      btn,
+      titleEl,
+      subtitleEl,
+      defaultTitle,
+      defaultSubtitle,
+      name: '',
+    };
+  });
+
+  const taskLaunchCardMap = new Map(taskLaunchCardStates.map((state) => [state.id, state]));
+  let activeTaskId = taskLaunchCardStates[0]?.id ?? 1;
+
+  const formatTaskCardLabel = (state) => {
+    const prefix = `Task ${state.id}`;
+    const name = (state.name || '').trim();
+    return name ? `${prefix}: ${name}` : prefix;
+  };
+
+  const syncTaskLaunchCards = () => {
+    taskLaunchCardStates.forEach((state) => {
+      if (state.titleEl) {
+        state.titleEl.textContent = formatTaskCardLabel(state);
+      }
+      const subtitleText = isTaskLaunchLocked
+        ? 'Admin sign-in required'
+        : state.defaultSubtitle || 'Open the task workspace';
+      if (state.subtitleEl) {
+        state.subtitleEl.textContent = subtitleText;
+      }
+      const baseLabel = `Open ${formatTaskCardLabel(state)}`;
+      const label = isTaskLaunchLocked ? `${baseLabel} (admin sign-in required)` : baseLabel;
+      state.btn.setAttribute('aria-label', label);
+    });
+  };
 
   let isTaskLaunchLocked = false;
   let lastTaskLaunchTrigger = null;
   let lastAutomationTrigger = null;
+  syncTaskLaunchCards();
   const automationStatsDefaults = new Map();
 
   automationStatsGroups.forEach((group) => {
@@ -498,25 +540,17 @@ async function initEditor() {
   };
 
   const updateTaskTitle = () => {
-    if (!taskTitle) return;
     const value = (taskNameInput?.value || '').trim();
-    const display = value
-      ? `What can I help you with? - ${value}`
-      : taskTitleDefault || 'What can I help you with?';
-    taskTitle.textContent = display;
-    if (taskLaunchTitle)
-      taskLaunchTitle.textContent = display || taskLaunchTitleDefault || 'What can I help you with?';
-    if (taskLaunchSubtitle) {
-      taskLaunchSubtitle.textContent = isTaskLaunchLocked
-        ? 'Admin sign-in required'
-        : taskLaunchSubtitleDefault || 'Open the task workspace';
+    const activeState = taskLaunchCardMap.get(activeTaskId);
+    if (activeState) {
+      activeState.name = value;
     }
-    taskLaunchButtons.forEach((btn) => {
-      const buttonTitle = (btn.querySelector('.task-launch-card__title')?.textContent || display || 'Task workspace').trim();
-      const baseLabel = `Open ${buttonTitle}`;
-      const label = isTaskLaunchLocked ? `${baseLabel} (admin sign-in required)` : baseLabel;
-      btn.setAttribute('aria-label', label);
-    });
+    const defaultDisplay = taskTitleDefault || 'What can I help you with?';
+    const display = value ? `${defaultDisplay} - ${value}` : defaultDisplay;
+    if (taskTitle) {
+      taskTitle.textContent = display;
+    }
+    syncTaskLaunchCards();
   };
 
   updateAutomationStatsDisplay();
@@ -632,7 +666,21 @@ async function initEditor() {
     if (!taskModal) return;
     if (triggerBtn) {
       lastTaskLaunchTrigger = triggerBtn;
+      const parsedId = Number.parseInt(triggerBtn.dataset.taskId || '', 10);
+      if (!Number.isNaN(parsedId)) {
+        activeTaskId = parsedId;
+      } else {
+        const btnIndex = taskLaunchButtons.indexOf(triggerBtn);
+        if (btnIndex >= 0) {
+          activeTaskId = taskLaunchCardStates[btnIndex]?.id ?? activeTaskId;
+        }
+      }
     }
+    const activeState = taskLaunchCardMap.get(activeTaskId);
+    if (taskNameInput) {
+      taskNameInput.value = activeState?.name || '';
+    }
+    updateTaskTitle();
     const wasLocked = !form || form.hidden;
     await ensureLatestAccess({ forceAuthRefresh: wasLocked });
     const formHidden = !form || form.hidden;
