@@ -1089,7 +1089,7 @@ async function initEditor() {
     if (activeState) {
       activeState.name = value;
     }
-    const defaultDisplay = taskTitleDefault || 'What can I help you with?';
+    const defaultDisplay = taskTitleDefault || 'Buyback Extreme';
     const display = value ? `${defaultDisplay} - ${value}` : defaultDisplay;
     if (taskTitle) {
       taskTitle.textContent = display;
