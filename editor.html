@@ -431,7 +431,7 @@
                     aria-controls="promptCounterModal"
                   >
                     <div class="coverage-meta__counter-info">
-                      <p class="coverage-meta__counter-label">Prompt runs this week</p>
+                      <p class="coverage-meta__counter-label">Universe Selection</p>
                       <p class="coverage-meta__counter-description">Preview desk activity before launching new coverage.</p>
                     </div>
                     <span class="coverage-meta__counter-value" data-prompt-counter-value aria-live="polite">128</span>
@@ -1132,35 +1132,10 @@
     <div class="modal__backdrop" data-close-counter aria-hidden="true"></div>
     <div class="modal__dialog modal__dialog--counter">
       <header class="modal__header">
-        <h2 id="promptCounterTitle">Prompt activity overview</h2>
+        <h2 id="promptCounterTitle">Universe Selection</h2>
         <button type="button" class="btn small ghost" id="closePromptCounter">Close</button>
       </header>
-      <div class="modal__body modal__body--counter">
-        <div class="prompt-counter__grid">
-          <article class="prompt-counter__card" aria-label="Weekly prompt runs">
-            <h3 style="margin:0;font-size:1rem">This week</h3>
-            <p class="prompt-counter__value" data-prompt-counter-value>128</p>
-            <p class="prompt-counter__meta">Placeholder total runs across all analysts.</p>
-          </article>
-          <article class="prompt-counter__card" aria-label="Average cost per run">
-            <h3 style="margin:0;font-size:1rem">Avg. tokens per run</h3>
-            <p class="prompt-counter__value" data-prompt-counter-average>42k</p>
-            <p class="prompt-counter__meta">Estimate until hooked up to real usage data.</p>
-          </article>
-        </div>
-        <section class="prompt-counter__card" aria-label="Next steps">
-          <h3 style="margin:0;font-size:1rem">Planned enhancements</h3>
-          <ul class="prompt-counter__list">
-            <li>Sync with automation logs to show per-analyst activity.</li>
-            <li>Highlight spikes with alerts before running new prompts.</li>
-            <li>Break down API providers once cost telemetry is connected.</li>
-          </ul>
-        </section>
-      </div>
-      <footer class="modal__footer">
-        <span class="muted-small">Figures shown here are placeholders until the metrics service is wired up.</span>
-        <button type="button" class="btn ghost" id="dismissPromptCounter" data-counter-focus>Close</button>
-      </footer>
+      <div class="modal__body modal__body--counter"></div>
     </div>
   </div>
 

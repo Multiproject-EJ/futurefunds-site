@@ -329,7 +329,6 @@ async function initEditor() {
   const promptCounterModal = document.getElementById('promptCounterModal');
   const promptCounterBackdrop = promptCounterModal?.querySelector('[data-close-counter]');
   const promptCounterCloseBtn = document.getElementById('closePromptCounter');
-  const promptCounterDismissBtn = document.getElementById('dismissPromptCounter');
   const promptCounterValueElements = Array.from(document.querySelectorAll('[data-prompt-counter-value]'));
   const promptCounterAverageElement = document.querySelector('[data-prompt-counter-average]');
   const costRefreshBtn = document.getElementById('refreshCostBalance');
@@ -2391,12 +2390,6 @@ async function initEditor() {
 
   if (promptCounterCloseBtn) {
     promptCounterCloseBtn.addEventListener('click', () => {
-      closePromptCounterModal();
-    });
-  }
-
-  if (promptCounterDismissBtn) {
-    promptCounterDismissBtn.addEventListener('click', () => {
       closePromptCounterModal();
     });
   }
