@@ -51,11 +51,25 @@
     .coverage-meta input#aiCompany{background:rgba(37,99,235,.12);border-color:rgba(37,99,235,.32)}
     .coverage-meta input#aiCompany:focus{background:var(--panel,#fff);border-color:var(--accent,#2563eb);box-shadow:0 0 0 3px rgba(37,99,235,.18);outline:none}
     .coverage-meta .muted-small{margin:6px 0 0}
-    .coverage-meta__aside{position:relative;overflow:hidden;border:1px solid var(--border,#e5e7eb);border-radius:14px;padding:20px;background:linear-gradient(135deg,rgba(37,99,235,.08),rgba(37,99,235,.02));display:grid;gap:12px;align-content:space-between}
+    .coverage-meta__aside{position:relative;overflow:hidden;border:1px solid var(--border,#e5e7eb);border-radius:14px;padding:20px;background:linear-gradient(135deg,rgba(37,99,235,.08),rgba(37,99,235,.02));display:grid;gap:16px;align-content:start}
+    .coverage-meta__automation{display:grid;gap:14px}
     .coverage-meta__aside-title{margin:0;font-size:.95rem;font-weight:600;color:var(--text,#0f172a)}
-    .coverage-meta__aside-list{margin:0;padding:0;list-style:none;display:grid;gap:10px}
-    .coverage-meta__aside-list li{display:flex;align-items:flex-start;gap:10px;font-size:.85rem;color:var(--muted,#475569)}
-    .coverage-meta__aside-list li::before{content:"";width:6px;height:6px;border-radius:999px;background:var(--accent,#2563eb);margin-top:8px;flex-shrink:0}
+    .coverage-meta__aside-copy{margin:0;font-size:.85rem;color:var(--muted,#475569)}
+    .automation-launch{display:flex;flex-direction:column;align-items:flex-start;gap:4px;padding:14px 16px;border:1px solid rgba(37,99,235,.32);border-radius:12px;background:rgba(37,99,235,.12);color:var(--text,#0f172a);cursor:pointer;font:inherit;text-align:left;transition:transform .15s ease,box-shadow .15s ease,border-color .15s ease,background .15s ease}
+    .automation-launch:hover,.automation-launch:focus-visible{border-color:var(--accent,#2563eb);background:rgba(37,99,235,.16);box-shadow:0 12px 26px rgba(37,99,235,.14);transform:translateY(-1px);outline:none}
+    .automation-launch__label{font-weight:600;font-size:.92rem}
+    .automation-launch__hint{font-size:.8rem;color:rgba(37,99,235,.86)}
+    .automation-stats{display:grid;gap:12px;padding:0;margin:0;list-style:none}
+    .automation-stats__item{display:flex;align-items:center;gap:12px;padding:12px;border:1px solid rgba(148,163,184,.35);border-radius:12px;background:rgba(248,250,252,.85);box-shadow:0 8px 16px rgba(15,23,42,.08)}
+    .automation-stats__icon{width:40px;height:40px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:1.05rem;font-weight:600;color:#fff}
+    .automation-stats__icon--scheduled{background:linear-gradient(135deg,#2563eb,#60a5fa)}
+    .automation-stats__icon--errors{background:linear-gradient(135deg,#10b981,#34d399)}
+    .automation-stats__icon--errors[data-state="warn"]{background:linear-gradient(135deg,#f97316,#fb7185)}
+    .automation-stats__label{margin:0;font-size:.8rem;color:var(--muted,#475569);letter-spacing:.02em;text-transform:uppercase}
+    .automation-stats__value{margin:2px 0 0;font-size:1.1rem;font-weight:600;color:var(--text,#0f172a)}
+    .automation-stats__value--warn{color:var(--danger,#ef4444)}
+    .automation-stats__meta{margin:0;font-size:.75rem;color:var(--muted,#64748b)}
+    .automation-stats__meta--warn{color:var(--danger,#ef4444);font-weight:600}
     .summary-card--combined{display:grid;gap:18px}
     .summary-card__head{display:flex;align-items:center;justify-content:space-between}
     .summary-card__sections{display:grid;gap:16px}
@@ -198,6 +212,45 @@
     .modal__dialog--task{max-width:1020px;width:100%}
     .modal__header--task{border-bottom:1px solid var(--border,#e5e7eb)}
     .modal__body--task{padding:0;overflow:auto;background:var(--panel-muted,#f8fafc)}
+    .modal__dialog--automation{max-width:960px}
+    .modal__body--automation{grid-template-columns:280px 1fr}
+    .automation-modal__sidebar{display:grid;gap:16px}
+    .automation-modal__sidebar h3{margin:0;font-size:1rem;font-weight:600;color:var(--text,#0f172a)}
+    .automation-modal__sidebar p{margin:0;color:var(--muted,#475569);font-size:.88rem;line-height:1.45}
+    .automation-modal__list{display:grid;gap:10px;margin-top:6px}
+    .automation-modal__list li{display:flex;align-items:center;gap:8px;font-size:.82rem;color:var(--muted,#64748b)}
+    .automation-modal__list li::before{content:"";width:6px;height:6px;border-radius:999px;background:var(--accent,#2563eb);flex-shrink:0}
+    .automation-form{display:grid;gap:18px}
+    .automation-form__section{display:grid;gap:12px;padding:18px;border:1px solid var(--border,#e5e7eb);border-radius:16px;background:var(--panel,#fff);box-shadow:0 8px 18px rgba(15,23,42,.07)}
+    .automation-form__section h4{margin:0;font-size:1rem;font-weight:600;color:var(--text,#0f172a)}
+    .automation-form__fields{display:grid;gap:12px}
+    .automation-radio-group{display:grid;gap:8px}
+    .automation-radio{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid rgba(148,163,184,.4);border-radius:12px;background:var(--panel-muted,#f8fafc);cursor:pointer;transition:border-color .15s ease,background .15s ease,box-shadow .15s ease}
+    .automation-radio input{margin:0}
+    .automation-radio:hover{border-color:var(--accent,#2563eb)}
+    .automation-radio:focus-within{border-color:var(--accent,#2563eb);box-shadow:0 0 0 2px rgba(37,99,235,.22)}
+    .automation-radio input:focus-visible{outline:none}
+    .automation-radio__label{display:flex;flex-direction:column;gap:2px;font-size:.9rem;color:var(--text,#0f172a)}
+    .automation-radio__hint{font-size:.8rem;color:var(--muted,#64748b)}
+    .automation-radio input:checked+.automation-radio__label{color:var(--accent,#2563eb)}
+    .automation-radio input:checked+.automation-radio__label .automation-radio__hint{color:rgba(37,99,235,.72)}
+    .automation-field{display:grid;gap:6px}
+    .automation-field label{font-size:.85rem;font-weight:600;color:var(--muted,#64748b)}
+    .automation-field input,.automation-field select,.automation-field textarea{width:100%;padding:10px 12px;border:1px solid var(--border,#e5e7eb);border-radius:10px;background:var(--panel,#fff);color:var(--text,#0f172a)}
+    .automation-field textarea{min-height:100px;resize:vertical}
+    .automation-tasks{display:grid;gap:10px}
+    .automation-task-item{display:flex;align-items:flex-start;gap:10px;padding:10px 12px;border:1px dashed rgba(148,163,184,.5);border-radius:12px;background:rgba(148,163,184,.1);cursor:pointer}
+    .automation-task-item input{margin-top:4px}
+    .automation-task-item__body{display:flex;flex-direction:column;gap:2px}
+    .automation-task-item__title{display:block;font-size:.88rem;font-weight:600;color:var(--text,#0f172a)}
+    .automation-task-item__hint{display:block;font-size:.78rem;color:var(--muted,#64748b)}
+    .automation-advanced{display:grid;gap:10px}
+    .automation-advanced .automation-field{margin:0}
+    .automation-footer__note{margin-right:auto;color:var(--muted,#64748b);font-size:.85rem}
+    @media(max-width:960px){
+      .modal__body--automation{grid-template-columns:1fr}
+      .automation-modal__sidebar{border-bottom:1px solid var(--border,#e5e7eb);padding-bottom:16px;margin-bottom:16px}
+    }
     .modal__body--task .analysis-task{margin:0}
     .prompt-editor__sidebar-actions{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;gap:10px}
     .prompt-editor__list{display:grid;gap:8px}
@@ -354,13 +407,49 @@
                 <p class="coverage-meta__hint">Only the company name is required to run a prompt.</p>
               </div>
             </div>
-            <div class="coverage-meta__aside" aria-label="Coverage target notes placeholder">
-              <h3 class="coverage-meta__aside-title">Desk notes placeholder</h3>
-              <ul class="coverage-meta__aside-list">
-                <li>Highlight prior coverage or target price memos to sync context across the desk.</li>
-                <li>Add catalysts, contacts, or quick links once the workflow is ready.</li>
-              </ul>
-            </div>
+            <aside class="coverage-meta__aside" aria-label="Automation workspace launcher">
+              <div class="coverage-meta__automation">
+                <div>
+                  <h3 class="coverage-meta__aside-title">Automation</h3>
+                  <p class="coverage-meta__aside-copy">Configure scheduled single-run or multi-step desk automations.</p>
+                </div>
+                <button
+                  type="button"
+                  class="automation-launch"
+                  data-automation-modal-target="automationSettingsModal"
+                  aria-controls="automationSettingsModal"
+                >
+                  <span class="automation-launch__label">Open automation settings</span>
+                  <span class="automation-launch__hint">Launch the automation sheet to manage tasks</span>
+                </button>
+                <div
+                  class="automation-stats"
+                  aria-label="Automation status overview"
+                  role="list"
+                  data-scheduled="5"
+                  data-errors="0"
+                  data-scheduled-meta="Next run in 2 hours"
+                  data-error-meta="All automations healthy"
+                >
+                  <div class="automation-stats__item" role="listitem">
+                    <span class="automation-stats__icon automation-stats__icon--scheduled" aria-hidden="true">⏱</span>
+                    <div>
+                      <p class="automation-stats__label">Scheduled automations</p>
+                      <p class="automation-stats__value" data-automation-field="scheduled-value">5</p>
+                      <p class="automation-stats__meta" data-automation-field="scheduled-meta">Next run in 2 hours</p>
+                    </div>
+                  </div>
+                  <div class="automation-stats__item" role="listitem">
+                    <span class="automation-stats__icon automation-stats__icon--errors" data-automation-field="error-icon" aria-hidden="true">✔</span>
+                    <div>
+                      <p class="automation-stats__label">Error status</p>
+                      <p class="automation-stats__value" data-automation-field="error-value">0 issues</p>
+                      <p class="automation-stats__meta" data-automation-field="error-meta">All automations healthy</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </aside>
           </div>
         </section>
         <div class="analyst-badge">
@@ -526,6 +615,164 @@
       <strong>Access restricted.</strong>
       <span id="editorLockMsg"> Admin sign-in required to use this page.</span>
       <button class="btn small" data-open-auth="signin">Sign in</button>
+    </div>
+
+    <div
+      id="automationSettingsModal"
+      class="modal"
+      hidden
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="automationSettingsTitle"
+    >
+      <div class="modal__backdrop" data-close-automation aria-hidden="true"></div>
+      <div class="modal__dialog modal__dialog--automation">
+        <header class="modal__header">
+          <h2 id="automationSettingsTitle">Automation settings</h2>
+          <button type="button" class="btn small ghost" id="closeAutomationModal">Close</button>
+        </header>
+        <div class="modal__body modal__body--automation">
+          <aside class="modal__sidebar automation-modal__sidebar">
+            <h3>Desk automation overview</h3>
+            <p>Prep automation runs to accelerate equity coverage workflows.</p>
+            <ul class="automation-modal__list">
+              <li>Stage single-task automations to refresh key research outputs.</li>
+              <li>Chain multiple tasks together for full desk playbooks.</li>
+              <li>Review recent error signals before enabling schedules.</li>
+            </ul>
+            <div
+              class="automation-stats"
+              data-scheduled="5"
+              data-errors="0"
+              data-scheduled-meta="3 multi-step · 2 single"
+              data-error-meta="Last incident resolved 4d ago"
+              aria-label="Current automation health"
+            >
+              <div class="automation-stats__item">
+                <span class="automation-stats__icon automation-stats__icon--scheduled" aria-hidden="true">⏱</span>
+                <div>
+                  <p class="automation-stats__label">Scheduled runs</p>
+                  <p class="automation-stats__value" data-automation-field="scheduled-value">5</p>
+                  <p class="automation-stats__meta" data-automation-field="scheduled-meta">3 multi-step · 2 single</p>
+                </div>
+              </div>
+              <div class="automation-stats__item">
+                <span class="automation-stats__icon automation-stats__icon--errors" data-automation-field="error-icon" aria-hidden="true">✔</span>
+                <div>
+                  <p class="automation-stats__label">Error status</p>
+                  <p class="automation-stats__value" data-automation-field="error-value">0 issues</p>
+                  <p class="automation-stats__meta" data-automation-field="error-meta">Last incident resolved 4d ago</p>
+                </div>
+              </div>
+            </div>
+          </aside>
+          <form class="modal__content automation-form" id="automationSettingsForm">
+            <section class="automation-form__section" aria-labelledby="automationDetailsHeading">
+              <h4 id="automationDetailsHeading">Run details</h4>
+              <div class="automation-form__fields">
+                <div class="automation-field">
+                  <label for="automationName">Automation name</label>
+                  <input id="automationName" name="automationName" type="text" placeholder="E.g. Monday open coverage sweep" autocomplete="off" />
+                </div>
+                <div class="automation-field">
+                  <label for="automationScope">Coverage scope</label>
+                  <input id="automationScope" name="automationScope" type="text" placeholder="Universe focus, portfolio, or ticker list" autocomplete="off" />
+                </div>
+                <div class="automation-field">
+                  <label for="automationOwner">Owner</label>
+                  <input id="automationOwner" name="automationOwner" type="text" placeholder="Desk lead or channel" autocomplete="off" />
+                </div>
+              </div>
+            </section>
+            <section class="automation-form__section" aria-labelledby="automationTypeHeading">
+              <h4 id="automationTypeHeading">Run type</h4>
+              <div class="automation-radio-group" role="radiogroup" aria-labelledby="automationTypeHeading">
+                <label class="automation-radio">
+                  <input type="radio" name="automationMode" value="single" checked />
+                  <span class="automation-radio__label">
+                    Single task
+                    <span class="automation-radio__hint">Trigger one workflow with custom parameters.</span>
+                  </span>
+                </label>
+                <label class="automation-radio">
+                  <input type="radio" name="automationMode" value="sequence" />
+                  <span class="automation-radio__label">
+                    Multi-step sequence
+                    <span class="automation-radio__hint">Chain multiple desk tasks into one scheduled run.</span>
+                  </span>
+                </label>
+              </div>
+              <div class="automation-form__fields">
+                <div class="automation-field">
+                  <label for="automationFrequency">Schedule</label>
+                  <select id="automationFrequency" name="automationFrequency">
+                    <option value="once">One time</option>
+                    <option value="daily">Daily</option>
+                    <option value="weekly">Weekly</option>
+                    <option value="monthly">Monthly</option>
+                  </select>
+                </div>
+                <div class="automation-field">
+                  <label for="automationStart">Next run</label>
+                  <input id="automationStart" name="automationStart" type="datetime-local" />
+                </div>
+              </div>
+            </section>
+            <section class="automation-form__section" aria-labelledby="automationTasksHeading" id="automationSequenceGroup" hidden>
+              <h4 id="automationTasksHeading">Task sequence</h4>
+              <p class="automation-field" style="margin:0;color:var(--muted,#64748b);font-size:.85rem">Select tasks and set their order for multi-step automations.</p>
+              <div class="automation-tasks">
+                <label class="automation-task-item">
+                  <input type="checkbox" name="automationTasks" value="coverage-refresh" />
+                  <div class="automation-task-item__body">
+                    <span class="automation-task-item__title">Coverage refresh memo</span>
+                    <span class="automation-task-item__hint">Generate the latest research summary for active tickers.</span>
+                  </div>
+                </label>
+                <label class="automation-task-item">
+                  <input type="checkbox" name="automationTasks" value="price-monitor" />
+                  <div class="automation-task-item__body">
+                    <span class="automation-task-item__title">Price monitor alert</span>
+                    <span class="automation-task-item__hint">Surface price targets that crossed guardrails overnight.</span>
+                  </div>
+                </label>
+                <label class="automation-task-item">
+                  <input type="checkbox" name="automationTasks" value="catalyst-brief" />
+                  <div class="automation-task-item__body">
+                    <span class="automation-task-item__title">Catalyst brief</span>
+                    <span class="automation-task-item__hint">Send upcoming catalysts and call scripts to the desk.</span>
+                  </div>
+                </label>
+              </div>
+            </section>
+            <section class="automation-form__section" aria-labelledby="automationAdvancedHeading">
+              <h4 id="automationAdvancedHeading">Advanced options</h4>
+              <div class="automation-advanced">
+                <label class="automation-task-item" style="border-style:solid;background:rgba(37,99,235,.08);gap:12px;align-items:center;">
+                  <input type="checkbox" name="automationPreview" value="true" />
+                  <div class="automation-task-item__body">
+                    <span class="automation-task-item__title">Require preview approval</span>
+                    <span class="automation-task-item__hint">Send a Slack or email summary before automations execute.</span>
+                  </div>
+                </label>
+                <div class="automation-field">
+                  <label for="automationNotes">Notes &amp; context</label>
+                  <textarea id="automationNotes" name="automationNotes" placeholder="Add guidance, links, or data sources for the automation run."></textarea>
+                </div>
+                <div class="automation-field">
+                  <label for="automationNotifications">Notification channel</label>
+                  <input id="automationNotifications" name="automationNotifications" type="text" placeholder="E.g. #desk-automation or research@futurefunds.com" autocomplete="off" />
+                </div>
+              </div>
+            </section>
+          </form>
+        </div>
+        <footer class="modal__footer">
+          <span class="automation-footer__note">Automations save automatically when launched.</span>
+          <button type="button" class="btn ghost" id="cancelAutomationModal">Cancel</button>
+          <button type="submit" form="automationSettingsForm" class="btn primary">Save &amp; schedule</button>
+        </footer>
+      </div>
     </div>
 
     <div id="analysisTaskModal" class="modal" hidden role="dialog" aria-modal="true" aria-labelledby="analysisTaskTitle">
