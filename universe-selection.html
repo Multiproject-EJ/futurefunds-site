@@ -1,0 +1,1014 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Global Stock Coverage — Supabase MVP (Schema-adaptive v3)</title>
+  <!-- Tailwind (CDN for MVP). For production, precompile. -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Supabase JS v2 -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+  <style>
+    html, body { height:100%; background:#0b0f14; color:#eaf2ff; }
+    .card { background:#111827; border:1px solid #1f2937; border-radius:1rem; }
+    .muted { color:#9fb3c8; }
+    .chip { background:#1f2937; border:1px solid #2b3647; }
+    .ring { box-shadow:0 0 0 2px #1f2937 inset; }
+    .kbd { background:#0f172a; border:1px solid #334155; border-radius:6px; padding:2px 6px; font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+    pre.debug { white-space:pre-wrap; word-break:break-word; background:#0b1220; border:1px solid #1e293b; border-radius:12px; padding:12px; }
+  </style>
+</head>
+<body class="min-h-full">
+  <div class="max-w-7xl mx-auto p-6 space-y-6">
+    <!-- Header -->
+    <header class="flex items-center justify-between">
+      <div>
+        <h1 class="text-2xl font-bold">Global Stock Coverage</h1>
+        <p class="muted">Universe rotation + opportunity boost, backed by Supabase</p>
+      </div>
+      <div class="flex items-center gap-3">
+        <button id="btnSchema" class="px-4 py-2 rounded-xl chip hover:ring ring" title="Configure table &amp; column mapping">Schema</button>
+        <button id="btnLogin" class="px-4 py-2 rounded-xl chip hover:ring ring">Sign in</button>
+        <button id="btnLogout" class="hidden px-4 py-2 rounded-xl chip hover:ring ring">Sign out</button>
+      </div>
+    </header>
+
+    <!-- Environment Warning -->
+    <section id="envWarn" class="hidden card p-4 border-amber-500">
+      <div class="text-amber-400 font-semibold">Configuration needed</div>
+      <p class="muted text-sm mt-1">Replace <span class="kbd">SUPABASE_URL</span> and <span class="kbd">SUPABASE_ANON_KEY</span> in the script.</p>
+    </section>
+
+    <!-- Config Bar -->
+    <section class="card p-4 grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div>
+        <label class="block text-sm muted mb-1">Daily batch size</label>
+        <input id="inpK" type="number" min="1" max="200" value="20" class="w-full px-3 py-2 rounded-lg bg-gray-900 border border-gray-700" />
+      </div>
+      <div>
+        <label class="block text-sm muted mb-1">Freshness cutoff (days)</label>
+        <input id="inpFreshDays" type="number" min="1" max="90" value="14" class="w-full px-3 py-2 rounded-lg bg-gray-900 border border-gray-700" />
+      </div>
+      <div>
+        <label class="block text-sm muted mb-1">Country</label>
+        <select id="selCountry" class="w-full px-3 py-2 rounded-lg bg-gray-900 border border-gray-700">
+          <option value="">All</option>
+        </select>
+      </div>
+      <div>
+        <label class="block text-sm muted mb-1">Sector</label>
+        <select id="selSector" class="w-full px-3 py-2 rounded-lg bg-gray-900 border border-gray-700">
+          <option value="">All</option>
+        </select>
+      </div>
+      <div class="md:col-span-4 flex flex-wrap items-center gap-3">
+        <button id="btnPick" class="px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-500">Pick Today’s Batch</button>
+        <button id="btnRefresh" class="px-4 py-2 rounded-xl chip hover:ring">Refresh Universe</button>
+        <span id="lblStatus" class="muted"></span>
+      </div>
+    </section>
+
+    <!-- Coverage KPIs -->
+    <section class="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div class="card p-4">
+        <div class="muted text-sm">Bucket coverage (last 90d)</div>
+        <div class="text-3xl font-semibold" id="kpiCoverage">—</div>
+        <div class="h-2 bg-gray-800 rounded-full mt-2">
+          <div id="barCoverage" class="h-2 bg-sky-600 rounded-full" style="width:0%"></div>
+        </div>
+      </div>
+      <div class="card p-4">
+        <div class="muted text-sm">Median days since review (by bucket)</div>
+        <div class="text-3xl font-semibold" id="kpiMedianDays">—</div>
+      </div>
+      <div class="card p-4">
+        <div class="muted text-sm">Names reviewed last 30d</div>
+        <div class="text-3xl font-semibold" id="kpiNames30">—</div>
+      </div>
+    </section>
+
+    <!-- Picks Table -->
+    <section class="card p-4">
+      <div class="flex items-center justify-between mb-3">
+        <h2 class="text-xl font-semibold">Today’s Picks</h2>
+        <div class="muted text-sm" id="lblToday"></div>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="min-w-full text-sm">
+          <thead class="text-left muted border-b border-gray-800">
+            <tr>
+              <th class="py-2 pr-3">Ticker</th>
+              <th class="py-2 pr-3">Name</th>
+              <th class="py-2 pr-3">Bucket</th>
+              <th class="py-2 pr-3">Momentum</th>
+              <th class="py-2 pr-3">Quality</th>
+              <th class="py-2 pr-3">Value</th>
+              <th class="py-2 pr-3">Last Reviewed</th>
+            </tr>
+          </thead>
+          <tbody id="tblPicks"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Universe Table (paged) -->
+    <section class="card p-4">
+      <div class="flex items-center justify-between mb-3">
+        <h2 class="text-xl font-semibold">Universe (sample)</h2>
+        <div class="flex items-center gap-2">
+          <button id="btnPrev" class="px-3 py-1 rounded-lg chip">Prev</button>
+          <span id="lblPage" class="muted text-sm">—</span>
+          <button id="btnNext" class="px-3 py-1 rounded-lg chip">Next</button>
+        </div>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="min-w-full text-sm">
+          <thead class="text-left muted border-b border-gray-800">
+            <tr>
+              <th class="py-2 pr-3">Ticker</th>
+              <th class="py-2 pr-3">Name</th>
+              <th class="py-2 pr-3">Country</th>
+              <th class="py-2 pr-3">Sector</th>
+              <th class="py-2 pr-3">Bucket</th>
+              <th class="py-2 pr-3">ADV</th>
+              <th class="py-2 pr-3">Priority</th>
+              <th class="py-2 pr-3">Last Reviewed</th>
+            </tr>
+          </thead>
+          <tbody id="tblUniverse"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Diagnostics / Tests -->
+    <section class="card p-4">
+      <div class="flex items-center justify-between mb-3">
+        <h2 class="text-xl font-semibold">Diagnostics</h2>
+        <div class="flex items-center gap-2">
+          <button id="btnTests" class="px-3 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500">Run Self-Tests</button>
+          <span class="muted text-sm">Intended: some tests purposely trigger an error to demonstrate handling.</span>
+        </div>
+      </div>
+      <ul id="ulTests" class="list-disc pl-6 text-sm space-y-1"></ul>
+      <pre id="preDebug" class="debug mt-3">No errors yet.</pre>
+    </section>
+
+    <!-- Footer / Help -->
+    <footer class="muted text-xs space-y-2">
+      <p>
+        MVP notes: reads from a <code>universe</code>-like table (you can map your existing table/columns via the <strong>Schema</strong> button), writes today’s picks to <code>daily_picks</code> for the signed-in user.
+        For write-back of <code>last_reviewed_at</code> to your source table, use the provided SQL/RPC or adapt it to your schema.
+      </p>
+      <p class="muted">Tip: if you don't want to change your tables, create a <code>view</code> that exposes the expected columns, or use the in-app schema mapping to point to your existing columns.</p>
+    </footer>
+  </div>
+
+  <!-- Schema Mapper Modal -->
+  <div id="schemaModal" class="fixed inset-0 hidden items-center justify-center bg-black/50 z-50">
+    <div class="card p-5 w-full max-w-2xl">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-lg font-semibold">Schema Mapping</h3>
+        <button id="schemaClose" class="chip px-3 py-1">Close</button>
+      </div>
+      <p class="muted text-sm mb-3">Map app fields to your existing Supabase table and columns. Saved to <code>localStorage</code>.</p>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <label class="text-sm">Table name
+          <input id="map_table" class="w-full px-3 py-2 rounded-lg bg-gray-900 border border-gray-700 mt-1" placeholder="universe" />
+        </label>
+        <label class="text-sm">Primary key column (bigint)
+          <input id="map_id" class="w-full px-3 py-2 rounded-lg bg-gray-900 border border-gray-700 mt-1" placeholder="id" />
+        </label>
+        <label class="text-sm">Ticker column
+          <input id="map_ticker" class="w-full px-3 py-2 rounded-lg bg-gray-900 border border-gray-700 mt-1" placeholder="ticker" />
+        </label>
+        <label class="text-sm">Name column
+          <input id="map_name" class="w-full px-3 py-2 rounded-lg bg-gray-900 border border-gray-700 mt-1" placeholder="name" />
+        </label>
+        <label class="text-sm">Country column
+          <input id="map_country" class="w-full px-3 py-2 rounded-lg bg-gray-900 border border-gray-700 mt-1" placeholder="country" />
+        </label>
+        <label class="text-sm">Sector column
+          <input id="map_sector" class="w-full px-3 py-2 rounded-lg bg-gray-900 border border-gray-700 mt-1" placeholder="sector" />
+        </label>
+        <label class="text-sm">ADV (USD) column
+          <input id="map_adv" class="w-full px-3 py-2 rounded-lg bg-gray-900 border border-gray-700 mt-1" placeholder="adv_usd" />
+        </label>
+        <label class="text-sm">Price column
+          <input id="map_price" class="w-full px-3 py-2 rounded-lg bg-gray-900 border border-gray-700 mt-1" placeholder="price" />
+        </label>
+        <label class="text-sm">Primary listing? column
+          <input id="map_primary" class="w-full px-3 py-2 rounded-lg bg-gray-900 border border-gray-700 mt-1" placeholder="primary" />
+        </label>
+        <label class="text-sm">Excluded? column
+          <input id="map_excluded" class="w-full px-3 py-2 rounded-lg bg-gray-900 border border-gray-700 mt-1" placeholder="excluded" />
+        </label>
+        <label class="text-sm">Size decile (country) column
+          <input id="map_size" class="w-full px-3 py-2 rounded-lg bg-gray-900 border border-gray-700 mt-1" placeholder="size_decile_country" />
+        </label>
+        <label class="text-sm">Momentum z column
+          <input id="map_mom" class="w-full px-3 py-2 rounded-lg bg-gray-900 border border-gray-700 mt-1" placeholder="momentum_z" />
+        </label>
+        <label class="text-sm">Quality z column
+          <input id="map_qlt" class="w-full px-3 py-2 rounded-lg bg-gray-900 border border-gray-700 mt-1" placeholder="quality_z" />
+        </label>
+        <label class="text-sm">Value z column
+          <input id="map_val" class="w-full px-3 py-2 rounded-lg bg-gray-900 border border-gray-700 mt-1" placeholder="value_z" />
+        </label>
+        <label class="text-sm">Last reviewed at column (date)
+          <input id="map_last" class="w-full px-3 py-2 rounded-lg bg-gray-900 border border-gray-700 mt-1" placeholder="last_reviewed_at" />
+        </label>
+        <label class="text-sm">Bucket key column (optional)
+          <input id="map_bucket" class="w-full px-3 py-2 rounded-lg bg-gray-900 border border-gray-700 mt-1" placeholder="bucket_key" />
+        </label>
+        <label class="text-sm">Priority column (optional)
+          <input id="map_priority" class="w-full px-3 py-2 rounded-lg bg-gray-900 border border-gray-700 mt-1" placeholder="priority" />
+        </label>
+      </div>
+      <div class="flex items-center gap-2 mt-4">
+        <button id="schemaSave" class="px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-500">Save</button>
+        <button id="schemaReset" class="px-4 py-2 rounded-xl chip">Reset to defaults</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+(function(){
+  'use strict';
+
+  // ==========================
+  // 1) Supabase Client Setup
+  // ==========================
+  const SUPABASE_URL = 'https://YOUR-PROJECT.supabase.co'; // <-- replace
+  const SUPABASE_ANON_KEY = 'YOUR-ANON-KEY'; // <-- replace
+  const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  // ==========================
+  // Schema mapping (user-configurable)
+  // ==========================
+  const DEFAULT_SCHEMA_MAP = {
+    table: 'universe',
+    id: 'id',
+    ticker: 'ticker',
+    name: 'name',
+    country: 'country',
+    sector: 'sector',
+    adv_usd: 'adv_usd',
+    price: 'price',
+    primary: 'primary',
+    excluded: 'excluded',
+    size_decile_country: 'size_decile_country',
+    momentum_z: 'momentum_z',
+    quality_z: 'quality_z',
+    value_z: 'value_z',
+    last_reviewed_at: 'last_reviewed_at',
+    bucket_key: 'bucket_key',
+    priority: 'priority'
+  };
+
+  function loadSchemaMap() {
+    try {
+      return JSON.parse(localStorage.getItem('schemaMap') || '{}');
+    } catch (error) {
+      console.warn('Schema map parse error', error);
+      return {};
+    }
+  }
+
+  function saveSchemaMap(map) {
+    localStorage.setItem('schemaMap', JSON.stringify(map));
+  }
+
+  function getSchema() {
+    return { ...DEFAULT_SCHEMA_MAP, ...(loadSchemaMap() || {}) };
+  }
+
+  function col(key) {
+    const schema = getSchema();
+    return schema && schema[key] ? schema[key] : null;
+  }
+
+  function tbl() {
+    const schema = getSchema();
+    return schema.table || 'universe';
+  }
+
+  function field(row, schema, key) {
+    const column = schema[key];
+    return column ? row[column] : undefined;
+  }
+
+  // ---------- Global error capture (better stacks) ----------
+  window.addEventListener('error', (event) => {
+    reportError('window.onerror', { message: event.message, stack: event.error?.stack || `${event.filename}:${event.lineno}:${event.colno}` });
+  });
+
+  window.addEventListener('unhandledrejection', (event) => {
+    const reason = event.reason || { message: 'Unhandled promise rejection' };
+    reportError('unhandledrejection', reason);
+  });
+
+  // ---------- Error helpers (fixes "Error: [object Object]") ----------
+  const debugState = { lastError: null };
+
+  function normalizeError(error) {
+    if (!error) return { message: 'Unknown error', raw: null };
+    if (typeof error === 'string') return { message: error, raw: error };
+    if (error.message && typeof error.message === 'string') {
+      const extra = { code: error.code, details: error.details, hint: error.hint, status: error.status, stack: error.stack };
+      return { message: `${error.message}\n${JSON.stringify(extra, null, 2)}`, raw: { ...extra, error } };
+    }
+    try {
+      return { message: JSON.stringify(error, null, 2), raw: error };
+    } catch (stringifyError) {
+      return { message: String(error), raw: error };
+    }
+  }
+
+  function reportError(context, error, opts = {}) {
+    const normalized = normalizeError(error);
+    debugState.lastError = { context, ...normalized };
+    console.error(`[${context}] Error details:`, error);
+    const pre = document.getElementById('preDebug');
+    if (pre) {
+      const isTest = String(context).startsWith('test:');
+      const message = `Context: ${context}${isTest ? ' (expected in self-test)' : ''}\n${normalized.message}`;
+      pre.textContent = message;
+    }
+    const statusLabel = document.getElementById('lblStatus');
+    const isTestContext = String(context).startsWith('test:');
+    if (!opts.suppressStatus && !isTestContext && statusLabel) {
+      statusLabel.textContent = `⚠️ ${context} failed`;
+    }
+  }
+
+  // ---------- Auth + UI ----------
+  async function signIn() {
+    try {
+      const email = prompt('Enter your email for a magic link:');
+      if (!email) return;
+      const { error } = await sb.auth.signInWithOtp({ email });
+      if (error) return reportError('auth.signInWithOtp', error);
+      alert('Check your email for the sign-in link.');
+    } catch (error) {
+      reportError('auth.signInWithOtp(catch)', error);
+    }
+  }
+
+  async function signOut() {
+    try {
+      const { error } = await sb.auth.signOut();
+      if (error) return reportError('auth.signOut', error);
+      location.reload();
+    } catch (error) {
+      reportError('auth.signOut(catch)', error);
+    }
+  }
+
+  function updateAuthUI(session) {
+    const loggedIn = !!(session && session.user);
+    const loginBtn = document.getElementById('btnLogin');
+    const logoutBtn = document.getElementById('btnLogout');
+    if (loginBtn) loginBtn.classList.toggle('hidden', loggedIn);
+    if (logoutBtn) logoutBtn.classList.toggle('hidden', !loggedIn);
+  }
+
+  const el = (id) => document.getElementById(id);
+  const fmt = new Intl.NumberFormat('en', { maximumFractionDigits: 0 });
+  const fmtDec = new Intl.NumberFormat('en', { maximumFractionDigits: 2 });
+  let page = 1;
+  const PAGE_SIZE = 25;
+
+  async function loadFilters() {
+    try {
+      const schema = getSchema();
+      const table = tbl();
+      const countryCol = schema.country;
+      const sectorCol = schema.sector;
+      const countrySelect = el('selCountry');
+      const sectorSelect = el('selSector');
+      if (countrySelect) {
+        while (countrySelect.options.length > 1) {
+          countrySelect.remove(1);
+        }
+      }
+      if (sectorSelect) {
+        while (sectorSelect.options.length > 1) {
+          sectorSelect.remove(1);
+        }
+      }
+      if (!countryCol || !sectorCol) return;
+
+      const { data: countries, error: countryError } = await sb
+        .from(table)
+        .select(countryCol)
+        .not(countryCol, 'is', null)
+        .order(countryCol)
+        .limit(1000);
+      if (countryError) return reportError('loadFilters(countries)', countryError);
+      const uniqueCountries = [...new Set((countries || []).map((row) => row[countryCol]).filter(Boolean))];
+      uniqueCountries.forEach((country) => {
+        if (!countrySelect) return;
+        const option = document.createElement('option');
+        option.value = country;
+        option.textContent = country;
+        countrySelect.appendChild(option);
+      });
+
+      const { data: sectors, error: sectorError } = await sb
+        .from(table)
+        .select(sectorCol)
+        .not(sectorCol, 'is', null)
+        .order(sectorCol)
+        .limit(1000);
+      if (sectorError) return reportError('loadFilters(sectors)', sectorError);
+      const uniqueSectors = [...new Set((sectors || []).map((row) => row[sectorCol]).filter(Boolean))];
+      uniqueSectors.forEach((sector) => {
+        if (!sectorSelect) return;
+        const option = document.createElement('option');
+        option.value = sector;
+        option.textContent = sector;
+        sectorSelect.appendChild(option);
+      });
+    } catch (error) {
+      reportError('loadFilters(catch)', error);
+    }
+  }
+
+  async function fetchUniverse(p = 1) {
+    try {
+      const schema = getSchema();
+      const table = tbl();
+      const country = el('selCountry')?.value || '';
+      const sector = el('selSector')?.value || '';
+      const projection = [
+        schema.id,
+        schema.ticker,
+        schema.name,
+        schema.country,
+        schema.sector,
+        schema.adv_usd,
+        schema.priority,
+        schema.last_reviewed_at,
+        schema.price,
+        schema.primary,
+        schema.excluded,
+        schema.bucket_key,
+        schema.size_decile_country,
+        schema.momentum_z,
+        schema.quality_z,
+        schema.value_z
+      ]
+        .filter(Boolean)
+        .join(',');
+
+      let query = sb
+        .from(table)
+        .select(projection, { count: 'exact' })
+        .order(schema.ticker || schema.id)
+        .range((p - 1) * PAGE_SIZE, p * PAGE_SIZE - 1);
+
+      if (country && schema.country) query = query.eq(schema.country, country);
+      if (sector && schema.sector) query = query.eq(schema.sector, sector);
+
+      const { data, error, count } = await query;
+      if (error) {
+        reportError('fetchUniverse', error);
+        return { rows: [], count: 0 };
+      }
+      return { rows: data || [], count: count || 0 };
+    } catch (error) {
+      reportError('fetchUniverse(catch)', error);
+      return { rows: [], count: 0 };
+    }
+  }
+
+  function renderUniverse(rows, count) {
+    const tbody = el('tblUniverse');
+    if (!tbody) return;
+    tbody.innerHTML = '';
+    const schema = getSchema();
+
+    if (!rows || rows.length === 0) {
+      const tr = document.createElement('tr');
+      tr.innerHTML = '<td colspan="8" class="py-3 muted">No rows found. Check filters or data.</td>';
+      tbody.appendChild(tr);
+    } else {
+      rows.forEach((row) => {
+        const tr = document.createElement('tr');
+        const ticker = field(row, schema, 'ticker') ?? '';
+        const name = field(row, schema, 'name') ?? '';
+        const country = field(row, schema, 'country') ?? '';
+        const sector = field(row, schema, 'sector') ?? '';
+        const bucket = field(row, schema, 'bucket_key') ?? '';
+        const adv = field(row, schema, 'adv_usd');
+        const priority = field(row, schema, 'priority');
+        const lastReviewed = field(row, schema, 'last_reviewed_at');
+        tr.innerHTML = `
+          <td class="py-2 pr-3">${ticker}</td>
+          <td class="py-2 pr-3">${name}</td>
+          <td class="py-2 pr-3">${country}</td>
+          <td class="py-2 pr-3">${sector}</td>
+          <td class="py-2 pr-3">${bucket}</td>
+          <td class="py-2 pr-3">${adv ? fmt.format(Number(adv)) : ''}</td>
+          <td class="py-2 pr-3">${priority != null ? fmtDec.format(Number(priority)) : ''}</td>
+          <td class="py-2 pr-3">${lastReviewed ? new Date(lastReviewed).toISOString().slice(0, 10) : ''}</td>`;
+        tbody.appendChild(tr);
+      });
+    }
+    const label = el('lblPage');
+    if (label) {
+      const total = Number(count || 0).toLocaleString();
+      label.textContent = `Page ${page} • ${total} rows`;
+    }
+  }
+
+  async function computeKPIs() {
+    try {
+      const { data, error } = await sb.rpc('kpi_bucket_coverage', { days_window: 90 });
+      if (error) return reportError('kpi_bucket_coverage', error);
+      const row = Array.isArray(data) ? data[0] : data;
+      if (!row) return;
+      const coverage = Math.round(row.coverage_pct || 0);
+      const coverageEl = el('kpiCoverage');
+      const bar = el('barCoverage');
+      if (coverageEl) coverageEl.textContent = `${coverage}%`;
+      if (bar) bar.style.width = `${coverage}%`;
+      const median = el('kpiMedianDays');
+      if (median) median.textContent = Math.round(row.median_days || 0);
+      const names30 = el('kpiNames30');
+      if (names30) names30.textContent = Math.round(row.names_30d || 0);
+    } catch (error) {
+      reportError('computeKPIs(catch)', error);
+    }
+  }
+
+  function buildBucketKey(row, schema) {
+    const country = field(row, schema, 'country') || '?';
+    const sector = field(row, schema, 'sector') || '?';
+    const decile = field(row, schema, 'size_decile_country');
+    const decileLabel = decile != null ? `D${decile}` : 'D?';
+    return `${country} | ${sector} | ${decileLabel}`;
+  }
+
+  function scorePriority(row, schema) {
+    const momentum = Number(field(row, schema, 'momentum_z') || 0);
+    const quality = Number(field(row, schema, 'quality_z') || 0);
+    const value = Number(field(row, schema, 'value_z') || 0);
+    const lastReviewed = field(row, schema, 'last_reviewed_at');
+    const excluded = field(row, schema, 'excluded');
+    const daysSince = lastReviewed ? (Date.now() - new Date(lastReviewed).getTime()) / 86400000 : Infinity;
+    const staleness = Number.isFinite(daysSince) && daysSince > 45 ? 1 : 0;
+    return 0.4 * momentum + 0.3 * quality + 0.2 * value + 0.1 * staleness - 0.2 * (excluded ? 1 : 0);
+  }
+
+  async function loadRotationPointer() {
+    try {
+      const { data, error } = await sb
+        .from('rotation_state')
+        .select('bucket_ptr')
+        .eq('id', 1)
+        .maybeSingle();
+      if (error) {
+        reportError('rotation_state.read', error, { suppressStatus: true });
+        return 0;
+      }
+      return Number.isFinite(data?.bucket_ptr) ? Number(data.bucket_ptr) : 0;
+    } catch (error) {
+      reportError('rotation_state.read(catch)', error, { suppressStatus: true });
+      return 0;
+    }
+  }
+
+  async function saveRotationPointer(value) {
+    try {
+      const { error } = await sb.from('rotation_state').upsert({ id: 1, bucket_ptr: value });
+      if (error) {
+        reportError('rotation_state.upsert', error, { suppressStatus: true });
+      }
+    } catch (error) {
+      reportError('rotation_state.upsert(catch)', error, { suppressStatus: true });
+    }
+  }
+
+  async function pickDailyBatch() {
+    try {
+      const status = el('lblStatus');
+      if (status) status.textContent = 'Picking…';
+      const schema = getSchema();
+      const table = tbl();
+      const K = Number(el('inpK')?.value || 20);
+      const freshDays = Number(el('inpFreshDays')?.value || 14);
+      const country = el('selCountry')?.value || '';
+      const sector = el('selSector')?.value || '';
+
+      const projection = [
+        schema.id,
+        schema.ticker,
+        schema.name,
+        schema.country,
+        schema.sector,
+        schema.adv_usd,
+        schema.priority,
+        schema.last_reviewed_at,
+        schema.price,
+        schema.primary,
+        schema.excluded,
+        schema.bucket_key,
+        schema.size_decile_country,
+        schema.momentum_z,
+        schema.quality_z,
+        schema.value_z
+      ]
+        .filter(Boolean)
+        .join(',');
+
+      let query = sb.from(table).select(projection).limit(10000);
+      if (country && schema.country) query = query.eq(schema.country, country);
+      if (sector && schema.sector) query = query.eq(schema.sector, sector);
+      const { data: rows, error } = await query;
+      if (error) {
+        reportError('pickDailyBatch(load universe)', error);
+        if (status) status.textContent = 'Error loading universe';
+        return;
+      }
+
+      const pointerStart = await loadRotationPointer();
+      let pointer = pointerStart || 0;
+      const chosen = new Set();
+
+      const eligible = (rows || [])
+        .map((row) => {
+          const adv = Number(field(row, schema, 'adv_usd') || 0);
+          const price = Number(field(row, schema, 'price') || 0);
+          const isPrimary = field(row, schema, 'primary');
+          const isExcluded = field(row, schema, 'excluded');
+          const lastReviewed = field(row, schema, 'last_reviewed_at');
+          const bucket = field(row, schema, 'bucket_key') || buildBucketKey(row, schema);
+          const basePriority = field(row, schema, 'priority');
+          const ticker = field(row, schema, 'ticker');
+          const name = field(row, schema, 'name');
+          const momentum = Number(field(row, schema, 'momentum_z') || 0);
+          const quality = Number(field(row, schema, 'quality_z') || 0);
+          const value = Number(field(row, schema, 'value_z') || 0);
+          const id = field(row, schema, 'id');
+          return {
+            _raw: row,
+            _id: id,
+            ticker,
+            name,
+            bucket_key: bucket,
+            adv_usd: adv,
+            priority: basePriority != null ? Number(basePriority) : scorePriority(row, schema),
+            last_reviewed_at: lastReviewed,
+            price,
+            primary: isPrimary,
+            excluded: isExcluded,
+            momentum_z: momentum,
+            quality_z: quality,
+            value_z: value
+          };
+        })
+        .filter((item) => {
+          if (!item) return false;
+          if (item.excluded) return false;
+          if (!item.primary) return false;
+          if (!item.bucket_key) return false;
+          return item.price >= 0.5 && item.adv_usd >= 100000;
+        });
+
+      const buckets = [...new Set(eligible.map((item) => item.bucket_key))];
+
+      const pickOldestInBucket = (bucket) => {
+        const candidates = eligible
+          .filter((item) => item.bucket_key === bucket && !chosen.has(item._id))
+          .sort((a, b) => {
+            const aDate = a.last_reviewed_at ? new Date(a.last_reviewed_at).getTime() : 0;
+            const bDate = b.last_reviewed_at ? new Date(b.last_reviewed_at).getTime() : 0;
+            return aDate - bDate;
+          });
+        return candidates[0];
+      };
+
+      const passAQuota = Math.max(0, Math.floor(K * 0.5));
+      let need = passAQuota;
+      let safety = buckets.length * 3;
+      while (need > 0 && buckets.length && safety > 0) {
+        const bucket = buckets[pointer % buckets.length];
+        const pick = pickOldestInBucket(bucket);
+        pointer += 1;
+        safety -= 1;
+        if (!pick) continue;
+        chosen.add(pick._id);
+        need -= 1;
+      }
+
+      if (buckets.length) {
+        await saveRotationPointer(pointer % buckets.length);
+      }
+
+      const cutoff = Date.now() - freshDays * 86400000;
+      const passBQuota = Math.max(0, Math.floor(K * 0.3));
+      eligible
+        .filter((item) => !chosen.has(item._id) && (!item.last_reviewed_at || new Date(item.last_reviewed_at).getTime() <= cutoff))
+        .sort((a, b) => (b.priority || 0) - (a.priority || 0))
+        .slice(0, passBQuota)
+        .forEach((item) => {
+          chosen.add(item._id);
+        });
+
+      const remaining = K - chosen.size;
+      if (remaining > 0) {
+        const pool = eligible.filter((item) => !chosen.has(item._id));
+        for (let i = 0; i < remaining && pool.length; i += 1) {
+          const index = Math.floor(Math.random() * pool.length);
+          const [pick] = pool.splice(index, 1);
+          if (pick) {
+            chosen.add(pick._id);
+          }
+        }
+      }
+
+      const picks = eligible.filter((item) => chosen.has(item._id));
+      await saveDailyPicks(picks);
+      renderPicks(picks);
+      if (status) status.textContent = `Picked ${picks.length} names.`;
+    } catch (error) {
+      reportError('pickDailyBatch(catch)', error);
+    }
+  }
+
+  async function saveDailyPicks(picks) {
+    try {
+      if (!picks || picks.length === 0) return;
+      const today = new Date().toISOString().slice(0, 10);
+      const rows = picks
+        .map((item) => ({
+          date: today,
+          universe_id: item._id
+        }))
+        .filter((row) => row.universe_id != null);
+      if (!rows.length) return;
+      const { error } = await sb.from('daily_picks').insert(rows);
+      if (error) reportError('daily_picks.insert', error, { suppressStatus: true });
+    } catch (error) {
+      reportError('saveDailyPicks(catch)', error, { suppressStatus: true });
+    }
+  }
+
+  function renderPicks(rows) {
+    const tbody = el('tblPicks');
+    if (!tbody) return;
+    tbody.innerHTML = '';
+    const todayLabel = el('lblToday');
+    if (todayLabel) {
+      todayLabel.textContent = new Date().toISOString().slice(0, 10);
+    }
+    if (!rows || rows.length === 0) {
+      const tr = document.createElement('tr');
+      tr.innerHTML = '<td colspan="7" class="py-3 muted">No picks yet.</td>';
+      tbody.appendChild(tr);
+      return;
+    }
+    rows.forEach((row) => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td class="py-2 pr-3">${row.ticker || ''}</td>
+        <td class="py-2 pr-3">${row.name || ''}</td>
+        <td class="py-2 pr-3">${row.bucket_key || ''}</td>
+        <td class="py-2 pr-3">${fmtDec.format(Number(row.momentum_z || 0))}</td>
+        <td class="py-2 pr-3">${fmtDec.format(Number(row.quality_z || 0))}</td>
+        <td class="py-2 pr-3">${fmtDec.format(Number(row.value_z || 0))}</td>
+        <td class="py-2 pr-3">${row.last_reviewed_at ? new Date(row.last_reviewed_at).toISOString().slice(0, 10) : ''}</td>`;
+      tbody.appendChild(tr);
+    });
+  }
+
+  function addTestResult(message, ok, extra = '') {
+    const list = el('ulTests');
+    if (!list) return;
+    const li = document.createElement('li');
+    li.innerHTML = `${ok ? '✅' : '❌'} ${message}${extra ? ` — <span class="muted">${extra}</span>` : ''}`;
+    list.appendChild(li);
+  }
+
+  async function runSelfTests() {
+    const list = el('ulTests');
+    if (list) list.innerHTML = '';
+    const envConfigured = !SUPABASE_URL.includes('YOUR-PROJECT') && SUPABASE_ANON_KEY !== 'YOUR-ANON-KEY';
+    addTestResult('Environment configured', envConfigured, envConfigured ? '' : 'Set SUPABASE_URL and SUPABASE_ANON_KEY');
+
+    const schema = getSchema();
+    const table = tbl();
+    const idColumn = schema.id || 'id';
+
+    try {
+      const { data, error, count } = await sb.from(table).select(idColumn, { count: 'exact' }).limit(1);
+      if (error) {
+        reportError('test:universe.read', error, { suppressStatus: true });
+        addTestResult('Universe readable', false, 'See error panel');
+      } else {
+        addTestResult('Universe readable', true, `${count ?? data?.length ?? 0} rows available`);
+      }
+    } catch (error) {
+      reportError('test:universe.read(catch)', error, { suppressStatus: true });
+      addTestResult('Universe readable', false);
+    }
+
+    try {
+      const { data, error } = await sb.rpc('kpi_bucket_coverage', { days_window: 7 });
+      if (error) {
+        reportError('test:kpi.rpc', error, { suppressStatus: true });
+        addTestResult('KPI RPC callable', false, 'Missing function or RLS');
+      } else {
+        const row = Array.isArray(data) ? data[0] : data;
+        const ok = row && ['coverage_pct', 'median_days', 'names_30d'].every((key) => key in row);
+        addTestResult('KPI RPC returns expected fields', !!ok, ok ? '' : 'Unexpected shape');
+      }
+    } catch (error) {
+      reportError('test:kpi.rpc(catch)', error, { suppressStatus: true });
+      addTestResult('KPI RPC callable', false);
+    }
+
+    try {
+      const { error } = await sb.from('universe____nope').select('*').limit(1);
+      addTestResult('Error capture demo (expected)', !!error, 'Should show an error in panel');
+      if (error) reportError('test:error.capture', error, { suppressStatus: true });
+    } catch (error) {
+      reportError('test:error.capture(catch)', error, { suppressStatus: true });
+      addTestResult('Error capture demo threw (caught)', true);
+    }
+
+    try {
+      const { data: sessionData } = await sb.auth.getSession();
+      if (sessionData?.session?.user) {
+        const { error } = await sb.from('rotation_state').upsert({ id: 1, bucket_ptr: 0 });
+        addTestResult('rotation_state upsert (auth required)', !error, error ? 'RLS blocked or table missing' : 'ok');
+        if (error) reportError('test:rotation.upsert', error, { suppressStatus: true });
+      } else {
+        addTestResult('rotation_state upsert (auth required)', false, 'Not signed in');
+      }
+    } catch (error) {
+      reportError('test:rotation.upsert(catch)', error, { suppressStatus: true });
+      addTestResult('rotation_state upsert', false);
+    }
+
+    try {
+      const today = new Date().toISOString().slice(0, 10);
+      const { error } = await sb.from('daily_picks').insert([{ date: today, universe_id: -1 }]);
+      addTestResult('daily_picks insert permission/constraint', !!error, error ? 'Failure expected without proper setup' : 'Inserted (ok if using test row)');
+      if (error) reportError('test:daily_picks.insert', error, { suppressStatus: true });
+    } catch (error) {
+      reportError('test:daily_picks.insert(catch)', error, { suppressStatus: true });
+      addTestResult('daily_picks insert threw (caught)', true);
+    }
+
+    try {
+      const bucketCol = schema.bucket_key;
+      if (!bucketCol) {
+        addTestResult('Schema: bucket_key selectable', false, 'Configure bucket_key mapping');
+      } else {
+        const { data, error } = await sb.from(table).select(bucketCol).limit(1);
+        const ok = !error && Array.isArray(data);
+        addTestResult('Schema: bucket_key selectable', ok, ok ? '' : 'Missing generated column');
+        if (error) reportError('test:schema.bucket_key', error, { suppressStatus: true });
+      }
+    } catch (error) {
+      reportError('test:schema.bucket_key(catch)', error, { suppressStatus: true });
+      addTestResult('Schema: bucket_key selectable threw (caught)', false);
+    }
+  }
+
+  async function refreshAll() {
+    const status = el('lblStatus');
+    if (status) status.textContent = 'Loading…';
+    const envOk = !SUPABASE_URL.includes('YOUR-PROJECT') && SUPABASE_ANON_KEY !== 'YOUR-ANON-KEY';
+    const warn = el('envWarn');
+    if (warn) warn.classList.toggle('hidden', envOk);
+
+    await loadFilters();
+    const result = await fetchUniverse(page);
+    renderUniverse(result.rows, result.count);
+    await computeKPIs();
+    if (status) status.textContent = '';
+  }
+
+  function populateSchemaForm() {
+    const schema = getSchema();
+    const assign = (id, value) => {
+      const input = document.getElementById(id);
+      if (input) input.value = value || '';
+    };
+    assign('map_table', schema.table);
+    assign('map_id', schema.id);
+    assign('map_ticker', schema.ticker);
+    assign('map_name', schema.name);
+    assign('map_country', schema.country);
+    assign('map_sector', schema.sector);
+    assign('map_adv', schema.adv_usd);
+    assign('map_price', schema.price);
+    assign('map_primary', schema.primary);
+    assign('map_excluded', schema.excluded);
+    assign('map_size', schema.size_decile_country);
+    assign('map_mom', schema.momentum_z);
+    assign('map_qlt', schema.quality_z);
+    assign('map_val', schema.value_z);
+    assign('map_last', schema.last_reviewed_at);
+    assign('map_bucket', schema.bucket_key);
+    assign('map_priority', schema.priority);
+  }
+
+  function readSchemaForm() {
+    const value = (id, fallback) => {
+      const input = document.getElementById(id);
+      const v = (input?.value || '').trim();
+      return v || fallback;
+    };
+    return {
+      table: value('map_table', 'universe'),
+      id: value('map_id', 'id'),
+      ticker: value('map_ticker', 'ticker'),
+      name: value('map_name', 'name'),
+      country: value('map_country', 'country'),
+      sector: value('map_sector', 'sector'),
+      adv_usd: value('map_adv', 'adv_usd'),
+      price: value('map_price', 'price'),
+      primary: value('map_primary', 'primary'),
+      excluded: value('map_excluded', 'excluded'),
+      size_decile_country: value('map_size', 'size_decile_country'),
+      momentum_z: value('map_mom', 'momentum_z'),
+      quality_z: value('map_qlt', 'quality_z'),
+      value_z: value('map_val', 'value_z'),
+      last_reviewed_at: value('map_last', 'last_reviewed_at'),
+      bucket_key: value('map_bucket', 'bucket_key'),
+      priority: value('map_priority', 'priority')
+    };
+  }
+
+  // ===========================
+  // 7) Wire up and initialize
+  // ===========================
+  sb.auth.onAuthStateChange((_event, session) => {
+    updateAuthUI(session);
+  });
+
+  document.addEventListener('DOMContentLoaded', async () => {
+    el('btnLogin')?.addEventListener('click', signIn);
+    el('btnLogout')?.addEventListener('click', signOut);
+    el('btnRefresh')?.addEventListener('click', async () => {
+      const result = await fetchUniverse(page);
+      renderUniverse(result.rows, result.count);
+    });
+    el('btnPick')?.addEventListener('click', pickDailyBatch);
+    el('btnPrev')?.addEventListener('click', async () => {
+      if (page > 1) {
+        page -= 1;
+        const result = await fetchUniverse(page);
+        renderUniverse(result.rows, result.count);
+      }
+    });
+    el('btnNext')?.addEventListener('click', async () => {
+      page += 1;
+      const result = await fetchUniverse(page);
+      if (!result.rows || result.rows.length === 0) {
+        page = Math.max(1, page - 1);
+      }
+      renderUniverse(result.rows, result.count);
+    });
+    el('btnTests')?.addEventListener('click', runSelfTests);
+
+    const modal = document.getElementById('schemaModal');
+    el('btnSchema')?.addEventListener('click', () => {
+      populateSchemaForm();
+      modal?.classList.remove('hidden');
+      modal?.classList.add('flex');
+    });
+    document.getElementById('schemaClose')?.addEventListener('click', () => {
+      modal?.classList.add('hidden');
+      modal?.classList.remove('flex');
+    });
+    document.getElementById('schemaReset')?.addEventListener('click', () => {
+      saveSchemaMap(DEFAULT_SCHEMA_MAP);
+      populateSchemaForm();
+    });
+    document.getElementById('schemaSave')?.addEventListener('click', () => {
+      const map = readSchemaForm();
+      saveSchemaMap(map);
+      modal?.classList.add('hidden');
+      modal?.classList.remove('flex');
+      refreshAll();
+    });
+
+    try {
+      const { data } = await sb.auth.getSession();
+      updateAuthUI(data?.session);
+    } catch (error) {
+      console.warn('Session fetch failed', error);
+    }
+
+    populateSchemaForm();
+    await refreshAll();
+  });
+})();
+</script>
+</body>
+</html>
