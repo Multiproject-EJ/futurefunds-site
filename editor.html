@@ -38,6 +38,13 @@
     @media (min-width:768px){.coverage-meta__layout{grid-template-columns:minmax(0,1.2fr) minmax(0,.8fr);align-items:start}}
     .coverage-meta__fields{display:grid;gap:18px;grid-template-columns:1fr;height:100%}
     .coverage-meta__form-card{display:grid;gap:16px;padding:18px;border:1px solid var(--border,#e5e7eb);border-radius:14px;background:var(--panel-muted,#f8fafc);height:100%;transition:box-shadow .2s ease,border-color .2s ease}
+    .coverage-meta__counter-field{margin-top:4px}
+    .coverage-meta__counter-card{display:flex;align-items:center;justify-content:space-between;gap:18px;width:100%;padding:14px 16px;border:1px dashed rgba(37,99,235,.35);border-radius:14px;background:rgba(37,99,235,.08);color:var(--text,#0f172a);text-align:left;cursor:pointer;transition:transform .15s ease,box-shadow .15s ease,border-color .15s ease}
+    .coverage-meta__counter-card:hover,.coverage-meta__counter-card:focus-visible{border-color:var(--accent,#2563eb);box-shadow:0 12px 24px rgba(37,99,235,.18);transform:translateY(-1px);outline:none}
+    .coverage-meta__counter-info{display:grid;gap:4px}
+    .coverage-meta__counter-label{margin:0;font-size:.85rem;font-weight:600;color:var(--accent,#2563eb)}
+    .coverage-meta__counter-description{margin:0;font-size:.82rem;color:var(--muted,#475569)}
+    .coverage-meta__counter-value{font-size:1.4rem;font-weight:700;color:var(--text,#0f172a)}
     .coverage-meta__optional{opacity:.6;filter:saturate(.85);transition:opacity .2s ease,filter .2s ease}
     .coverage-meta__optional input{background:rgba(148,163,184,.12);border-color:rgba(148,163,184,.3);transition:background .2s ease,border-color .2s ease,box-shadow .2s ease}
     .coverage-meta__form-card--has-company .coverage-meta__optional{opacity:1;filter:none}
@@ -228,10 +235,18 @@
     .modal[hidden]{display:none}
     .modal__backdrop{position:absolute;inset:0;background:rgba(15,23,42,.55)}
     .modal__dialog{position:relative;background:var(--panel,#fff);color:var(--text,#0f172a);border-radius:18px;max-width:960px;width:100%;max-height:90vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 24px 60px rgba(15,23,42,.28)}
+    .modal__dialog--counter{max-width:780px}
     .modal__header,.modal__footer{padding:18px 24px;border-color:var(--border,#e5e7eb);display:flex;align-items:center}
     .modal__header{justify-content:space-between;border-bottom:1px solid var(--border,#e5e7eb);gap:12px}
     .modal__footer{justify-content:flex-end;gap:12px;border-top:1px solid var(--border,#e5e7eb)}
     .modal__body{display:grid;grid-template-columns:260px 1fr;gap:0;min-height:420px}
+    .modal__body--counter{display:grid;gap:18px;padding:24px}
+    .prompt-counter__grid{display:grid;gap:18px}
+    @media (min-width:640px){.prompt-counter__grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+    .prompt-counter__card{border:1px solid var(--border,#e5e7eb);border-radius:16px;padding:18px;background:var(--panel-muted,#f8fafc);display:grid;gap:12px}
+    .prompt-counter__value{font-size:2.2rem;font-weight:700;color:var(--accent,#2563eb)}
+    .prompt-counter__meta{margin:0;color:var(--muted,#475569);font-size:.85rem}
+    .prompt-counter__list{margin:0;padding-left:18px;color:var(--muted,#475569);font-size:.9rem;display:grid;gap:6px}
     .modal__sidebar{background:var(--panel-muted,#f8fafc);border-right:1px solid var(--border,#e5e7eb);padding:18px;overflow:auto}
     .modal__content{padding:18px;overflow:auto;display:grid;gap:16px}
     .modal__dialog--task{max-width:1020px;width:100%}
@@ -407,6 +422,21 @@
                 </div>
                 <p class="coverage-meta__hint">Only the company name is required to run a prompt.</p>
                 <p class="coverage-meta__hint">What can I help you with?</p>
+                <div class="coverage-meta__field coverage-meta__counter-field">
+                  <button
+                    type="button"
+                    class="coverage-meta__counter-card"
+                    id="openPromptCounter"
+                    aria-haspopup="dialog"
+                    aria-controls="promptCounterModal"
+                  >
+                    <div class="coverage-meta__counter-info">
+                      <p class="coverage-meta__counter-label">Universe Selection</p>
+                      <p class="coverage-meta__counter-description">Preview desk activity before launching new coverage.</p>
+                    </div>
+                    <span class="coverage-meta__counter-value" data-prompt-counter-value aria-live="polite">128</span>
+                  </button>
+                </div>
               </div>
             </div>
             <aside class="coverage-meta__aside" aria-label="Automation workspace launcher">
@@ -1088,6 +1118,24 @@
         <button type="button" class="btn ghost" id="cancelPromptEditor">Cancel</button>
         <button type="submit" class="btn primary" form="promptEditorForm" id="savePromptEditor">Save prompt</button>
       </footer>
+    </div>
+  </div>
+
+  <div
+    id="promptCounterModal"
+    class="modal"
+    hidden
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="promptCounterTitle"
+  >
+    <div class="modal__backdrop" data-close-counter aria-hidden="true"></div>
+    <div class="modal__dialog modal__dialog--counter">
+      <header class="modal__header">
+        <h2 id="promptCounterTitle">Universe Selection</h2>
+        <button type="button" class="btn small ghost" id="closePromptCounter">Close</button>
+      </header>
+      <div class="modal__body modal__body--counter"></div>
     </div>
   </div>
 

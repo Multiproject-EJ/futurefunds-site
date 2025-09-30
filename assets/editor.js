@@ -325,6 +325,12 @@ async function initEditor() {
   const costModalBackdrop = costModal?.querySelector('[data-close-cost]');
   const costModalCloseBtn = document.getElementById('closeCostModal');
   const costModalFooterCloseBtn = document.getElementById('closeCostModalFooter');
+  const promptCounterButton = document.getElementById('openPromptCounter');
+  const promptCounterModal = document.getElementById('promptCounterModal');
+  const promptCounterBackdrop = promptCounterModal?.querySelector('[data-close-counter]');
+  const promptCounterCloseBtn = document.getElementById('closePromptCounter');
+  const promptCounterValueElements = Array.from(document.querySelectorAll('[data-prompt-counter-value]'));
+  const promptCounterAverageElement = document.querySelector('[data-prompt-counter-average]');
   const costRefreshBtn = document.getElementById('refreshCostBalance');
   const costCaptureBtn = document.getElementById('captureCostSnapshot');
   const costClearBtn = document.getElementById('clearCostSnapshots');
@@ -364,6 +370,8 @@ async function initEditor() {
   const AI_PROMPT_STORAGE = 'ff-editor-ai-prompt';
   const COST_SNAPSHOTS_STORAGE = 'ff-editor-cost-snapshots';
   const MAX_COST_SNAPSHOTS = 20;
+  const PROMPT_COUNTER_PLACEHOLDER = 128;
+  const PROMPT_COUNTER_AVERAGE_PLACEHOLDER = '42k';
 
   let promptOptions = [];
   let modelOptions = [];
@@ -385,6 +393,7 @@ async function initEditor() {
   let lastCostResult = null;
   let isFetchingCostBalance = false;
   const taskLaunchSubtitleDefault = (taskLaunchSubtitle?.textContent || '').trim();
+  let lastPromptCounterTrigger = null;
 
   const taskLaunchCardStates = taskLaunchButtons.map((btn, index) => {
     const id = Number.parseInt(btn.dataset.taskId || '', 10) || index + 1;
@@ -1016,6 +1025,49 @@ async function initEditor() {
     setCostStatus('Snapshot saved locally.', 'success');
   };
 
+  const syncPromptCounterDisplay = () => {
+    const placeholder = PROMPT_COUNTER_PLACEHOLDER;
+    const formatted = Number.isFinite(placeholder) ? placeholder.toLocaleString('en-US') : String(placeholder);
+    promptCounterValueElements.forEach((el) => {
+      if (el) el.textContent = formatted;
+    });
+    if (promptCounterAverageElement) {
+      promptCounterAverageElement.textContent = PROMPT_COUNTER_AVERAGE_PLACEHOLDER;
+    }
+  };
+
+  const openPromptCounterModal = (triggerBtn = null) => {
+    if (!promptCounterModal) return;
+    if (triggerBtn) {
+      lastPromptCounterTrigger = triggerBtn;
+    }
+    syncPromptCounterDisplay();
+    promptCounterModal.hidden = false;
+    lockBodyScroll();
+    requestAnimationFrame(() => {
+      const focusTarget = promptCounterModal.querySelector('[data-counter-focus]') || promptCounterCloseBtn;
+      if (focusTarget && typeof focusTarget.focus === 'function') {
+        focusTarget.focus();
+      }
+    });
+  };
+
+  const closePromptCounterModal = () => {
+    if (!promptCounterModal || promptCounterModal.hidden) return;
+    promptCounterModal.hidden = true;
+    unlockBodyScroll();
+    const focusTarget = lastPromptCounterTrigger || promptCounterButton;
+    if (focusTarget) {
+      setTimeout(() => {
+        try {
+          focusTarget.focus();
+        } catch (error) {
+          console.warn('Prompt counter focus failed', error);
+        }
+      }, 30);
+    }
+  };
+
   const openCostModal = () => {
     if (!costModal) return;
     costModal.hidden = false;
@@ -1098,6 +1150,7 @@ async function initEditor() {
   };
 
   updateAutomationStatsDisplay();
+  syncPromptCounterDisplay();
   toggleAutomationSequence();
   loadCostSnapshots();
   syncCostProviderLabel();
@@ -2323,6 +2376,24 @@ async function initEditor() {
     });
   }
 
+  if (promptCounterButton) {
+    promptCounterButton.addEventListener('click', () => {
+      openPromptCounterModal(promptCounterButton);
+    });
+  }
+
+  if (promptCounterBackdrop) {
+    promptCounterBackdrop.addEventListener('click', () => {
+      closePromptCounterModal();
+    });
+  }
+
+  if (promptCounterCloseBtn) {
+    promptCounterCloseBtn.addEventListener('click', () => {
+      closePromptCounterModal();
+    });
+  }
+
   if (costCaptureBtn) {
     costCaptureBtn.addEventListener('click', () => {
       captureCostSnapshot();
@@ -2452,6 +2523,10 @@ async function initEditor() {
   document.addEventListener('keydown', (event) => {
     if (event.key === 'Escape') {
       closePromptMenu();
+      if (!promptCounterModal?.hidden) {
+        closePromptCounterModal();
+        return;
+      }
       if (!costModal?.hidden) {
         closeCostModal();
         return;
