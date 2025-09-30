@@ -311,6 +311,15 @@ async function initEditor() {
   const aiSettingsPrompt = document.getElementById('aiSettingsPrompt');
   const aiSettingsKey = document.getElementById('aiSettingsKey');
   const coverageFormCard = document.querySelector('.coverage-meta__form-card');
+  const automationLaunchButtons = Array.from(document.querySelectorAll('[data-automation-modal-target="automationSettingsModal"]'));
+  const automationModal = document.getElementById('automationSettingsModal');
+  const automationModalBackdrop = automationModal?.querySelector('[data-close-automation]');
+  const automationModalCloseBtn = document.getElementById('closeAutomationModal');
+  const automationModalCancelBtn = document.getElementById('cancelAutomationModal');
+  const automationSettingsForm = document.getElementById('automationSettingsForm');
+  const automationSequenceGroup = document.getElementById('automationSequenceGroup');
+  const automationModeInputs = Array.from(document.querySelectorAll('input[name="automationMode"]'));
+  const automationStatsGroups = Array.from(document.querySelectorAll('.automation-stats[data-scheduled]'));
 
   const syncCoverageOptionalState = () => {
     if (!coverageFormCard) return;
@@ -359,6 +368,134 @@ async function initEditor() {
 
   let isTaskLaunchLocked = false;
   let lastTaskLaunchTrigger = null;
+  let lastAutomationTrigger = null;
+  const automationStatsDefaults = new Map();
+
+  automationStatsGroups.forEach((group) => {
+    const scheduledMetaEl = group.querySelector('[data-automation-field="scheduled-meta"]');
+    const errorMetaEl = group.querySelector('[data-automation-field="error-meta"]');
+    automationStatsDefaults.set(group, {
+      scheduledMeta: group.dataset.scheduledMeta || (scheduledMetaEl?.textContent || '').trim(),
+      errorMeta: group.dataset.errorMeta || (errorMetaEl?.textContent || '').trim(),
+    });
+  });
+
+  const updateAutomationStatsDisplay = () => {
+    automationStatsGroups.forEach((group) => {
+      const scheduledRaw = group.dataset.scheduled ?? '';
+      const errorsRaw = group.dataset.errors ?? '';
+      const scheduled = Number.parseInt(scheduledRaw, 10);
+      const errors = Number.parseInt(errorsRaw, 10);
+      const scheduledValueEl = group.querySelector('[data-automation-field="scheduled-value"]');
+      if (scheduledValueEl) {
+        scheduledValueEl.textContent = Number.isFinite(scheduled)
+          ? scheduled.toLocaleString()
+          : scheduledRaw || '—';
+      }
+      const scheduledMetaEl = group.querySelector('[data-automation-field="scheduled-meta"]');
+      if (scheduledMetaEl) {
+        const defaultMeta = automationStatsDefaults.get(group)?.scheduledMeta || '';
+        const scheduledMeta = group.dataset.scheduledMeta || defaultMeta;
+        scheduledMetaEl.textContent = scheduledMeta;
+      }
+
+      const errorIconEl = group.querySelector('[data-automation-field="error-icon"]');
+      const errorValueEl = group.querySelector('[data-automation-field="error-value"]');
+      const errorMetaEl = group.querySelector('[data-automation-field="error-meta"]');
+
+      if (errorValueEl) {
+        if (Number.isFinite(errors)) {
+          if (errors > 0) {
+            errorValueEl.textContent = `${errors.toLocaleString()} issue${errors === 1 ? '' : 's'}`;
+            errorValueEl.classList.add('automation-stats__value--warn');
+          } else {
+            errorValueEl.textContent = '0 issues';
+            errorValueEl.classList.remove('automation-stats__value--warn');
+          }
+        } else {
+          errorValueEl.textContent = errorsRaw || '—';
+          errorValueEl.classList.toggle('automation-stats__value--warn', !!errorsRaw && errorsRaw !== '0');
+        }
+      }
+
+      if (errorIconEl) {
+        if (Number.isFinite(errors) && errors > 0) {
+          errorIconEl.textContent = '⚠';
+          errorIconEl.setAttribute('data-state', 'warn');
+        } else {
+          errorIconEl.textContent = '✔';
+          errorIconEl.removeAttribute('data-state');
+        }
+      }
+
+      if (errorMetaEl) {
+        const defaultMeta = automationStatsDefaults.get(group)?.errorMeta || '';
+        if (Number.isFinite(errors) && errors > 0) {
+          errorMetaEl.textContent = 'Investigate before next run';
+          errorMetaEl.classList.add('automation-stats__meta--warn');
+        } else {
+          const meta = group.dataset.errorMeta || defaultMeta;
+          errorMetaEl.textContent = meta;
+          errorMetaEl.classList.remove('automation-stats__meta--warn');
+        }
+      }
+    });
+  };
+
+  const toggleAutomationSequence = () => {
+    if (!automationSequenceGroup) return;
+    const isSequence = automationModeInputs.some((input) => input.checked && input.value === 'sequence');
+    automationSequenceGroup.hidden = !isSequence;
+    automationStatsGroups.forEach((group) => {
+      if (isSequence) {
+        group.dataset.scheduledMeta = 'Sequence builder ready';
+        group.dataset.errorMeta = group.dataset.errorMeta || automationStatsDefaults.get(group)?.errorMeta || '';
+      } else {
+        const defaults = automationStatsDefaults.get(group) || {};
+        if (defaults.scheduledMeta) {
+          group.dataset.scheduledMeta = defaults.scheduledMeta;
+        } else {
+          delete group.dataset.scheduledMeta;
+        }
+        if (defaults.errorMeta) {
+          group.dataset.errorMeta = defaults.errorMeta;
+        } else {
+          delete group.dataset.errorMeta;
+        }
+      }
+    });
+    updateAutomationStatsDisplay();
+  };
+
+  const openAutomationModal = (triggerBtn = null) => {
+    if (!automationModal) return;
+    if (triggerBtn) {
+      lastAutomationTrigger = triggerBtn;
+    }
+    automationModal.hidden = false;
+    lockBodyScroll();
+    requestAnimationFrame(() => {
+      const firstField = automationSettingsForm?.querySelector('input, select, textarea, button');
+      if (firstField && typeof firstField.focus === 'function') {
+        firstField.focus();
+      }
+    });
+  };
+
+  const closeAutomationModal = () => {
+    if (!automationModal || automationModal.hidden) return;
+    automationModal.hidden = true;
+    unlockBodyScroll();
+    if (lastAutomationTrigger) {
+      setTimeout(() => {
+        try {
+          lastAutomationTrigger.focus();
+        } catch (error) {
+          console.warn('Automation trigger focus failed', error);
+        }
+      }, 30);
+    }
+  };
 
   const updateTaskTitle = () => {
     if (!taskTitle) return;
@@ -381,6 +518,9 @@ async function initEditor() {
       btn.setAttribute('aria-label', label);
     });
   };
+
+  updateAutomationStatsDisplay();
+  toggleAutomationSequence();
 
   if (!form || !locked) return;
 
@@ -1568,6 +1708,44 @@ async function initEditor() {
     });
   }
 
+  automationLaunchButtons.forEach((btn) => {
+    btn.addEventListener('click', () => {
+      openAutomationModal(btn);
+    });
+  });
+
+  automationModeInputs.forEach((input) => {
+    input.addEventListener('change', () => {
+      toggleAutomationSequence();
+    });
+  });
+
+  if (automationModalBackdrop) {
+    automationModalBackdrop.addEventListener('click', () => {
+      closeAutomationModal();
+    });
+  }
+
+  if (automationModalCloseBtn) {
+    automationModalCloseBtn.addEventListener('click', () => {
+      closeAutomationModal();
+    });
+  }
+
+  if (automationModalCancelBtn) {
+    automationModalCancelBtn.addEventListener('click', () => {
+      closeAutomationModal();
+    });
+  }
+
+  if (automationSettingsForm) {
+    automationSettingsForm.addEventListener('submit', (event) => {
+      event.preventDefault();
+      updateAutomationStatsDisplay();
+      closeAutomationModal();
+    });
+  }
+
   taskLaunchButtons.forEach((btn) => {
     btn.addEventListener('click', () => {
       openTaskModal(btn);
@@ -1631,6 +1809,10 @@ async function initEditor() {
       }
       if (!modelEditorModal?.hidden) {
         closeModelEditor();
+        return;
+      }
+      if (!automationModal?.hidden) {
+        closeAutomationModal();
         return;
       }
       if (!taskModal?.hidden) {
