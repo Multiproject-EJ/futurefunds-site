@@ -340,9 +340,12 @@ async function initEditor() {
   const updateTaskTitle = () => {
     if (!taskTitle) return;
     const value = (taskNameInput?.value || '').trim();
-    const display = value ? `Task - ${value}` : taskTitleDefault || 'Task';
+    const display = value
+      ? `What can I help you with? - ${value}`
+      : taskTitleDefault || 'What can I help you with?';
     taskTitle.textContent = display;
-    if (taskLaunchTitle) taskLaunchTitle.textContent = display || taskLaunchTitleDefault || 'Task';
+    if (taskLaunchTitle)
+      taskLaunchTitle.textContent = display || taskLaunchTitleDefault || 'What can I help you with?';
     if (taskLaunchSubtitle) {
       taskLaunchSubtitle.textContent = isTaskLaunchLocked
         ? 'Admin sign-in required'
