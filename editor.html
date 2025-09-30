@@ -18,6 +18,9 @@
     .analyst-badge__name{font-size:1.05rem;font-weight:600;color:var(--text,#0f172a);margin:0}
     .analyst-badge__role{font-size:.78rem;color:var(--muted,#64748b);margin:0}
     .analyst-badge__stamp{font-size:.75rem;color:var(--muted,#64748b);margin:0}
+    .analyst-badge__status{font-size:.78rem;color:var(--muted,#64748b);margin:0}
+    .analyst-badge__status strong{color:var(--text,#0f172a)}
+    .analyst-badge__actions{display:flex;flex-wrap:wrap;justify-content:center;gap:8px}
     .analyst-header__panel .coverage-meta{margin:0;height:100%}
     .analyst-header__panel .coverage-meta--compact{padding:0;border:none;box-shadow:none;background:transparent;gap:16px}
     .analyst-header__panel .coverage-meta__layout{height:100%}
@@ -158,6 +161,29 @@
     @media (min-width:960px){.analysis-task__grid{grid-template-columns:minmax(0,1.2fr) minmax(0,1fr)}}
     .analysis-task__panel{border:1px solid var(--border,#e5e7eb);border-radius:16px;padding:20px;background:var(--panel-muted,#f8fafc);display:grid;gap:16px}
     .analysis-task__panel .muted-small{margin:4px 0 0}
+    .modal__dialog--cost{max-width:560px}
+    .modal__body--cost{display:grid;gap:18px;padding:20px}
+    .modal__footer--cost{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px 20px}
+    .cost-meter{display:grid;gap:14px;padding:18px;border:1px solid var(--border,#e5e7eb);border-radius:16px;background:var(--panel-muted,#f8fafc)}
+    .cost-meter__stats{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(140px,1fr))}
+    .cost-meter__label{margin:0;font-size:.75rem;letter-spacing:.04em;text-transform:uppercase;color:var(--muted,#64748b)}
+    .cost-meter__value{margin:2px 0 0;font-size:1.1rem;font-weight:600;color:var(--text,#0f172a)}
+    .cost-meter__actions{display:flex;flex-wrap:wrap;gap:8px}
+    .cost-meter__manual{display:grid;gap:6px}
+    .cost-meter__manual label{font-size:.85rem;font-weight:600;color:var(--muted,#64748b)}
+    .cost-meter__manual-row{display:flex;gap:8px;flex-wrap:wrap}
+    .cost-meter__manual-row input{flex:1 1 160px;min-width:0;padding:10px 12px;border:1px solid var(--border,#e5e7eb);border-radius:10px;background:var(--panel,#fff);color:var(--text,#0f172a)}
+    .cost-meter__manual-row select{flex:0 1 120px;padding:10px 12px;border:1px solid var(--border,#e5e7eb);border-radius:10px;background:var(--panel,#fff);color:var(--text,#0f172a)}
+    .cost-meter__status{margin:0;font-size:.85rem;color:var(--muted,#64748b)}
+    .cost-meter__status[data-tone="success"]{color:var(--ok,#31d0a3)}
+    .cost-meter__status[data-tone="error"]{color:var(--danger,#ef4444)}
+    .cost-history{display:grid;gap:12px}
+    .cost-history__head{display:flex;align-items:center;justify-content:space-between;gap:12px}
+    .cost-history__list{list-style:none;margin:0;padding:0;display:grid;gap:10px;max-height:220px;overflow:auto}
+    .cost-history__item{border:1px solid var(--border,#e5e7eb);border-radius:12px;padding:12px;background:var(--panel,#fff);display:grid;gap:4px}
+    .cost-history__item strong{font-size:.95rem;color:var(--text,#0f172a)}
+    .cost-history__item-meta{font-size:.78rem;color:var(--muted,#64748b)}
+    .cost-history__delta{font-size:.82rem;font-weight:600;color:var(--accent,#2563eb)}
     .analysis-task__panel textarea{background:var(--panel,#fff)}
     .analysis-task__config{gap:20px}
     .task-name-field{display:grid;gap:8px}
@@ -430,6 +456,18 @@
           <p class="analyst-badge__name">ValueBot <span id="analystLastName">Model</span></p>
           <p class="analyst-badge__role">Portfolio Manager ID · Equity Analyst Desk</p>
           <p class="analyst-badge__stamp">Issued <span id="analystDateStamp"></span></p>
+          <p class="analyst-badge__status" id="costSnapshotSummary">Track API spend with snapshots.</p>
+          <div class="analyst-badge__actions">
+            <button
+              type="button"
+              class="btn small ghost"
+              id="openCostModal"
+              aria-haspopup="dialog"
+              aria-controls="costSnapshotModal"
+            >
+              Cost snapshot
+            </button>
+          </div>
         </div>
       </div>
     </section>
@@ -589,6 +627,77 @@
       <strong>Access restricted.</strong>
       <span id="editorLockMsg"> Admin sign-in required to use this page.</span>
       <button class="btn small" data-open-auth="signin">Sign in</button>
+    </div>
+
+    <div
+      id="costSnapshotModal"
+      class="modal"
+      hidden
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="costSnapshotTitle"
+    >
+      <div class="modal__backdrop" data-close-cost aria-hidden="true"></div>
+      <div class="modal__dialog modal__dialog--cost">
+        <header class="modal__header">
+          <h2 id="costSnapshotTitle">Cost snapshot</h2>
+          <button type="button" class="btn small ghost" id="closeCostModal">Close</button>
+        </header>
+        <div class="modal__body modal__body--cost">
+          <p class="cost-meter__status" id="costBalanceStatus">Add your API key and refresh to load usage.</p>
+          <div class="cost-meter">
+            <div class="cost-meter__stats">
+              <div>
+                <p class="cost-meter__label">Provider</p>
+                <p class="cost-meter__value" id="costProviderLabel">OpenRouter</p>
+              </div>
+              <div>
+                <p class="cost-meter__label">Remaining</p>
+                <p class="cost-meter__value" id="costRemainingValue">—</p>
+              </div>
+              <div>
+                <p class="cost-meter__label">Total usage</p>
+                <p class="cost-meter__value" id="costUsageValue">—</p>
+              </div>
+            </div>
+            <div class="cost-meter__actions">
+              <button type="button" class="btn small" id="refreshCostBalance">Refresh balance</button>
+              <button type="button" class="btn small ghost" id="captureCostSnapshot">Save snapshot</button>
+            </div>
+            <div class="cost-meter__manual">
+              <label for="costManualUsage">Manual usage override</label>
+              <div class="cost-meter__manual-row">
+                <input
+                  type="number"
+                  id="costManualUsage"
+                  inputmode="decimal"
+                  placeholder="Enter usage value"
+                  min="0"
+                  step="0.0001"
+                />
+                <select id="costManualUnit">
+                  <option value="credits">Credits</option>
+                  <option value="tokens">Tokens</option>
+                  <option value="usd">USD</option>
+                </select>
+              </div>
+              <p class="muted-small">Use when the API response is unavailable. Values stay in this browser only.</p>
+            </div>
+          </div>
+          <section class="cost-history" aria-labelledby="costSnapshotHistoryTitle">
+            <div class="cost-history__head">
+              <h3 id="costSnapshotHistoryTitle">Saved snapshots</h3>
+              <button type="button" class="btn small ghost" id="clearCostSnapshots">Clear history</button>
+            </div>
+            <p class="muted-small" id="costSnapshotsEmpty">No snapshots saved yet. Capture one before and after each run to measure costs.</p>
+            <ul class="cost-history__list" id="costSnapshotsList"></ul>
+          </section>
+        </div>
+        <footer class="modal__footer modal__footer--cost">
+          <span class="muted-small">Snapshots are stored locally for run-to-run comparisons.</span>
+          <button type="button" class="btn ghost" id="closeCostModalFooter">Close</button>
+        </footer>
+      </div>
     </div>
 
     <div

@@ -319,6 +319,23 @@ async function initEditor() {
   const automationSequenceGroup = document.getElementById('automationSequenceGroup');
   const automationModeInputs = Array.from(document.querySelectorAll('input[name="automationMode"]'));
   const automationStatsGroups = Array.from(document.querySelectorAll('.automation-stats[data-scheduled]'));
+  const costSnapshotButton = document.getElementById('openCostModal');
+  const costSnapshotSummary = document.getElementById('costSnapshotSummary');
+  const costModal = document.getElementById('costSnapshotModal');
+  const costModalBackdrop = costModal?.querySelector('[data-close-cost]');
+  const costModalCloseBtn = document.getElementById('closeCostModal');
+  const costModalFooterCloseBtn = document.getElementById('closeCostModalFooter');
+  const costRefreshBtn = document.getElementById('refreshCostBalance');
+  const costCaptureBtn = document.getElementById('captureCostSnapshot');
+  const costClearBtn = document.getElementById('clearCostSnapshots');
+  const costStatus = document.getElementById('costBalanceStatus');
+  const costProviderLabel = document.getElementById('costProviderLabel');
+  const costRemainingValue = document.getElementById('costRemainingValue');
+  const costUsageValue = document.getElementById('costUsageValue');
+  const costManualInput = document.getElementById('costManualUsage');
+  const costManualUnit = document.getElementById('costManualUnit');
+  const costSnapshotsList = document.getElementById('costSnapshotsList');
+  const costSnapshotsEmpty = document.getElementById('costSnapshotsEmpty');
 
   const syncCoverageOptionalState = () => {
     if (!coverageFormCard) return;
@@ -345,6 +362,8 @@ async function initEditor() {
   const AI_KEY_STORAGE = 'ff-editor-ai-key';
   const AI_MODEL_STORAGE = 'ff-editor-ai-model';
   const AI_PROMPT_STORAGE = 'ff-editor-ai-prompt';
+  const COST_SNAPSHOTS_STORAGE = 'ff-editor-cost-snapshots';
+  const MAX_COST_SNAPSHOTS = 20;
 
   let promptOptions = [];
   let modelOptions = [];
@@ -362,6 +381,9 @@ async function initEditor() {
   const aiSettingsPromptDefault = (aiSettingsPrompt?.textContent || '').trim();
   const aiSettingsKeyDefault = (aiSettingsKey?.textContent || '').trim();
   const taskTitleDefault = (taskTitle?.textContent || '').trim();
+  let costSnapshots = [];
+  let lastCostResult = null;
+  let isFetchingCostBalance = false;
   const taskLaunchSubtitleDefault = (taskLaunchSubtitle?.textContent || '').trim();
 
   const taskLaunchCardStates = taskLaunchButtons.map((btn, index) => {
@@ -509,6 +531,528 @@ async function initEditor() {
     updateAutomationStatsDisplay();
   };
 
+  const parseNumericValue = (value) => {
+    if (value === null || value === undefined) return null;
+    if (typeof value === 'number') {
+      return Number.isFinite(value) ? value : null;
+    }
+    if (typeof value === 'string') {
+      const trimmed = value.trim();
+      if (!trimmed) return null;
+      const normalized = trimmed.replace(/[^0-9.+\-eE]/g, '');
+      const parsed = Number.parseFloat(normalized);
+      return Number.isFinite(parsed) ? parsed : null;
+    }
+    return null;
+  };
+
+  const pickNumber = (source, paths = []) => {
+    if (!source) return null;
+    for (const path of paths) {
+      const segments = Array.isArray(path) ? path : String(path).split('.');
+      let current = source;
+      let valid = true;
+      for (const segment of segments) {
+        if (current == null) {
+          valid = false;
+          break;
+        }
+        current = current[segment];
+      }
+      if (!valid) continue;
+      const parsed = parseNumericValue(current);
+      if (Number.isFinite(parsed)) return parsed;
+    }
+    return null;
+  };
+
+  const formatCostNumber = (value, unit = null, { sign = false } = {}) => {
+    if (!Number.isFinite(value)) return '—';
+    const abs = Math.abs(value);
+    const maximumFractionDigits = abs >= 1000 ? 0 : abs >= 100 ? 1 : abs >= 10 ? 2 : 3;
+    const formatted = abs.toLocaleString(undefined, { maximumFractionDigits, minimumFractionDigits: 0 });
+    const normalizedUnit = typeof unit === 'string' ? unit.trim().toLowerCase() : '';
+    let base = formatted;
+    if (normalizedUnit === 'usd' || normalizedUnit === '$') {
+      base = `$${formatted}`;
+    } else if (normalizedUnit === 'tokens') {
+      base = `${formatted} tokens`;
+    } else if (normalizedUnit === 'credits') {
+      base = `${formatted} credits`;
+    } else if (unit) {
+      base = `${formatted} ${unit}`;
+    }
+    if (!sign) {
+      return base;
+    }
+    if (value > 0) return `+${base}`;
+    if (value < 0) return `-${base}`;
+    return `±${base}`;
+  };
+
+  const formatSnapshotTimestamp = (timestamp) => {
+    if (!timestamp) return '';
+    try {
+      return new Date(timestamp).toLocaleString(undefined, {
+        hour: '2-digit',
+        minute: '2-digit',
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+      });
+    } catch {
+      return new Date(timestamp).toISOString();
+    }
+  };
+
+  const formatSnapshotRelativeTime = (timestamp) => {
+    if (!timestamp) return '';
+    try {
+      const diff = timestamp - Date.now();
+      const units = [
+        { unit: 'day', ms: 1000 * 60 * 60 * 24 },
+        { unit: 'hour', ms: 1000 * 60 * 60 },
+        { unit: 'minute', ms: 1000 * 60 },
+      ];
+      const formatter = new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' });
+      for (const { unit, ms } of units) {
+        if (Math.abs(diff) >= ms || unit === 'minute') {
+          const value = Math.round(diff / ms);
+          return formatter.format(value, unit);
+        }
+      }
+      return '';
+    } catch {
+      return '';
+    }
+  };
+
+  const getProviderLabel = (provider) => (provider === 'openai' ? 'OpenAI' : 'OpenRouter');
+
+  const detectActiveProvider = () => {
+    const value = (aiModel?.value || desiredModelValue || '').toLowerCase();
+    if (value.includes('openai') || value.includes('gpt-')) {
+      return 'openai';
+    }
+    if (value.includes('azure/openai')) {
+      return 'openai';
+    }
+    return 'openrouter';
+  };
+
+  const syncCostProviderLabel = (providerOverride = null) => {
+    if (!costProviderLabel) return;
+    const provider = providerOverride || detectActiveProvider();
+    costProviderLabel.textContent = getProviderLabel(provider);
+    if (costManualUnit && !costSnapshots.length) {
+      if (provider === 'openai') {
+        costManualUnit.value = 'usd';
+      } else if (costManualUnit.value === 'usd') {
+        costManualUnit.value = 'credits';
+      }
+    }
+  };
+
+  const setCostStatus = (text, tone = 'info') => {
+    if (!costStatus) return;
+    costStatus.textContent = text || '';
+    costStatus.dataset.tone = text ? tone : '';
+  };
+
+  const updateCostDisplay = (data = {}) => {
+    const provider = data.provider || detectActiveProvider();
+    syncCostProviderLabel(provider);
+    if (costRemainingValue) {
+      costRemainingValue.textContent = formatCostNumber(
+        Number.isFinite(data.remaining) ? data.remaining : Number.isFinite(data.balance) ? data.balance : null,
+        data.unit || (provider === 'openai' ? 'USD' : 'credits'),
+      );
+    }
+    if (costUsageValue) {
+      costUsageValue.textContent = formatCostNumber(
+        Number.isFinite(data.totalUsage) ? data.totalUsage : null,
+        data.unit || (provider === 'openai' ? 'USD' : 'credits'),
+      );
+    }
+  };
+
+  const renderCostSummary = () => {
+    if (!costSnapshotSummary) return;
+    if (costSnapshots.length > 0) {
+      const latest = costSnapshots[0];
+      const valueText = formatCostNumber(latest.totalUsage, latest.unit);
+      const relative = formatSnapshotRelativeTime(latest.timestamp);
+      const base = `${latest.providerLabel || getProviderLabel(latest.provider)} usage: ${valueText}`;
+      costSnapshotSummary.textContent = relative ? `${base} · ${relative}` : base;
+      return;
+    }
+    if (lastCostResult && Number.isFinite(lastCostResult.totalUsage)) {
+      const valueText = formatCostNumber(lastCostResult.totalUsage, lastCostResult.unit);
+      const relative = lastCostResult.fetchedAt ? formatSnapshotRelativeTime(lastCostResult.fetchedAt) : '';
+      const providerLabel = lastCostResult.providerLabel || getProviderLabel(lastCostResult.provider);
+      const base = `${providerLabel} balance ready: ${valueText}`;
+      costSnapshotSummary.textContent = relative ? `${base} · ${relative}` : base;
+      return;
+    }
+    costSnapshotSummary.textContent = 'Track API spend with snapshots.';
+  };
+
+  const renderCostSnapshots = () => {
+    if (!costSnapshotsList) {
+      renderCostSummary();
+      return;
+    }
+    costSnapshotsList.innerHTML = '';
+    if (!costSnapshots.length) {
+      if (costSnapshotsEmpty) costSnapshotsEmpty.hidden = false;
+      renderCostSummary();
+      return;
+    }
+    if (costSnapshotsEmpty) costSnapshotsEmpty.hidden = true;
+    costSnapshots.forEach((snapshot, index) => {
+      const item = document.createElement('li');
+      item.className = 'cost-history__item';
+      const title = document.createElement('strong');
+      title.textContent = `${formatCostNumber(snapshot.totalUsage, snapshot.unit)} total usage`;
+      item.appendChild(title);
+
+      const meta = document.createElement('span');
+      meta.className = 'cost-history__item-meta';
+      meta.textContent = `${snapshot.providerLabel || getProviderLabel(snapshot.provider)} · ${formatSnapshotTimestamp(
+        snapshot.timestamp,
+      )}`;
+      item.appendChild(meta);
+
+      if (Number.isFinite(snapshot.remaining)) {
+        const remaining = document.createElement('span');
+        remaining.className = 'cost-history__item-meta';
+        remaining.textContent = `Remaining: ${formatCostNumber(snapshot.remaining, snapshot.unit)}`;
+        item.appendChild(remaining);
+      }
+
+      const previous = costSnapshots[index + 1];
+      if (
+        previous &&
+        Number.isFinite(snapshot.totalUsage) &&
+        Number.isFinite(previous.totalUsage) &&
+        (snapshot.unit || '').toLowerCase() === (previous.unit || '').toLowerCase()
+      ) {
+        const deltaValue = snapshot.totalUsage - previous.totalUsage;
+        const delta = document.createElement('span');
+        delta.className = 'cost-history__delta';
+        delta.textContent = `Δ ${formatCostNumber(deltaValue, snapshot.unit, { sign: true })}`;
+        item.appendChild(delta);
+      }
+
+      costSnapshotsList.appendChild(item);
+    });
+    renderCostSummary();
+  };
+
+  const saveCostSnapshots = () => {
+    try {
+      const payload = costSnapshots.slice(0, MAX_COST_SNAPSHOTS);
+      localStorage.setItem(COST_SNAPSHOTS_STORAGE, JSON.stringify(payload));
+    } catch (error) {
+      console.warn('Cost snapshot storage error', error);
+    }
+  };
+
+  const loadCostSnapshots = () => {
+    let stored = [];
+    try {
+      const raw = localStorage.getItem(COST_SNAPSHOTS_STORAGE);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          stored = parsed.filter((item) => item && typeof item === 'object' && typeof item.timestamp === 'number');
+        }
+      }
+    } catch (error) {
+      console.warn('Cost snapshot load error', error);
+    }
+    costSnapshots = stored.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0)).slice(0, MAX_COST_SNAPSHOTS);
+    renderCostSnapshots();
+    if (costManualUnit && costSnapshots[0]?.unit) {
+      const normalized = String(costSnapshots[0].unit || '').toLowerCase();
+      if (normalized === 'usd') costManualUnit.value = 'usd';
+      else if (normalized === 'tokens') costManualUnit.value = 'tokens';
+      else costManualUnit.value = 'credits';
+    }
+  };
+
+  const getActiveApiKey = () => {
+    const direct = normalizeOpenRouterApiKey(aiKey?.value || '');
+    if (direct) return direct;
+    try {
+      const stored = localStorage.getItem(AI_KEY_STORAGE) || '';
+      return normalizeOpenRouterApiKey(stored);
+    } catch {
+      return '';
+    }
+  };
+
+  const safeFetchJson = async (url, options = {}) => {
+    let response;
+    try {
+      response = await fetch(url, options);
+    } catch (error) {
+      throw new Error(error?.message || 'Network error while requesting balance.');
+    }
+    if (!response.ok) {
+      let detail = '';
+      try {
+        detail = await response.text();
+      } catch {
+        detail = '';
+      }
+      const snippet = detail ? detail.trim().slice(0, 160) : response.statusText;
+      const message = snippet ? `${response.status} ${snippet}` : `Request failed with status ${response.status}`;
+      throw new Error(message);
+    }
+    try {
+      const data = await response.json();
+      return { data, headers: response.headers };
+    } catch {
+      throw new Error('Received an unexpected response from the balance endpoint.');
+    }
+  };
+
+  const parseOpenRouterUsage = (payload) => {
+    if (!payload || typeof payload !== 'object') return null;
+    const root = payload.data && typeof payload.data === 'object' ? payload.data : payload;
+    const totalUsage =
+      pickNumber(root, [
+        'usage.total',
+        'usage.total_usage',
+        'usage.total_usd',
+        'usage.totalTokens',
+        'totals.usage',
+        'total_usage',
+      ]) ?? null;
+    const remaining =
+      pickNumber(root, ['usage.remaining', 'quota.remaining', 'credits.remaining', 'balance.remaining', 'remaining']) ?? null;
+    const balance = pickNumber(root, ['balance', 'account.balance', 'credits.balance', 'available']) ?? null;
+    const granted = pickNumber(root, ['quota.limit', 'quota.total', 'credits.limit', 'limit', 'balance.total']) ?? null;
+    let unit =
+      root.unit ||
+      root.currency ||
+      root?.usage?.currency ||
+      (root?.usage?.total_usd || root?.total_usd ? 'USD' : '') ||
+      (root?.usage?.unit || '');
+    if (typeof unit === 'string') {
+      const normalized = unit.trim().toLowerCase();
+      if (normalized === 'usd' || normalized === '$') unit = 'USD';
+      else if (normalized === 'tokens') unit = 'tokens';
+      else if (normalized === 'credits') unit = 'credits';
+    }
+    if (!unit) {
+      unit = 'credits';
+    }
+    return {
+      provider: 'openrouter',
+      providerLabel: 'OpenRouter',
+      totalUsage,
+      remaining: remaining ?? balance ?? null,
+      balance: balance ?? remaining ?? null,
+      granted,
+      unit,
+    };
+  };
+
+  const parseOpenAiUsage = (payload) => {
+    if (!payload || typeof payload !== 'object') return null;
+    const totalGranted = pickNumber(payload, ['total_granted', 'grants.total_granted']);
+    const totalUsed = pickNumber(payload, ['total_used', 'grants.total_used']);
+    const totalAvailable = pickNumber(payload, ['total_available', 'grants.total_available']);
+    return {
+      provider: 'openai',
+      providerLabel: 'OpenAI',
+      totalUsage: totalUsed ?? null,
+      remaining: totalAvailable ?? null,
+      balance: totalAvailable ?? null,
+      granted: totalGranted ?? null,
+      unit: 'USD',
+    };
+  };
+
+  const fetchOpenRouterBalance = async (apiKey) => {
+    const endpoints = [
+      'https://openrouter.ai/api/v1/api_keys/self',
+      'https://api.openrouter.ai/v1/usage',
+      'https://openrouter.ai/api/v1/dashboard/billing',
+    ];
+    let lastError = null;
+    for (const url of endpoints) {
+      try {
+        const { data } = await safeFetchJson(url, {
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+          },
+        });
+        const parsed = parseOpenRouterUsage(data);
+        if (parsed) {
+          parsed.endpoint = url;
+          return parsed;
+        }
+      } catch (error) {
+        lastError = error;
+      }
+    }
+    if (lastError) throw lastError;
+    throw new Error('Unable to retrieve OpenRouter usage.');
+  };
+
+  const fetchOpenAiBalance = async (apiKey) => {
+    const { data } = await safeFetchJson('https://api.openai.com/v1/dashboard/billing/credit_grants', {
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+      },
+    });
+    const parsed = parseOpenAiUsage(data);
+    if (parsed) return parsed;
+    throw new Error('Unable to parse OpenAI billing response.');
+  };
+
+  const refreshCostBalance = async () => {
+    const provider = detectActiveProvider();
+    syncCostProviderLabel(provider);
+    const apiKey = getActiveApiKey();
+    if (!apiKey) {
+      updateCostDisplay({ provider, unit: provider === 'openai' ? 'USD' : 'credits' });
+      setCostStatus('Add your API key to refresh usage.', 'error');
+      return;
+    }
+    if (isFetchingCostBalance) return;
+    isFetchingCostBalance = true;
+    if (costRefreshBtn) costRefreshBtn.disabled = true;
+    setCostStatus('Fetching balance…', 'info');
+    try {
+      const result = provider === 'openai' ? await fetchOpenAiBalance(apiKey) : await fetchOpenRouterBalance(apiKey);
+      const fetchedAt = Date.now();
+      lastCostResult = {
+        ...result,
+        provider,
+        providerLabel: result.providerLabel || getProviderLabel(provider),
+        unit: result.unit || (provider === 'openai' ? 'USD' : 'credits'),
+        fetchedAt,
+      };
+      updateCostDisplay(lastCostResult);
+      if (costManualInput && Number.isFinite(lastCostResult.totalUsage)) {
+        costManualInput.value = lastCostResult.totalUsage;
+      }
+      if (costManualUnit && lastCostResult.unit) {
+        const unitValue = String(lastCostResult.unit).toLowerCase();
+        if (unitValue === 'usd' || unitValue === '$') costManualUnit.value = 'usd';
+        else if (unitValue === 'tokens') costManualUnit.value = 'tokens';
+        else costManualUnit.value = 'credits';
+      }
+      const relative = formatSnapshotRelativeTime(fetchedAt) || 'just now';
+      setCostStatus(`Balance updated ${relative}.`, 'success');
+      renderCostSummary();
+    } catch (error) {
+      console.warn('Cost balance fetch error', error);
+      setCostStatus(
+        `${error.message || 'Unable to fetch balance.'} Use the manual override to capture a snapshot.`,
+        'error',
+      );
+      if (!lastCostResult) {
+        updateCostDisplay({ provider, unit: provider === 'openai' ? 'USD' : 'credits' });
+      }
+    } finally {
+      if (costRefreshBtn) costRefreshBtn.disabled = false;
+      isFetchingCostBalance = false;
+    }
+  };
+
+  const captureCostSnapshot = () => {
+    const provider = lastCostResult?.provider || detectActiveProvider();
+    const providerLabel = lastCostResult?.providerLabel || getProviderLabel(provider);
+    let unit =
+      lastCostResult?.unit ||
+      (costManualUnit?.value === 'usd'
+        ? 'USD'
+        : costManualUnit?.value === 'tokens'
+        ? 'tokens'
+        : 'credits');
+    let totalUsage = Number.isFinite(lastCostResult?.totalUsage) ? lastCostResult.totalUsage : null;
+    const remaining = Number.isFinite(lastCostResult?.remaining)
+      ? lastCostResult.remaining
+      : Number.isFinite(lastCostResult?.balance)
+      ? lastCostResult.balance
+      : null;
+
+    if (!Number.isFinite(totalUsage)) {
+      const manualRaw = (costManualInput?.value || '').trim();
+      const manualValue = manualRaw ? Number.parseFloat(manualRaw) : NaN;
+      if (!Number.isFinite(manualValue)) {
+        setCostStatus('Enter a usage value or refresh the balance before saving a snapshot.', 'error');
+        if (costManualInput) costManualInput.focus();
+        return;
+      }
+      totalUsage = manualValue;
+    }
+
+    if (!unit) {
+      unit = 'credits';
+    }
+
+    const snapshot = {
+      timestamp: Date.now(),
+      provider,
+      providerLabel,
+      totalUsage,
+      remaining,
+      balance: remaining,
+      unit,
+    };
+
+    costSnapshots.unshift(snapshot);
+    if (costSnapshots.length > MAX_COST_SNAPSHOTS) {
+      costSnapshots = costSnapshots.slice(0, MAX_COST_SNAPSHOTS);
+    }
+    saveCostSnapshots();
+    renderCostSnapshots();
+    setCostStatus('Snapshot saved locally.', 'success');
+  };
+
+  const openCostModal = () => {
+    if (!costModal) return;
+    costModal.hidden = false;
+    lockBodyScroll();
+    updateCostDisplay(lastCostResult || { provider: detectActiveProvider() });
+    renderCostSummary();
+    if (lastCostResult?.fetchedAt) {
+      const relative = formatSnapshotRelativeTime(lastCostResult.fetchedAt) || 'recently';
+      setCostStatus(`Balance last fetched ${relative}.`, 'info');
+    } else {
+      setCostStatus('Add your API key and refresh to load usage.', 'info');
+    }
+    requestAnimationFrame(() => {
+      if (costRefreshBtn && typeof costRefreshBtn.focus === 'function') {
+        costRefreshBtn.focus();
+      }
+    });
+    if (!lastCostResult) {
+      refreshCostBalance();
+    }
+  };
+
+  const closeCostModal = () => {
+    if (!costModal || costModal.hidden) return;
+    costModal.hidden = true;
+    unlockBodyScroll();
+    if (costSnapshotButton) {
+      setTimeout(() => {
+        try {
+          costSnapshotButton.focus();
+        } catch (error) {
+          console.warn('Cost button focus failed', error);
+        }
+      }, 30);
+    }
+  };
+
   const openAutomationModal = (triggerBtn = null) => {
     if (!automationModal) return;
     if (triggerBtn) {
@@ -555,6 +1099,8 @@ async function initEditor() {
 
   updateAutomationStatsDisplay();
   toggleAutomationSequence();
+  loadCostSnapshots();
+  syncCostProviderLabel();
 
   if (!form || !locked) return;
 
@@ -598,6 +1144,7 @@ async function initEditor() {
     const displayName = optionLabel || storedPreference;
     if (analystLastName) analystLastName.textContent = displayName || 'Model';
     if (aiSettingsModel) aiSettingsModel.textContent = displayName || aiSettingsModelDefault || 'Pending selection';
+    syncCostProviderLabel();
   };
 
   let bodyScrollLockCount = 0;
@@ -1746,6 +2293,60 @@ async function initEditor() {
     });
   }
 
+  if (costSnapshotButton) {
+    costSnapshotButton.addEventListener('click', () => {
+      openCostModal();
+    });
+  }
+
+  if (costModalBackdrop) {
+    costModalBackdrop.addEventListener('click', () => {
+      closeCostModal();
+    });
+  }
+
+  if (costModalCloseBtn) {
+    costModalCloseBtn.addEventListener('click', () => {
+      closeCostModal();
+    });
+  }
+
+  if (costModalFooterCloseBtn) {
+    costModalFooterCloseBtn.addEventListener('click', () => {
+      closeCostModal();
+    });
+  }
+
+  if (costRefreshBtn) {
+    costRefreshBtn.addEventListener('click', () => {
+      refreshCostBalance();
+    });
+  }
+
+  if (costCaptureBtn) {
+    costCaptureBtn.addEventListener('click', () => {
+      captureCostSnapshot();
+    });
+  }
+
+  if (costClearBtn) {
+    costClearBtn.addEventListener('click', () => {
+      if (!costSnapshots.length) {
+        setCostStatus('No snapshots to clear.', 'info');
+        return;
+      }
+      let confirmed = true;
+      if (typeof window !== 'undefined' && typeof window.confirm === 'function') {
+        confirmed = window.confirm('Clear all saved cost snapshots?');
+      }
+      if (!confirmed) return;
+      costSnapshots = [];
+      saveCostSnapshots();
+      renderCostSnapshots();
+      setCostStatus('Cleared saved snapshots.', 'success');
+    });
+  }
+
   if (taskNameInput) {
     ['input', 'change'].forEach((evt) => taskNameInput.addEventListener(evt, updateTaskTitle));
   }
@@ -1851,6 +2452,10 @@ async function initEditor() {
   document.addEventListener('keydown', (event) => {
     if (event.key === 'Escape') {
       closePromptMenu();
+      if (!costModal?.hidden) {
+        closeCostModal();
+        return;
+      }
       if (!promptEditorModal?.hidden) {
         closePromptEditor();
         return;
