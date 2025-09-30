@@ -309,6 +309,27 @@ async function initEditor() {
   const aiSettingsModel = document.getElementById('aiSettingsModel');
   const aiSettingsPrompt = document.getElementById('aiSettingsPrompt');
   const aiSettingsKey = document.getElementById('aiSettingsKey');
+  const coverageFormCard = document.querySelector('.coverage-meta__form-card');
+
+  const syncCoverageOptionalState = () => {
+    if (!coverageFormCard) return;
+    const hasCompany = !!(aiCompany?.value || '').trim();
+    coverageFormCard.classList.toggle('coverage-meta__form-card--has-company', hasCompany);
+  };
+
+  syncCoverageOptionalState();
+
+  if (aiCompany) {
+    ['input', 'change', 'blur'].forEach((evt) => {
+      aiCompany.addEventListener(evt, syncCoverageOptionalState);
+    });
+  }
+
+  if (form) {
+    form.addEventListener('reset', () => {
+      requestAnimationFrame(() => syncCoverageOptionalState());
+    });
+  }
 
   setupProcessProgress(document.getElementById('analysisProgress'));
 

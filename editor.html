@@ -8,38 +8,54 @@
   <style>
     .editor-wrap{max-width:960px;margin:32px auto;padding:0 16px}
     .analyst-header{display:grid;gap:18px;margin-bottom:28px}
-    .analyst-header__content{display:grid;gap:16px}
     .analyst-header__info{display:grid;gap:8px}
     .analyst-header__info .editor-title{margin:0}
     .analyst-header__info .editor-intro{margin:0}
-    .analyst-badge{justify-self:start;display:grid;place-items:center;gap:10px;padding:16px;border:1px solid var(--border,#e5e7eb);border-radius:18px;background:var(--panel,#fff);box-shadow:0 12px 24px rgba(15,23,42,.06);width:164px;min-height:164px;text-align:center}
+    .analyst-header__panel{border:1px solid var(--border,#e5e7eb);border-radius:22px;background:var(--panel,#fff);box-shadow:0 14px 28px rgba(15,23,42,.08);padding:20px;display:grid;gap:20px}
+    .analyst-badge{justify-self:center;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:16px;border:1px solid var(--border,#e5e7eb);border-radius:18px;background:var(--panel,#fff);box-shadow:0 12px 24px rgba(15,23,42,.06);width:100%;max-width:320px;min-height:164px;text-align:center}
     .analyst-badge__photo{width:68px;height:68px;border-radius:14px;overflow:hidden;background:var(--panel-muted,#f8fafc);display:flex;align-items:center;justify-content:center;border:1px solid var(--border,#e5e7eb)}
     .analyst-badge__photo img{width:100%;height:100%;object-fit:cover}
     .analyst-badge__name{font-size:1.05rem;font-weight:600;color:var(--text,#0f172a);margin:0}
     .analyst-badge__role{font-size:.78rem;color:var(--muted,#64748b);margin:0}
     .analyst-badge__stamp{font-size:.75rem;color:var(--muted,#64748b);margin:0}
+    .analyst-header__panel .coverage-meta{margin:0;height:100%}
+    .analyst-header__panel .coverage-meta--compact{padding:0;border:none;box-shadow:none;background:transparent;gap:16px}
+    .analyst-header__panel .coverage-meta__layout{height:100%}
+    .analyst-header__panel .analyst-badge{justify-self:stretch;max-width:none;height:100%}
     @media (min-width:768px){
-      .analyst-header{grid-template-columns:minmax(0,1fr) auto;align-items:flex-start}
-      .analyst-header__content{align-self:stretch;grid-template-rows:auto 1fr;height:100%}
+      .analyst-header__panel{grid-template-columns:minmax(0,.7fr) minmax(0,.3fr);align-items:stretch}
     }
     .editor-title{font-size:1.9rem;margin:0;color:var(--text,#0f172a);font-weight:700}
     .editor-intro{margin:0;color:var(--muted,#64748b)}
     .coverage-meta{margin:32px 0;padding:20px;border:1px solid var(--border,#e5e7eb);border-radius:18px;background:var(--panel,#fff);box-shadow:0 12px 24px rgba(15,23,42,.06);display:grid;gap:16px}
-    .coverage-meta--compact{margin:0;padding:16px;gap:14px;box-shadow:0 10px 20px rgba(15,23,42,.05);height:100%}
+    .coverage-meta--compact{margin:0;padding:20px;gap:18px;box-shadow:0 10px 20px rgba(15,23,42,.05);height:100%}
     .coverage-meta--compact .coverage-meta__fields{grid-template-columns:1fr}
     .coverage-meta__title{margin:0;font-size:1.15rem;font-weight:600;color:var(--text,#0f172a)}
     .coverage-meta__layout{display:grid;gap:18px}
     @media (min-width:768px){.coverage-meta__layout{grid-template-columns:minmax(0,1.2fr) minmax(0,.8fr);align-items:start}}
-    .coverage-meta__fields{display:grid;gap:16px;grid-template-columns:1fr}
+    .coverage-meta__fields{display:grid;gap:18px;grid-template-columns:1fr;height:100%}
+    .coverage-meta__form-card{display:grid;gap:16px;padding:18px;border:1px solid var(--border,#e5e7eb);border-radius:14px;background:var(--panel-muted,#f8fafc);height:100%;transition:box-shadow .2s ease,border-color .2s ease}
+    .coverage-meta__optional{opacity:.6;filter:saturate(.85);transition:opacity .2s ease,filter .2s ease}
+    .coverage-meta__optional input{background:rgba(148,163,184,.12);border-color:rgba(148,163,184,.3);transition:background .2s ease,border-color .2s ease,box-shadow .2s ease}
+    .coverage-meta__form-card--has-company .coverage-meta__optional{opacity:1;filter:none}
+    .coverage-meta__form-card--has-company .coverage-meta__optional input{background:var(--panel,#fff);border-color:var(--border,#e5e7eb)}
+    .coverage-meta__field-grid{display:grid;gap:14px}
+    @media (min-width:640px){.coverage-meta__field-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
     .coverage-meta__field{display:grid;gap:6px}
+    .coverage-meta__hint{margin:0;font-size:.8rem;color:var(--muted,#64748b)}
     .coverage-meta__field-row{display:flex;flex-wrap:wrap;align-items:center;gap:12px}
     .coverage-meta__field-row input{flex:1 1 220px;min-width:0}
     .coverage-meta label{display:block;font-size:.85rem;font-weight:600;color:var(--muted,#64748b);margin-bottom:6px}
     .coverage-meta__field-row label{display:inline-flex;margin:0;white-space:nowrap}
-    .coverage-meta input{width:100%;padding:12px 14px;border:1px solid var(--border,#e5e7eb);border-radius:12px;background:var(--panel,#fff);color:var(--text,#0f172a)}
+    .coverage-meta input{width:100%;padding:12px 14px;border:1px solid var(--border,#e5e7eb);border-radius:12px;background:var(--panel,#fff);color:var(--text,#0f172a);transition:border-color .2s ease,background .2s ease,box-shadow .2s ease}
+    .coverage-meta input#aiCompany{background:rgba(37,99,235,.12);border-color:rgba(37,99,235,.32)}
+    .coverage-meta input#aiCompany:focus{background:var(--panel,#fff);border-color:var(--accent,#2563eb);box-shadow:0 0 0 3px rgba(37,99,235,.18);outline:none}
     .coverage-meta .muted-small{margin:6px 0 0}
-    .coverage-meta__aside{border:1px dashed var(--border,#e5e7eb);border-radius:14px;padding:16px;background:var(--panel-muted,#f8fafc);display:grid;gap:8px}
+    .coverage-meta__aside{position:relative;overflow:hidden;border:1px solid var(--border,#e5e7eb);border-radius:14px;padding:20px;background:linear-gradient(135deg,rgba(37,99,235,.08),rgba(37,99,235,.02));display:grid;gap:12px;align-content:space-between}
     .coverage-meta__aside-title{margin:0;font-size:.95rem;font-weight:600;color:var(--text,#0f172a)}
+    .coverage-meta__aside-list{margin:0;padding:0;list-style:none;display:grid;gap:10px}
+    .coverage-meta__aside-list li{display:flex;align-items:flex-start;gap:10px;font-size:.85rem;color:var(--muted,#475569)}
+    .coverage-meta__aside-list li::before{content:"";width:6px;height:6px;border-radius:999px;background:var(--accent,#2563eb);margin-top:8px;flex-shrink:0}
     .summary-card--combined{display:grid;gap:18px}
     .summary-card__head{display:flex;align-items:center;justify-content:space-between}
     .summary-card__sections{display:grid;gap:16px}
@@ -304,50 +320,56 @@
 
   <main class="editor-wrap">
     <section class="analyst-header" aria-label="Portfolio manager identification">
-      <div class="analyst-header__content">
-        <div class="analyst-header__info">
-          <h1 class="editor-title">Equity Analyst</h1>
-          <p class="muted editor-intro">Create and publish research entries into the Universe feed. Admin access only.</p>
-        </div>
+      <div class="analyst-header__info">
+        <h1 class="editor-title">Equity Analyst</h1>
+        <p class="muted editor-intro">Create and publish research entries into the Universe feed. Admin access only.</p>
+      </div>
+      <div class="analyst-header__panel">
         <section class="coverage-meta coverage-meta--compact" aria-label="Coverage target">
           <h2 class="coverage-meta__title">Coverage target</h2>
           <div class="coverage-meta__layout">
             <div class="coverage-meta__fields">
-              <div class="coverage-meta__field">
-                <div class="coverage-meta__field-row">
-                  <label for="aiCompany">Company</label>
-                  <input id="aiCompany" placeholder="Insmed Incorporated" autocomplete="off" />
+              <div class="coverage-meta__form-card">
+                <div class="coverage-meta__field">
+                  <div class="coverage-meta__field-row">
+                    <label for="aiCompany">Company</label>
+                    <input id="aiCompany" placeholder="Insmed Incorporated" autocomplete="off" />
+                  </div>
                 </div>
-                <p class="muted-small">Only the company name is required to run a prompt.</p>
-              </div>
-              <div class="coverage-meta__field">
-                <div class="coverage-meta__field-row">
-                  <label for="aiTicker">Ticker (optional)</label>
-                  <input id="aiTicker" placeholder="INSM" autocomplete="off" />
+                <div class="coverage-meta__field-grid">
+                  <div class="coverage-meta__field coverage-meta__optional">
+                    <div class="coverage-meta__field-row">
+                      <label for="aiTicker">Ticker (optional)</label>
+                      <input id="aiTicker" placeholder="INSM" autocomplete="off" />
+                    </div>
+                  </div>
+                  <div class="coverage-meta__field coverage-meta__optional">
+                    <div class="coverage-meta__field-row">
+                      <label for="aiExchange">Exchange (optional)</label>
+                      <input id="aiExchange" placeholder="NASDAQ" autocomplete="off" />
+                    </div>
+                  </div>
                 </div>
-              </div>
-              <div class="coverage-meta__field">
-                <div class="coverage-meta__field-row">
-                  <label for="aiExchange">Exchange (optional)</label>
-                  <input id="aiExchange" placeholder="NASDAQ" autocomplete="off" />
-                </div>
+                <p class="coverage-meta__hint">Only the company name is required to run a prompt.</p>
               </div>
             </div>
             <div class="coverage-meta__aside" aria-label="Coverage target notes placeholder">
               <h3 class="coverage-meta__aside-title">Desk notes placeholder</h3>
-              <p class="muted-small">Use this space to highlight prior coverage, target price memos, or quick reminders for the research team.</p>
-              <p class="muted-small">Populate it with links, contacts, or catalysts once the workflow is ready.</p>
+              <ul class="coverage-meta__aside-list">
+                <li>Highlight prior coverage or target price memos to sync context across the desk.</li>
+                <li>Add catalysts, contacts, or quick links once the workflow is ready.</li>
+              </ul>
             </div>
           </div>
         </section>
-      </div>
-      <div class="analyst-badge">
-        <div class="analyst-badge__photo" aria-hidden="true">
-          <img src="/images/ai-chip-placeholder.svg" alt="AI chip placeholder" />
+        <div class="analyst-badge">
+          <div class="analyst-badge__photo" aria-hidden="true">
+            <img src="/images/ai-chip-placeholder.svg" alt="AI chip placeholder" />
+          </div>
+          <p class="analyst-badge__name">ValueBot <span id="analystLastName">Model</span></p>
+          <p class="analyst-badge__role">Portfolio Manager ID · Equity Analyst Desk</p>
+          <p class="analyst-badge__stamp">Issued <span id="analystDateStamp"></span></p>
         </div>
-        <p class="analyst-badge__name">ValueBot <span id="analystLastName">Model</span></p>
-        <p class="analyst-badge__role">Portfolio Manager ID · Equity Analyst Desk</p>
-        <p class="analyst-badge__stamp">Issued <span id="analystDateStamp"></span></p>
       </div>
     </section>
 
