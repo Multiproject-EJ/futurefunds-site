@@ -51,6 +51,7 @@
     .summary-subcard{border:1px solid var(--border,#e5e7eb);border-radius:16px;background:var(--panel-muted,#f8fafc);padding:16px;display:grid;gap:14px}
     .summary-subcard__title{margin:0;font-size:1.05rem;font-weight:600;color:var(--text,#0f172a)}
     .summary-subcard__content{display:grid;gap:14px}
+    .summary-subcard__content--tasks{grid-template-columns:repeat(auto-fit,minmax(180px,1fr));align-items:stretch}
     .summary-subcard__content .muted-small{margin:4px 0 0}
     .ai-structures{display:grid;gap:14px}
     .ai-structures .field-row{margin:0;gap:12px}
@@ -456,9 +457,41 @@
           </section>
           <section class="summary-subcard" aria-label="Work tasks">
             <h3 class="summary-subcard__title">Work Tasks</h3>
-            <div class="summary-subcard__content">
-              <button type="button" class="task-launch-card" id="openTaskModal" aria-haspopup="dialog" aria-controls="analysisTaskModal">
+            <div class="summary-subcard__content summary-subcard__content--tasks">
+              <button
+                type="button"
+                class="task-launch-card"
+                id="openTaskModal"
+                data-task-modal-target="analysisTaskModal"
+                data-state="ready"
+                aria-haspopup="dialog"
+                aria-controls="analysisTaskModal"
+              >
                 <span class="task-launch-card__title" id="taskLaunchTitle">Task</span>
+                <span class="task-launch-card__subtitle">Open the task workspace</span>
+              </button>
+              <button
+                type="button"
+                class="task-launch-card"
+                data-task-modal-target="analysisTaskModal"
+                data-task-label="Task 2"
+                data-state="ready"
+                aria-haspopup="dialog"
+                aria-controls="analysisTaskModal"
+              >
+                <span class="task-launch-card__title">Task 2</span>
+                <span class="task-launch-card__subtitle">Open the task workspace</span>
+              </button>
+              <button
+                type="button"
+                class="task-launch-card"
+                data-task-modal-target="analysisTaskModal"
+                data-task-label="Task 3"
+                data-state="ready"
+                aria-haspopup="dialog"
+                aria-controls="analysisTaskModal"
+              >
+                <span class="task-launch-card__title">Task 3</span>
                 <span class="task-launch-card__subtitle">Open the task workspace</span>
               </button>
             </div>
