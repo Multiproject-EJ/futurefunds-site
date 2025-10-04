@@ -1,0 +1,601 @@
+<!doctype html>
+<html lang="en" data-lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>FutureFunds — Run Planner & Cost Estimator</title>
+  <link rel="stylesheet" href="/assets/styles.css" />
+  <style>
+    :root {
+      color-scheme: light dark;
+    }
+    body {
+      font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      margin: 0;
+      background: var(--page,#f8fafc);
+      color: var(--text,#0f172a);
+    }
+    .planner-wrap {
+      max-width: 1040px;
+      margin: 0 auto;
+      padding: 32px 20px 80px;
+      display: grid;
+      gap: 28px;
+    }
+    .planner-headline {
+      display: grid;
+      gap: 8px;
+    }
+    .planner-headline h1 {
+      margin: 0;
+      font-size: clamp(1.8rem, 2.6vw, 2.4rem);
+      font-weight: 700;
+    }
+    .planner-headline p {
+      margin: 0;
+      max-width: 720px;
+      color: var(--muted,#475569);
+      font-size: 1rem;
+    }
+    .planner-grid {
+      display: grid;
+      gap: 18px;
+    }
+    @media (min-width: 940px) {
+      .planner-grid {
+        grid-template-columns: minmax(0, 0.62fr) minmax(0, 0.38fr);
+        align-items: start;
+      }
+    }
+    .panel {
+      border: 1px solid var(--border,#e2e8f0);
+      border-radius: 20px;
+      background: var(--panel,#fff);
+      box-shadow: 0 18px 36px rgba(15,23,42,.08);
+      padding: 22px;
+      display: grid;
+      gap: 20px;
+    }
+    .panel h2 {
+      margin: 0;
+      font-size: 1.35rem;
+      font-weight: 600;
+    }
+    .panel h3 {
+      margin: 0 0 6px;
+      font-size: 1.05rem;
+      font-weight: 600;
+    }
+    .panel p {
+      margin: 0;
+      color: var(--muted,#475569);
+      font-size: .92rem;
+    }
+    .planner-form {
+      display: grid;
+      gap: 20px;
+    }
+    .field {
+      display: grid;
+      gap: 8px;
+    }
+    .field label {
+      font-size: .9rem;
+      font-weight: 600;
+      color: var(--text,#0f172a);
+    }
+    .field input[type="number"],
+    .field input[type="text"],
+    .field select {
+      height: 42px;
+      padding: 0 12px;
+      border-radius: 12px;
+      border: 1px solid var(--border,#cbd5f5);
+      font: inherit;
+      background: rgba(255,255,255,.92);
+      transition: border-color .2s ease, box-shadow .2s ease;
+    }
+    .field input[type="number"]:focus,
+    .field input[type="text"]:focus,
+    .field select:focus {
+      outline: none;
+      border-color: var(--accent,#2563eb);
+      box-shadow: 0 0 0 3px rgba(37,99,235,.2);
+    }
+    .range-field {
+      display: grid;
+      gap: 6px;
+    }
+    .range-field label {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: .9rem;
+      font-weight: 600;
+    }
+    .range-field span {
+      color: var(--accent,#2563eb);
+      font-variant-numeric: tabular-nums;
+    }
+    input[type="range"] {
+      accent-color: var(--accent,#2563eb);
+    }
+    .stage-grid {
+      display: grid;
+      gap: 16px;
+    }
+    @media (min-width: 720px) {
+      .stage-grid {
+        grid-template-columns: repeat(3, minmax(0,1fr));
+      }
+    }
+    .stage-card {
+      border: 1px solid rgba(37,99,235,.25);
+      background: rgba(37,99,235,.05);
+      border-radius: 18px;
+      padding: 16px;
+      display: grid;
+      gap: 12px;
+    }
+    .stage-card header {
+      display: grid;
+      gap: 4px;
+    }
+    .stage-card header strong {
+      font-size: 1rem;
+      color: var(--accent,#2563eb);
+    }
+    .stage-card header span {
+      font-size: .8rem;
+      color: var(--muted,#475569);
+      letter-spacing: .02em;
+      text-transform: uppercase;
+    }
+    .stage-card .field {
+      gap: 6px;
+    }
+    .stage-card small {
+      color: var(--muted,#475569);
+      font-size: .78rem;
+    }
+    .planner-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: center;
+    }
+    .btn-primary {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      border: none;
+      border-radius: 999px;
+      padding: 12px 22px;
+      font-weight: 600;
+      font-size: .95rem;
+      cursor: pointer;
+      background: linear-gradient(120deg, #2563eb, #4338ca);
+      color: #fff;
+      transition: transform .18s ease, box-shadow .18s ease;
+    }
+    .btn-primary:active {
+      transform: translateY(1px);
+    }
+    .btn-secondary {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 999px;
+      padding: 10px 18px;
+      font-size: .9rem;
+      border: 1px solid var(--border,#cbd5f5);
+      background: rgba(241,245,249,.8);
+      color: var(--text,#0f172a);
+      cursor: pointer;
+    }
+    .cost-output {
+      border: 1px solid rgba(15,23,42,.08);
+      border-radius: 18px;
+      padding: 18px;
+      background: rgba(15,23,42,.04);
+      display: grid;
+      gap: 12px;
+      font-size: .95rem;
+    }
+    .cost-output strong {
+      font-size: 1.1rem;
+    }
+    .cost-output ul {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      display: grid;
+      gap: 6px;
+    }
+    .cost-output li {
+      display: flex;
+      justify-content: space-between;
+      font-variant-numeric: tabular-nums;
+    }
+    .cost-output hr {
+      border: none;
+      border-top: 1px solid rgba(15,23,42,.1);
+      margin: 8px 0;
+    }
+    .status-log {
+      border: 1px solid var(--border,#e2e8f0);
+      border-radius: 14px;
+      padding: 16px;
+      background: rgba(255,255,255,.8);
+      display: grid;
+      gap: 10px;
+      font-size: .9rem;
+    }
+    .status-log pre {
+      margin: 0;
+      white-space: pre-wrap;
+      word-break: break-word;
+      font-family: "JetBrains Mono", "Fira Code", monospace;
+      background: rgba(15,23,42,.06);
+      padding: 12px;
+      border-radius: 12px;
+    }
+    a.inline-link {
+      color: var(--accent,#2563eb);
+      text-decoration: none;
+      font-weight: 600;
+    }
+  </style>
+</head>
+<body>
+  <main class="planner-wrap">
+    <header class="planner-headline">
+      <a class="inline-link" href="/equity_analyst.html">← Back to analyst blueprint</a>
+      <h1>Market Scan Planner & Cost Estimator</h1>
+      <p>Configure universe size, survival funnels, token budgets, and model choices before launching an automated run. Settings persist locally so you can iterate as you calibrate.</p>
+    </header>
+
+    <section class="planner-grid">
+      <article class="panel">
+        <div class="planner-form" id="plannerForm">
+          <div class="field">
+            <label for="universeInput">Universe size (tickers)</label>
+            <input type="number" id="universeInput" name="universe" min="1" value="40000" />
+          </div>
+
+          <div class="range-field">
+            <label for="stage2Slider">Survive to Stage 2 <span id="stage2Value">15%</span></label>
+            <input type="range" id="stage2Slider" min="0" max="100" value="15" />
+          </div>
+
+          <div class="range-field">
+            <label for="stage3Slider">Stage 3 share of Stage 2 <span id="stage3Value">12%</span></label>
+            <input type="range" id="stage3Slider" min="0" max="100" value="12" />
+          </div>
+
+          <div class="stage-grid">
+            <section class="stage-card" data-stage="1">
+              <header>
+                <span>Stage 1</span>
+                <strong>Triage</strong>
+              </header>
+              <div class="field">
+                <label for="modelStage1">Model</label>
+                <select id="modelStage1">
+                  <option value="4o-mini">GPT-4o-mini</option>
+                  <option value="5-mini">GPT-5 mini</option>
+                  <option value="5">GPT-5</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="stage1InputTokens">Tokens in (per stock)</label>
+                <input type="number" id="stage1InputTokens" min="0" step="100" value="3000" />
+              </div>
+              <div class="field">
+                <label for="stage1OutputTokens">Tokens out (per stock)</label>
+                <input type="number" id="stage1OutputTokens" min="0" step="100" value="600" />
+              </div>
+            </section>
+
+            <section class="stage-card" data-stage="2">
+              <header>
+                <span>Stage 2</span>
+                <strong>Medium depth</strong>
+              </header>
+              <div class="field">
+                <label for="modelStage2">Model</label>
+                <select id="modelStage2">
+                  <option value="5-mini" selected>GPT-5 mini</option>
+                  <option value="4o-mini">GPT-4o-mini</option>
+                  <option value="5">GPT-5</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="stage2InputTokens">Tokens in (per survivor)</label>
+                <input type="number" id="stage2InputTokens" min="0" step="100" value="30000" />
+              </div>
+              <div class="field">
+                <label for="stage2OutputTokens">Tokens out (per survivor)</label>
+                <input type="number" id="stage2OutputTokens" min="0" step="100" value="6000" />
+              </div>
+            </section>
+
+            <section class="stage-card" data-stage="3">
+              <header>
+                <span>Stage 3</span>
+                <strong>Deep dive</strong>
+              </header>
+              <div class="field">
+                <label for="modelStage3">Model</label>
+                <select id="modelStage3">
+                  <option value="5" selected>GPT-5</option>
+                  <option value="5-mini">GPT-5 mini</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="stage3InputTokens">Tokens in (per finalist)</label>
+                <input type="number" id="stage3InputTokens" min="0" step="100" value="100000" />
+              </div>
+              <div class="field">
+                <label for="stage3OutputTokens">Tokens out (per finalist)</label>
+                <input type="number" id="stage3OutputTokens" min="0" step="100" value="20000" />
+              </div>
+            </section>
+          </div>
+
+          <div class="planner-actions">
+            <button class="btn-primary" type="button" id="startRunBtn">Start automated run</button>
+            <button class="btn-secondary" type="button" id="resetDefaultsBtn">Reset defaults</button>
+            <span id="startRunStatus" role="status" aria-live="polite"></span>
+          </div>
+        </div>
+      </article>
+
+      <aside class="panel">
+        <div>
+          <h2>Estimated spend</h2>
+          <p>Numbers refresh automatically as you tweak the controls. Costs use the current public list prices per 1M tokens.</p>
+        </div>
+        <section class="cost-output" id="costOutput">
+          <ul>
+            <li><span>Stage 1</span><span>$0.00</span></li>
+            <li><span>Stage 2</span><span>$0.00</span></li>
+            <li><span>Stage 3</span><span>$0.00</span></li>
+          </ul>
+          <hr />
+          <div><strong>Total:</strong> <span id="totalCost">$0.00</span></div>
+          <p id="survivorSummary">—</p>
+        </section>
+        <section class="status-log">
+          <h3>Launch status</h3>
+          <pre id="statusLog">Ready when you are.</pre>
+        </section>
+      </aside>
+    </section>
+  </main>
+
+  <script>
+    const STORAGE_KEY = 'ff-planner-settings-v1';
+    const PRICES = {
+      '5':      { in: 1.25, out: 10.0 },
+      '5-mini': { in: 0.25, out: 2.0 },
+      '4o-mini': { in: 0.15, out: 0.60 }
+    };
+
+    const defaults = {
+      universe: 40000,
+      surviveStage2: 15,
+      surviveStage3: 12,
+      stage1: { model: '4o-mini', inTokens: 3000, outTokens: 600 },
+      stage2: { model: '5-mini', inTokens: 30000, outTokens: 6000 },
+      stage3: { model: '5', inTokens: 100000, outTokens: 20000 }
+    };
+
+    const $ = (id) => document.getElementById(id);
+
+    const inputs = {
+      universe: $('universeInput'),
+      stage2Slider: $('stage2Slider'),
+      stage3Slider: $('stage3Slider'),
+      stage1Model: $('modelStage1'),
+      stage2Model: $('modelStage2'),
+      stage3Model: $('modelStage3'),
+      stage1In: $('stage1InputTokens'),
+      stage1Out: $('stage1OutputTokens'),
+      stage2In: $('stage2InputTokens'),
+      stage2Out: $('stage2OutputTokens'),
+      stage3In: $('stage3InputTokens'),
+      stage3Out: $('stage3OutputTokens'),
+      status: $('startRunStatus'),
+      log: $('statusLog'),
+      costOut: $('costOutput'),
+      totalCost: $('totalCost'),
+      survivorSummary: $('survivorSummary'),
+      stage2Value: $('stage2Value'),
+      stage3Value: $('stage3Value'),
+      startBtn: $('startRunBtn'),
+      resetBtn: $('resetDefaultsBtn')
+    };
+
+    function loadSettings() {
+      try {
+        const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
+        if (!saved) return { ...defaults };
+        return {
+          universe: Number(saved.universe) || defaults.universe,
+          surviveStage2: Number(saved.surviveStage2) || defaults.surviveStage2,
+          surviveStage3: Number(saved.surviveStage3) || defaults.surviveStage3,
+          stage1: { ...defaults.stage1, ...saved.stage1 },
+          stage2: { ...defaults.stage2, ...saved.stage2 },
+          stage3: { ...defaults.stage3, ...saved.stage3 }
+        };
+      } catch (err) {
+        console.warn('Unable to parse saved planner settings', err);
+        return { ...defaults };
+      }
+    }
+
+    function persistSettings(settings) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
+    }
+
+    function getSettingsFromInputs() {
+      return {
+        universe: Number(inputs.universe.value) || 0,
+        surviveStage2: Number(inputs.stage2Slider.value) || 0,
+        surviveStage3: Number(inputs.stage3Slider.value) || 0,
+        stage1: {
+          model: inputs.stage1Model.value,
+          inTokens: Number(inputs.stage1In.value) || 0,
+          outTokens: Number(inputs.stage1Out.value) || 0
+        },
+        stage2: {
+          model: inputs.stage2Model.value,
+          inTokens: Number(inputs.stage2In.value) || 0,
+          outTokens: Number(inputs.stage2Out.value) || 0
+        },
+        stage3: {
+          model: inputs.stage3Model.value,
+          inTokens: Number(inputs.stage3In.value) || 0,
+          outTokens: Number(inputs.stage3Out.value) || 0
+        }
+      };
+    }
+
+    function applySettings(settings) {
+      inputs.universe.value = settings.universe;
+      inputs.stage2Slider.value = settings.surviveStage2;
+      inputs.stage3Slider.value = settings.surviveStage3;
+      inputs.stage2Value.textContent = `${settings.surviveStage2}%`;
+      inputs.stage3Value.textContent = `${settings.surviveStage3}%`;
+      inputs.stage1Model.value = settings.stage1.model;
+      inputs.stage1In.value = settings.stage1.inTokens;
+      inputs.stage1Out.value = settings.stage1.outTokens;
+      inputs.stage2Model.value = settings.stage2.model;
+      inputs.stage2In.value = settings.stage2.inTokens;
+      inputs.stage2Out.value = settings.stage2.outTokens;
+      inputs.stage3Model.value = settings.stage3.model;
+      inputs.stage3In.value = settings.stage3.inTokens;
+      inputs.stage3Out.value = settings.stage3.outTokens;
+    }
+
+    function stageCost(n, inTok, outTok, modelKey) {
+      const model = PRICES[modelKey];
+      if (!model || !n) return { total: 0, inCost: 0, outCost: 0 };
+      const inCost = (n * inTok / 1_000_000) * model.in;
+      const outCost = (n * outTok / 1_000_000) * model.out;
+      return { total: inCost + outCost, inCost, outCost };
+    }
+
+    function formatCurrency(amount) {
+      return `$${amount.toFixed(2)}`;
+    }
+
+    function updateCostOutput() {
+      const settings = getSettingsFromInputs();
+      persistSettings(settings);
+
+      const survivorsStage2 = Math.round(settings.universe * (settings.surviveStage2 / 100));
+      const survivorsStage3 = Math.round(survivorsStage2 * (settings.surviveStage3 / 100));
+
+      const s1 = stageCost(settings.universe, settings.stage1.inTokens, settings.stage1.outTokens, settings.stage1.model);
+      const s2 = stageCost(survivorsStage2, settings.stage2.inTokens, settings.stage2.outTokens, settings.stage2.model);
+      const s3 = stageCost(survivorsStage3, settings.stage3.inTokens, settings.stage3.outTokens, settings.stage3.model);
+
+      const total = s1.total + s2.total + s3.total;
+
+      inputs.costOut.querySelectorAll('li')[0].lastElementChild.textContent = formatCurrency(s1.total);
+      inputs.costOut.querySelectorAll('li')[1].lastElementChild.textContent = formatCurrency(s2.total);
+      inputs.costOut.querySelectorAll('li')[2].lastElementChild.textContent = formatCurrency(s3.total);
+      inputs.totalCost.textContent = formatCurrency(total);
+      inputs.survivorSummary.textContent = `Stage 2 survivors: ${survivorsStage2.toLocaleString()} • Stage 3 finalists: ${survivorsStage3.toLocaleString()}`;
+    }
+
+    function logStatus(message) {
+      const now = new Date();
+      const timestamp = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      inputs.log.textContent = `[${timestamp}] ${message}\n\n${inputs.log.textContent}`.trim();
+    }
+
+    async function startRun() {
+      const settings = getSettingsFromInputs();
+      inputs.startBtn.disabled = true;
+      inputs.status.textContent = 'Launching…';
+      logStatus('Submitting run to /api/runs/create');
+
+      try {
+        const response = await fetch('/api/runs/create', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ planner: settings })
+        });
+
+        if (!response.ok) {
+          const text = await response.text();
+          throw new Error(`API responded ${response.status}: ${text}`);
+        }
+
+        const data = await response.json();
+        inputs.status.textContent = `Run created: ${data.run_id || 'unknown id'}`;
+        logStatus(`Run created successfully with ${data.total_items ?? 'n/a'} tickers.`);
+      } catch (error) {
+        console.error(error);
+        inputs.status.textContent = 'Launch failed';
+        logStatus(`Launch failed: ${error.message}`);
+      } finally {
+        inputs.startBtn.disabled = false;
+      }
+    }
+
+    function resetDefaults() {
+      persistSettings(defaults);
+      applySettings(defaults);
+      updateCostOutput();
+      logStatus('Settings restored to defaults.');
+      inputs.status.textContent = 'Defaults restored';
+    }
+
+    function bindEvents() {
+      const watchedInputs = [
+        inputs.universe,
+        inputs.stage2Slider,
+        inputs.stage3Slider,
+        inputs.stage1Model,
+        inputs.stage2Model,
+        inputs.stage3Model,
+        inputs.stage1In,
+        inputs.stage1Out,
+        inputs.stage2In,
+        inputs.stage2Out,
+        inputs.stage3In,
+        inputs.stage3Out
+      ];
+
+      watchedInputs.forEach((element) => {
+        element.addEventListener('input', () => {
+          if (element === inputs.stage2Slider) {
+            inputs.stage2Value.textContent = `${element.value}%`;
+          }
+          if (element === inputs.stage3Slider) {
+            inputs.stage3Value.textContent = `${element.value}%`;
+          }
+          updateCostOutput();
+        });
+      });
+
+      inputs.startBtn.addEventListener('click', startRun);
+      inputs.resetBtn.addEventListener('click', resetDefaults);
+    }
+
+    const initialSettings = loadSettings();
+    applySettings(initialSettings);
+    bindEvents();
+    updateCostOutput();
+    logStatus('Planner ready. Configure and launch when models are wired.');
+    inputs.status.textContent = 'Ready';
+  </script>
+</body>
+</html>
