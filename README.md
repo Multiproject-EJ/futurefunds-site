@@ -10,3 +10,5 @@ universe, and internal tooling.
   tables, policies, and triggers the frontend expects.
 - [Automated equity analyst roadmap](docs/equity-analyst-roadmap.md) — phased build plan for the
   multi-stage research system and associated UI.
+- Database migrations live under `/sql` (apply them with `supabase db push` or your preferred
+  migration runner).
