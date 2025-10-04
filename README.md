@@ -8,3 +8,5 @@ universe, and internal tooling.
 
 - [Supabase database reference](docs/supabase-schema.md) — canonical contract for the
   tables, policies, and triggers the frontend expects.
+- [Automated equity analyst roadmap](docs/equity-analyst-roadmap.md) — phased build plan for the
+  multi-stage research system and associated UI.
