@@ -69,6 +69,78 @@
   </style>
 </head>
 <body>
+  <header class="site-header">
+    <a class="brand" href="/">
+      <img src="/images/logo.webp" alt="FutureFunds.ai logo" class="logo" />
+      <span>FutureFunds.ai</span>
+    </a>
+    <button class="nav-toggle" id="navToggle" type="button" aria-expanded="false" aria-controls="siteNav">
+      <span class="sr-only">Menu</span>
+      <span class="nav-toggle__bar"></span>
+    </button>
+    <nav class="nav" id="siteNav" aria-label="Primary navigation">
+      <div class="nav-links">
+        <div class="nav-item nav-item--team">
+          <a href="/team.html" class="nav-link" data-i18n="nav.team">Experiment</a>
+        </div>
+        <div class="nav-item nav-item--has-panel nav-item--tools">
+          <a href="/tools.html" class="nav-link" data-i18n="nav.investmentTools">Investment Tools</a>
+          <div class="nav-panel nav-panel--tools" role="group" aria-label="Investment tools">
+            <div class="nav-panel__header">
+              <span class="nav-panel__title">Featured tools</span>
+              <a class="nav-panel__cta" href="/tools.html">Explore tools →</a>
+            </div>
+            <div class="nav-panel__content nav-panel__content--tools">
+              <a class="nav-tool" href="/tool.html?id=ff-pms">
+                <span class="chip membership">Member</span>
+                <h4>Portfolio OS</h4>
+                <p>Run strategies end-to-end with sheets + AI copilots.</p>
+              </a>
+              <a class="nav-tool" href="/tool.html?id=stockalpha-journal">
+                <span class="chip free">Free</span>
+                <h4>StockAlpha Journal</h4>
+                <p>Track theses, catalysts, and behavioral loops.</p>
+              </a>
+              <a class="nav-tool" href="/tool.html?id=valuebot">
+                <span class="chip paid">Paid</span>
+                <h4>ValueBot Valuation</h4>
+                <p>Get sourced, step-by-step valuations on demand.</p>
+              </a>
+            </div>
+          </div>
+        </div>
+        <div class="nav-item nav-item--has-panel nav-item--ai">
+          <a href="/ai-economy.html" class="nav-link" data-i18n="nav.aiEconomy">The AI Economy</a>
+          <div class="nav-panel nav-panel--ai" role="group" aria-label="AI economy preview">
+            <div class="nav-panel__header">
+              <span class="nav-panel__title">AI economy brief</span>
+              <a class="nav-panel__cta" href="/ai-economy.html">Dive in →</a>
+            </div>
+            <div class="nav-ai">
+              <p class="nav-ai__pitch">Weekly signals on how automation, capital, and policy collide. Built from filings, expert transcripts, and on-chain data.</p>
+              <form class="nav-ai__signup newsletter-form" action="/ai-economy.html#newsletter" method="get">
+                <label class="sr-only" for="nav-ai-email">Email address</label>
+                <input id="nav-ai-email" type="email" name="email" placeholder="you@example.com" autocomplete="email" />
+                <button type="submit" class="btn primary">Get the brief</button>
+                <p class="nav-ai__status newsletter-status muted" aria-live="polite"></p>
+              </form>
+            </div>
+          </div>
+        </div>
+        <a href="/portfolio.html" class="nav-link" data-i18n="nav.portfolios">Portfolios</a>
+        <a href="/universe.html" class="nav-link" data-i18n="nav.universe">Universe</a>
+      </div>
+      <div class="nav-actions">
+        <button id="langBtn" class="btn small">EN ▾</button>
+        <button id="themeToggle" class="btn small ghost theme-toggle" aria-label="Toggle theme">
+          <span class="theme-toggle__icon" aria-hidden="true">🌗</span>
+          <span class="theme-toggle__label" data-i18n="nav.themeToggle">Theme</span>
+        </button>
+        <a id="membershipLogin" class="btn danger" href="/membership.html" data-i18n="cta.membership">Membership</a>
+      </div>
+    </nav>
+  </header>
+
   <main class="editor-wrap">
     <header class="analyst-header">
       <div class="analyst-header__info">
@@ -242,5 +314,6 @@
       </div>
     </section>
   </main>
+  <script src="/assets/app.js" defer></script>
 </body>
 </html>
