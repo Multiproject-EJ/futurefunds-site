@@ -194,6 +194,22 @@
       color: var(--text,#0f172a);
       cursor: pointer;
     }
+    .btn-danger {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 999px;
+      padding: 10px 18px;
+      font-size: .9rem;
+      border: 1px solid rgba(220,38,38,.4);
+      background: rgba(248,113,113,.12);
+      color: #b91c1c;
+      cursor: pointer;
+    }
+    .btn-danger:disabled {
+      opacity: .55;
+      cursor: not-allowed;
+    }
     .cost-output {
       border: 1px solid rgba(15,23,42,.08);
       border-radius: 18px;
@@ -309,6 +325,51 @@
     .field-inline small {
       font-size: .78rem;
       color: var(--muted,#64748b);
+    }
+
+    .run-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+      align-items: center;
+      margin: 10px 0 6px;
+    }
+
+    .run-meta__stat {
+      display: grid;
+      gap: 2px;
+      min-width: 140px;
+      padding: 10px 14px;
+      border-radius: 12px;
+      background: rgba(37,99,235,.08);
+    }
+
+    .run-meta__stat span {
+      font-size: .75rem;
+      letter-spacing: .05em;
+      text-transform: uppercase;
+      color: var(--muted,#475569);
+    }
+
+    .run-meta__stat strong {
+      font-size: .95rem;
+      color: var(--text,#0f172a);
+    }
+
+    .run-meta__actions {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .run-meta__status {
+      color: var(--muted,#475569);
+      font-size: .8rem;
+    }
+
+    .run-meta__status strong {
+      color: var(--text,#0f172a);
     }
 
     .controller-metrics {
@@ -564,6 +625,22 @@
         </div>
         <small>The latest run ID is stored automatically after you launch a new batch from this planner.</small>
       </div>
+
+      <div class="run-meta" aria-live="polite">
+        <div class="run-meta__stat">
+          <span>Status</span>
+          <strong id="runStatusText">—</strong>
+        </div>
+        <div class="run-meta__stat">
+          <span>Stop requested</span>
+          <strong id="runStopText">—</strong>
+        </div>
+        <div class="run-meta__actions">
+          <button type="button" class="btn-danger" id="stopRunBtn">Request stop</button>
+          <button type="button" class="btn-secondary" id="resumeRunBtn">Resume run</button>
+        </div>
+      </div>
+      <div class="run-meta__status" id="runMetaStatus">Select a run to manage stop requests.</div>
 
       <dl class="controller-metrics" aria-live="polite" aria-label="Stage one progress metrics">
         <div class="controller-metrics__item">

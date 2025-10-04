@@ -44,6 +44,11 @@ const inputs = {
   applyRunIdBtn: $('applyRunIdBtn'),
   clearRunIdBtn: $('clearRunIdBtn'),
   runIdDisplay: $('runIdDisplay'),
+  runStatusText: $('runStatusText'),
+  runStopText: $('runStopText'),
+  runMetaStatus: $('runMetaStatus'),
+  stopRunBtn: $('stopRunBtn'),
+  resumeRunBtn: $('resumeRunBtn'),
   stage1Btn: $('processStage1Btn'),
   stage1RefreshBtn: $('refreshStage1Btn'),
   stage1Status: $('stage1Status'),
@@ -57,6 +62,7 @@ const inputs = {
 const FUNCTIONS_BASE = SUPABASE_URL.replace(/\.supabase\.co$/, '.functions.supabase.co');
 const RUNS_CREATE_ENDPOINT = `${FUNCTIONS_BASE}/runs-create`;
 const STAGE1_CONSUME_ENDPOINT = `${FUNCTIONS_BASE}/stage1-consume`;
+const RUNS_STOP_ENDPOINT = `${FUNCTIONS_BASE}/runs-stop`;
 const RUN_STORAGE_KEY = 'ff-active-run-id';
 
 let authContext = {
@@ -69,6 +75,9 @@ let authContext = {
 };
 let lastAccessState = 'unknown';
 let activeRunId = null;
+let currentRunMeta = null;
+let runChannel = null;
+let stage1RefreshTimer = null;
 
 function loadSettings() {
   try {
@@ -144,6 +153,218 @@ function updateRunDisplay() {
 
   if (inputs.runIdInput && document.activeElement !== inputs.runIdInput) {
     inputs.runIdInput.value = activeRunId ?? '';
+  }
+}
+
+function updateRunMeta(meta = null, { message } = {}) {
+  currentRunMeta = meta ?? null;
+
+  const statusText = meta?.status ? String(meta.status).replace(/_/g, ' ') : null;
+  const stopText = meta ? (meta.stop_requested ? 'Yes' : 'No') : null;
+
+  if (inputs.runStatusText) {
+    inputs.runStatusText.textContent = statusText ? statusText : '—';
+  }
+
+  if (inputs.runStopText) {
+    inputs.runStopText.textContent = stopText ?? '—';
+  }
+
+  const defaultMessage = !activeRunId
+    ? 'Select a run to manage stop requests.'
+    : meta
+      ? meta.stop_requested
+        ? 'Run flagged to stop. Workers finish the active batch and halt new processing.'
+        : 'Run active. Flag a stop request to pause new work after current batches.'
+      : 'Loading run details…';
+
+  if (inputs.runMetaStatus) {
+    inputs.runMetaStatus.textContent = message || defaultMessage;
+  }
+
+  applyAccessState({ preserveStatus: true });
+}
+
+function clearStage1RefreshTimer() {
+  if (stage1RefreshTimer) {
+    clearTimeout(stage1RefreshTimer);
+    stage1RefreshTimer = null;
+  }
+}
+
+function scheduleStage1Refresh({ immediate = false } = {}) {
+  clearStage1RefreshTimer();
+  if (!activeRunId) return;
+  if (immediate) {
+    fetchStage1Summary({ silent: true }).catch((error) => {
+      console.error('Auto refresh failed', error);
+    });
+    return;
+  }
+
+  stage1RefreshTimer = window.setTimeout(() => {
+    stage1RefreshTimer = null;
+    fetchStage1Summary({ silent: true }).catch((error) => {
+      console.error('Auto refresh failed', error);
+    });
+  }, 400);
+}
+
+function unsubscribeFromRunChannel() {
+  clearStage1RefreshTimer();
+  if (runChannel) {
+    try {
+      supabase.removeChannel(runChannel);
+    } catch (error) {
+      console.warn('Failed to remove previous realtime channel', error);
+    }
+    runChannel = null;
+  }
+}
+
+function subscribeToRunChannel(runId) {
+  unsubscribeFromRunChannel();
+  if (!runId) return;
+
+  runChannel = supabase
+    .channel(`planner-run-${runId}`)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'run_items', filter: `run_id=eq.${runId}` }, () => {
+      scheduleStage1Refresh();
+    })
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'answers', filter: `run_id=eq.${runId}` }, () => {
+      scheduleStage1Refresh();
+    })
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'runs', filter: `id=eq.${runId}` }, () => {
+      fetchRunMeta({ silent: true }).catch((error) => {
+        console.error('Realtime run meta refresh failed', error);
+      });
+    })
+    .subscribe((status) => {
+      if (status === 'SUBSCRIBED') {
+        scheduleStage1Refresh({ immediate: true });
+        fetchRunMeta({ silent: true }).catch((error) => {
+          console.error('Initial run meta load failed', error);
+        });
+      }
+    });
+}
+
+async function fetchRunMeta({ silent = false } = {}) {
+  if (!activeRunId) {
+    updateRunMeta(null);
+    return null;
+  }
+
+  if (!silent && inputs.runMetaStatus) {
+    inputs.runMetaStatus.textContent = 'Loading run details…';
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('runs')
+      .select('id, created_at, status, stop_requested, notes')
+      .eq('id', activeRunId)
+      .maybeSingle();
+
+    if (error) throw error;
+
+    updateRunMeta(data ?? null);
+    return data ?? null;
+  } catch (error) {
+    console.error('Failed to load run details', error);
+    updateRunMeta(null, { message: 'Unable to load run details. Try refreshing.' });
+    return null;
+  }
+}
+
+async function toggleRunStop(stopRequested) {
+  if (!activeRunId) {
+    if (inputs.runMetaStatus) inputs.runMetaStatus.textContent = 'Select a run before toggling stop requests.';
+    return;
+  }
+
+  await syncAccess({ preserveStatus: true });
+
+  if (!authContext.user) {
+    if (inputs.runMetaStatus) inputs.runMetaStatus.textContent = 'Sign in required to manage runs.';
+    return;
+  }
+
+  if (!authContext.isAdmin) {
+    if (inputs.runMetaStatus) inputs.runMetaStatus.textContent = 'Admin access required to toggle stop requests.';
+    return;
+  }
+
+  if (!authContext.token) {
+    if (inputs.runMetaStatus) inputs.runMetaStatus.textContent = 'Session expired. Sign in again to continue.';
+    await syncAccess();
+    return;
+  }
+
+  const primaryBtn = stopRequested ? inputs.stopRunBtn : inputs.resumeRunBtn;
+  const secondaryBtn = stopRequested ? inputs.resumeRunBtn : inputs.stopRunBtn;
+
+  if (primaryBtn) primaryBtn.disabled = true;
+  if (secondaryBtn) secondaryBtn.disabled = true;
+
+  if (inputs.runMetaStatus) {
+    inputs.runMetaStatus.textContent = stopRequested
+      ? 'Flagging run to stop…'
+      : 'Clearing stop request…';
+  }
+
+  try {
+    const response = await fetch(RUNS_STOP_ENDPOINT, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${authContext.token}`
+      },
+      body: JSON.stringify({
+        run_id: activeRunId,
+        stop_requested: Boolean(stopRequested),
+        client_meta: {
+          origin: window.location.origin,
+          triggered_at: new Date().toISOString()
+        }
+      })
+    });
+
+    const raw = await response.text();
+    let payload = {};
+    if (raw) {
+      try {
+        payload = JSON.parse(raw);
+      } catch (error) {
+        console.warn('Unable to parse runs-stop response JSON', error);
+      }
+    }
+
+    if (!response.ok) {
+      const message = payload?.error || `runs-stop endpoint responded ${response.status}`;
+      throw new Error(message);
+    }
+
+    const run = payload?.run ?? null;
+    updateRunMeta(run ?? currentRunMeta, {
+      message: stopRequested
+        ? 'Stop request recorded. Workers will finish the active batch and halt.'
+        : 'Stop request cleared. Workers may resume new batches.'
+    });
+
+    const logMessage = stopRequested ? 'Stop requested for active run.' : 'Stop request cleared for active run.';
+    logStatus(logMessage);
+    scheduleStage1Refresh({ immediate: true });
+  } catch (error) {
+    console.error('Failed to toggle stop request', error);
+    if (inputs.runMetaStatus) {
+      inputs.runMetaStatus.textContent = `Failed to update run: ${error.message}`;
+    }
+    logStatus(`Stop toggle failed: ${error.message}`);
+  } finally {
+    if (secondaryBtn) secondaryBtn.disabled = false;
+    if (primaryBtn) primaryBtn.disabled = false;
+    applyAccessState({ preserveStatus: true });
   }
 }
 
@@ -285,6 +506,7 @@ function setActiveRunId(value, { announce = true, silent = false } = {}) {
 
   const previous = activeRunId;
   activeRunId = normalized || null;
+  const changed = previous !== activeRunId;
 
   if (activeRunId) {
     localStorage.setItem(RUN_STORAGE_KEY, activeRunId);
@@ -296,12 +518,20 @@ function setActiveRunId(value, { announce = true, silent = false } = {}) {
   applyAccessState({ preserveStatus: true });
 
   if (!activeRunId) {
+    unsubscribeFromRunChannel();
+    updateRunMeta(null);
     updateStage1Metrics();
     renderRecentClassifications([]);
     if (announce && inputs.stage1Status) inputs.stage1Status.textContent = 'Active run cleared. Set a run ID to continue.';
     if (announce) logStatus('Active run cleared.');
-    return previous !== activeRunId;
+    return changed;
   }
+
+  subscribeToRunChannel(activeRunId);
+
+  fetchRunMeta({ silent }).catch((error) => {
+    console.error('Failed to refresh run details', error);
+  });
 
   if (announce) {
     const message = `Active run set to ${activeRunId}`;
@@ -314,7 +544,7 @@ function setActiveRunId(value, { announce = true, silent = false } = {}) {
     if (inputs.stage1Status) inputs.stage1Status.textContent = 'Failed to load Stage 1 progress.';
   });
 
-  return previous !== activeRunId;
+  return changed;
 }
 
 async function processStage1Batch() {
@@ -322,6 +552,11 @@ async function processStage1Batch() {
 
   if (!activeRunId) {
     if (inputs.stage1Status) inputs.stage1Status.textContent = 'Assign a run ID before processing.';
+    return;
+  }
+
+  if (currentRunMeta?.stop_requested) {
+    if (inputs.stage1Status) inputs.stage1Status.textContent = 'Run flagged to stop. Clear the stop request to continue processing.';
     return;
   }
 
@@ -453,11 +688,19 @@ function applyAccessState({ preserveStatus = false } = {}) {
   }
 
   if (inputs.stage1Btn) {
-    inputs.stage1Btn.disabled = state !== 'admin-ok' || !activeRunId;
+    inputs.stage1Btn.disabled = state !== 'admin-ok' || !activeRunId || (currentRunMeta?.stop_requested ?? false);
   }
 
   if (inputs.stage1RefreshBtn) {
     inputs.stage1RefreshBtn.disabled = !activeRunId;
+  }
+
+  if (inputs.stopRunBtn) {
+    inputs.stopRunBtn.disabled = state !== 'admin-ok' || !activeRunId || (currentRunMeta?.stop_requested ?? false);
+  }
+
+  if (inputs.resumeRunBtn) {
+    inputs.resumeRunBtn.disabled = state !== 'admin-ok' || !activeRunId || !(currentRunMeta?.stop_requested ?? false);
   }
 
   if (!inputs.status) {
@@ -660,6 +903,8 @@ function bindEvents() {
   inputs.resetBtn?.addEventListener('click', resetDefaults);
   inputs.stage1Btn?.addEventListener('click', processStage1Batch);
   inputs.stage1RefreshBtn?.addEventListener('click', () => fetchStage1Summary());
+  inputs.stopRunBtn?.addEventListener('click', () => toggleRunStop(true));
+  inputs.resumeRunBtn?.addEventListener('click', () => toggleRunStop(false));
   inputs.applyRunIdBtn?.addEventListener('click', () => {
     const value = inputs.runIdInput?.value ?? '';
     setActiveRunId(value, { announce: true });
@@ -694,6 +939,7 @@ async function bootstrap() {
     setActiveRunId(storedRunId, { announce: false, silent: true });
   } else {
     updateRunDisplay();
+    updateRunMeta(null);
     updateStage1Metrics();
     if (inputs.stage1Status) inputs.stage1Status.textContent = 'No active run selected.';
   }
