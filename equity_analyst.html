@@ -3,69 +3,76 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>FutureFunds — Automated Equity Analyst Blueprint</title>
+  <title>FutureFunds — Automated Equity Analyst Command Center</title>
   <link rel="stylesheet" href="/assets/styles.css" />
   <style>
-    .editor-wrap{max-width:960px;margin:32px auto;padding:0 16px}
-    .analyst-header{display:grid;gap:18px;margin-bottom:28px}
-    .analyst-header__info{display:grid;gap:8px}
-    .analyst-header__info .editor-title{margin:0}
-    .analyst-header__info .editor-intro{margin:0}
-    .analyst-header__panel{border:1px solid var(--border,#e5e7eb);border-radius:22px;background:var(--panel,#fff);box-shadow:0 14px 28px rgba(15,23,42,.08);padding:20px;display:grid;gap:20px}
-    .analyst-badge{justify-self:center;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:16px;border:1px solid var(--border,#e5e7eb);border-radius:18px;background:var(--panel,#fff);box-shadow:0 12px 24px rgba(15,23,42,.06);width:100%;max-width:320px;min-height:164px;text-align:center}
-    .analyst-badge__photo{width:68px;height:68px;border-radius:14px;overflow:hidden;background:var(--panel-muted,#f8fafc);display:flex;align-items:center;justify-content:center;border:1px solid var(--border,#e5e7eb)}
-    .analyst-badge__photo img{width:100%;height:100%;object-fit:cover}
-    .analyst-badge__name{font-size:1.05rem;font-weight:600;color:var(--text,#0f172a);margin:0}
-    .analyst-badge__role{font-size:.78rem;color:var(--muted,#64748b);margin:0}
-    .analyst-badge__stamp{font-size:.75rem;color:var(--muted,#64748b);margin:0}
-    .analyst-badge__status{font-size:.78rem;color:var(--muted,#64748b);margin:0}
-    .analyst-badge__status strong{color:var(--text,#0f172a)}
-    .analyst-badge__actions{display:flex;flex-wrap:wrap;justify-content:center;gap:8px}
-    .analyst-header__panel .coverage-meta{margin:0;height:100%}
-    .analyst-header__panel .coverage-meta--compact{padding:0;border:none;box-shadow:none;background:transparent;gap:16px}
-    .analyst-header__panel .coverage-meta__layout{height:100%}
-    .analyst-header__panel .analyst-badge{justify-self:stretch;max-width:none;height:100%}
-    @media (min-width:768px){
-      .analyst-header__panel{grid-template-columns:minmax(0,.7fr) minmax(0,.3fr);align-items:stretch}
-    }
-    .editor-title{font-size:1.9rem;margin:0;color:var(--text,#0f172a);font-weight:700}
-    .editor-intro{margin:0;color:var(--muted,#64748b)}
-    .coverage-meta{margin:32px 0;padding:20px;border:1px solid var(--border,#e5e7eb);border-radius:18px;background:var(--panel,#fff);box-shadow:0 12px 24px rgba(15,23,42,.06);display:grid;gap:16px}
-    .coverage-meta--compact{margin:0;padding:20px;gap:18px;box-shadow:0 10px 20px rgba(15,23,42,.05);height:100%}
-    .coverage-meta__title{margin:0;font-size:1.15rem;font-weight:600;color:var(--text,#0f172a)}
-    .coverage-meta__layout{display:grid;gap:18px}
-    @media (min-width:768px){.coverage-meta__layout{grid-template-columns:minmax(0,1.2fr) minmax(0,.8fr);align-items:start}}
-    .coverage-meta__fields{display:grid;gap:18px;grid-template-columns:1fr;height:100%}
-    .coverage-meta__form-card{display:grid;gap:16px;padding:18px;border:1px solid var(--border,#e5e7eb);border-radius:14px;background:var(--panel-muted,#f8fafc);height:100%;transition:box-shadow .2s ease,border-color .2s ease}
-    .coverage-meta__counter-card{display:flex;align-items:center;justify-content:space-between;gap:18px;width:100%;padding:14px 16px;border:1px dashed rgba(37,99,235,.35);border-radius:14px;background:rgba(37,99,235,.08);color:var(--text,#0f172a);text-align:left;cursor:pointer;transition:transform .15s ease,box-shadow .15s ease,border-color .15s ease}
-    .coverage-meta__counter-info{display:grid;gap:4px}
-    .coverage-meta__counter-label{margin:0;font-size:.85rem;font-weight:600;color:var(--accent,#2563eb)}
-    .coverage-meta__counter-description{margin:0;font-size:.82rem;color:var(--muted,#475569)}
-    .coverage-meta__counter-value{font-size:1.4rem;font-weight:700;color:var(--text,#0f172a)}
-    .summary-card{border:1px solid var(--border,#e5e7eb);border-radius:18px;background:var(--panel,#fff);padding:18px;display:grid;gap:12px;box-shadow:0 10px 22px rgba(15,23,42,.05)}
-    .summary-card__title{margin:0;font-size:1.05rem;font-weight:600;color:var(--text,#0f172a)}
-    .summary-card__content{font-size:.92rem;color:var(--muted,#64748b);display:grid;gap:8px}
-    .editor-summary-grid{display:grid;gap:18px;margin-bottom:28px}
-    @media (min-width:768px){.editor-summary-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
-    .editor-summary-grid--full{grid-template-columns:1fr}
-    .process-steps{list-style:none;margin:0;padding:0;display:grid;gap:8px}
-    .process-step{display:flex;align-items:center;gap:12px;padding:8px 12px;border-radius:14px;border:1px solid var(--border,#e5e7eb);background:var(--panel-muted,#f8fafc);transition:background .2s ease,border-color .2s ease,box-shadow .2s ease}
-    .process-step__icon{position:relative;flex-shrink:0;width:30px;height:30px;border-radius:999px;display:inline-flex;align-items:center;justify-content:center;color:var(--muted,#64748b)}
-    .process-step__icon::after{content:attr(data-step);display:flex;align-items:center;justify-content:center;width:100%;height:100%;border-radius:inherit;background:#fff;border:2px solid currentColor;font-size:.85rem;font-weight:600;box-sizing:border-box;transition:background .2s ease,color .2s ease,border-color .2s ease}
-    .process-step__body{flex:1}
-    .process-step__title{font-weight:600;color:var(--text,#0f172a);font-size:.9rem;margin:0}
-    .process-step__meta{color:var(--muted,#64748b);font-size:.82rem;margin:0}
-    .task-launch-card{display:grid;gap:4px;padding:16px;border:1px solid var(--border,#e5e7eb);border-radius:14px;background:var(--panel,#fff);text-align:left;cursor:pointer;transition:transform .15s ease,box-shadow .15s ease,border-color .15s ease;color:inherit;font:inherit;width:100%}
-    .task-launch-card:hover{border-color:var(--accent,#2563eb);box-shadow:0 14px 26px rgba(37,99,235,.15);transform:translateY(-2px)}
-    .task-launch-card__title{font-size:1.05rem;font-weight:600;color:var(--text,#0f172a)}
-    .task-launch-card__subtitle{font-size:.85rem;color:var(--muted,#64748b)}
-    .ai-settings-list{list-style:none;margin:0;padding:0;display:grid;gap:8px}
-    .ai-settings-list strong{font-size:.9rem;color:var(--text,#0f172a)}
-    .ai-settings-list span{font-size:.85rem;color:var(--muted,#64748b)}
-    .analysis-export{display:grid;gap:18px}
-    .analysis-export__title{margin:0;font-size:1.15rem;font-weight:600;color:var(--text,#0f172a)}
-    .analysis-export__fields{display:grid;gap:18px}
-    .analysis-export__actions{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
+    .analyst-shell{max-width:1100px;margin:32px auto 64px;padding:0 16px;display:grid;gap:32px}
+    .analyst-hero{display:grid;gap:20px;border:1px solid var(--border,#e5e7eb);border-radius:26px;background:var(--panel,#fff);padding:28px;box-shadow:0 26px 42px rgba(15,23,42,.08)}
+    .analyst-hero__header{display:grid;gap:10px}
+    .analyst-hero__header .badge{justify-self:flex-start}
+    .analyst-hero__header .editor-title{margin:0;font-size:2rem;color:var(--text,#0f172a)}
+    .analyst-hero__header .editor-intro{margin:0;color:var(--muted,#475569);max-width:720px}
+    .analyst-hero__metrics{display:grid;gap:16px;grid-template-columns:repeat(auto-fit,minmax(200px,1fr))}
+    .hero-metric{border:1px solid var(--border,#e5e7eb);border-radius:18px;background:var(--panel-muted,#f8fafc);padding:18px;display:grid;gap:6px}
+    .hero-metric__label{text-transform:uppercase;letter-spacing:.08em;font-size:.75rem;color:var(--muted,#64748b);font-weight:600}
+    .hero-metric__value{font-size:1.9rem;font-weight:700;color:var(--text,#0f172a)}
+    .hero-metric__hint{font-size:.82rem;color:var(--muted,#475569)}
+    .badge{display:inline-flex;align-items:center;gap:6px;padding:4px 12px;border-radius:999px;background:rgba(37,99,235,.12);color:var(--accent,#2563eb);font-size:.72rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase}
+    .panel{border:1px solid var(--border,#e5e7eb);border-radius:22px;background:var(--panel,#fff);padding:24px;box-shadow:0 22px 38px rgba(15,23,42,.08);display:grid;gap:18px}
+    .panel__title{margin:0;font-size:1.25rem;font-weight:600;color:var(--text,#0f172a)}
+    .analyst-grid{display:grid;gap:20px;grid-template-columns:1fr}
+    @media (min-width:960px){.analyst-grid{grid-template-columns:minmax(0,.55fr) minmax(0,.45fr)}}
+    .form-stack{display:grid;gap:14px}
+    .form-row{display:grid;gap:8px}
+    .form-row--inline{display:flex;flex-wrap:wrap;align-items:center;gap:10px}
+    .form-row label{font-weight:600;font-size:.92rem;color:var(--text,#0f172a)}
+    select.run-select{min-width:220px;padding:10px 14px;border-radius:14px;border:1px solid var(--border,#e5e7eb);background:var(--panel-muted,#f8fafc);font:inherit;color:var(--text,#0f172a)}
+    button.action-btn{padding:10px 16px;border-radius:14px;border:1px solid rgba(37,99,235,.4);background:rgba(37,99,235,.08);color:var(--accent,#2563eb);font-weight:600;font:inherit;cursor:pointer;transition:background .2s ease,transform .2s ease}
+    button.action-btn:hover{background:rgba(37,99,235,.12);transform:translateY(-1px)}
+    button.action-btn:disabled{opacity:.5;cursor:not-allowed}
+    a.link-pill{display:inline-flex;align-items:center;gap:6px;padding:10px 16px;border-radius:14px;border:1px solid rgba(37,99,235,.4);text-decoration:none;color:var(--accent,#2563eb);font-weight:600}
+    a.link-pill:hover{background:rgba(37,99,235,.08)}
+    .run-meta{display:grid;gap:10px;margin:6px 0 0}
+    .run-meta__item{display:flex;align-items:center;justify-content:space-between;gap:16px;font-size:.86rem}
+    .run-meta__label{text-transform:uppercase;letter-spacing:.08em;font-weight:600;color:var(--muted,#64748b);font-size:.72rem}
+    .run-meta__value{color:var(--text,#0f172a);font-weight:600}
+    .run-notes{border-left:3px solid rgba(37,99,235,.35);padding-left:12px;font-size:.85rem;color:var(--muted,#475569);display:none}
+    .run-notes--visible{display:block}
+    .metrics-grid{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(160px,1fr))}
+    .metric-card{border:1px solid var(--border,#e5e7eb);border-radius:18px;background:var(--panel-muted,#f8fafc);padding:16px;display:grid;gap:6px}
+    .metric-card__title{margin:0;font-size:.92rem;font-weight:600;color:var(--text,#0f172a)}
+    .metric-card__value{font-size:1.4rem;font-weight:700;color:var(--text,#0f172a)}
+    .metric-card__hint{font-size:.78rem;color:var(--muted,#64748b)}
+    .cost-summary{display:grid;gap:10px}
+    .cost-summary__title{margin:8px 0 0;font-size:.95rem;font-weight:600;color:var(--text,#0f172a)}
+    .cost-summary__list{list-style:none;padding:0;margin:0;display:grid;gap:6px;font-size:.82rem;color:var(--muted,#475569)}
+    .cost-summary__list strong{color:var(--text,#0f172a)}
+    .pipeline-grid{display:grid;gap:18px}
+    @media (min-width:900px){.pipeline-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+    .pipeline-card{border:1px solid var(--border,#e5e7eb);border-radius:20px;background:var(--panel-muted,#f8fafc);padding:20px;display:grid;gap:12px}
+    .pipeline-card__header{display:flex;align-items:center;justify-content:space-between;gap:12px}
+    .pipeline-card__title{margin:0;font-size:1.05rem;font-weight:600;color:var(--text,#0f172a)}
+    .pipeline-card__meta{font-size:.78rem;color:var(--muted,#64748b)}
+    .progress-shell{position:relative;height:12px;border-radius:999px;background:rgba(37,99,235,.16);overflow:hidden}
+    .progress-shell__bar{position:absolute;top:0;left:0;height:100%;width:0;background:var(--accent,#2563eb);transition:width .3s ease}
+    .pipeline-card__stats{display:grid;gap:6px;font-size:.84rem;color:var(--muted,#475569)}
+    .pipeline-card__stats span{color:var(--text,#0f172a);font-weight:600}
+    .label-list{list-style:none;margin:4px 0 0;padding:0;display:grid;gap:4px;font-size:.82rem;color:var(--muted,#475569)}
+    .label-list strong{color:var(--text,#0f172a)}
+    .text-success{color:var(--accent,#2563eb)}
+    .text-fail{color:#b91c1c}
+    .activity-table{width:100%;border-collapse:separate;border-spacing:0;margin:8px 0 0;font-size:.85rem}
+    .activity-table th,.activity-table td{padding:10px 12px;border-bottom:1px solid var(--border,#e5e7eb);text-align:left}
+    .activity-table tbody tr:hover{background:rgba(37,99,235,.08)}
+    .activity-empty{margin:8px 0 0;font-size:.86rem;color:var(--muted,#64748b)}
+    .notice{font-size:.85rem;color:var(--muted,#64748b)}
+    .notice--warning{color:#b45309}
+    .checklist{list-style:none;margin:0;padding:0;display:grid;gap:8px;font-size:.88rem}
+    .checklist li{display:flex;gap:8px;align-items:flex-start}
+    .checklist li span{color:var(--muted,#475569)}
+    .analysis-export__fields{display:grid;gap:16px}
+    @media (min-width:820px){.analysis-export__fields{grid-template-columns:repeat(2,minmax(0,1fr))}}
+    .analysis-export__actions{display:flex;flex-wrap:wrap;gap:12px;align-items:center}
   </style>
 </head>
 <body>
@@ -141,179 +148,211 @@
     </nav>
   </header>
 
-  <main class="editor-wrap">
-    <header class="analyst-header">
-      <div class="analyst-header__info">
+  <main class="analyst-shell">
+    <section class="analyst-hero">
+      <div class="analyst-hero__header">
+        <span class="badge">Automation Control</span>
         <h1 class="editor-title">Automated Equity Analyst Command Center</h1>
-        <p class="editor-intro">A next-generation workspace for orchestrating the multi-stage research robot, cost guardrails, and knowledge graph that power FutureFunds equity coverage.</p>
+        <p class="editor-intro">Coordinate staged AI coverage, watch spend in real time, and surface the latest analyst summaries. This dashboard reads directly from Supabase so operators can steer the sequential research robot with live data.</p>
       </div>
-      <section class="analyst-header__panel">
-        <article class="coverage-meta coverage-meta--compact">
-          <div class="coverage-meta__layout">
-            <div class="coverage-meta__fields">
-              <div class="coverage-meta__form-card">
-                <h2 class="coverage-meta__title">Run Planner Snapshot</h2>
-                <p class="muted-small">Track universe size, survival rates, and token budgets before hitting “go”. Sync these parameters with the live cost estimator widget.</p>
-                <div class="coverage-meta__counter-card" role="presentation">
-                  <div class="coverage-meta__counter-info">
-                    <p class="coverage-meta__counter-label">Current focus</p>
-                    <p class="coverage-meta__counter-description">Universe → Stage 1 → Stage 2 → Stage 3</p>
-                  </div>
-                  <p class="coverage-meta__counter-value">40,000 → 6,000 → 720 → 90</p>
-                </div>
-                <ul class="ai-settings-list">
-                  <li><strong>Stage 1:</strong> GPT-4o-mini · 3k in / 600 out tokens target · JSON triage</li>
-                  <li><strong>Stage 2:</strong> GPT-5-mini · 30k in / 6k out tokens target · thematic batches</li>
-                  <li><strong>Stage 3:</strong> GPT-5 · 5 x deep prompts w/ RAG · 100k in / 20k out tokens target</li>
-                </ul>
-              </div>
+      <div class="analyst-hero__metrics">
+        <div class="hero-metric">
+          <span class="hero-metric__label">Universe processed</span>
+          <span class="hero-metric__value" id="metricTotalTickers">—</span>
+          <span class="hero-metric__hint">Stage&nbsp;1 complete: <strong id="metricStage1Complete">—</strong></span>
+        </div>
+        <div class="hero-metric">
+          <span class="hero-metric__label">Next queues</span>
+          <span class="hero-metric__value" id="metricStage2Queue">—</span>
+          <span class="hero-metric__hint">Deep dive queue: <strong id="metricStage3Queue">—</strong></span>
+        </div>
+        <div class="hero-metric">
+          <span class="hero-metric__label">Spend to date</span>
+          <span class="hero-metric__value" id="metricSpend">—</span>
+          <span class="hero-metric__hint">Tokens used: <strong id="metricTokens">—</strong></span>
+        </div>
+      </div>
+    </section>
+
+    <section class="analyst-grid">
+      <article class="panel">
+        <h2 class="panel__title">Run overview</h2>
+        <div class="form-stack">
+          <div class="form-row">
+            <label for="runSelect">Active run</label>
+            <div class="form-row--inline">
+              <select id="runSelect" class="run-select" aria-describedby="accessNotice">
+                <option value="">Select a run…</option>
+              </select>
+              <button type="button" class="action-btn" id="refreshRunsBtn">Refresh</button>
+              <a class="link-pill" href="/planner.html">Open planner →</a>
             </div>
+          </div>
+          <p id="accessNotice" class="notice">Sign in with analyst access to load run telemetry.</p>
+          <p id="dashboardStatus" class="notice" hidden></p>
+        </div>
+        <div class="run-meta" aria-live="polite">
+          <div class="run-meta__item">
+            <span class="run-meta__label">Status</span>
+            <span class="run-meta__value" id="runStatus">—</span>
+          </div>
+          <div class="run-meta__item">
+            <span class="run-meta__label">Created</span>
+            <span class="run-meta__value" id="runCreated">—</span>
+          </div>
+          <div class="run-meta__item">
+            <span class="run-meta__label">Stage 1 pending</span>
+            <span class="run-meta__value" id="runStage1Pending">—</span>
+          </div>
+          <div class="run-meta__item">
+            <span class="run-meta__label">Failures</span>
+            <span class="run-meta__value" id="runFailures">—</span>
+          </div>
+          <div class="run-meta__item">
+            <span class="run-meta__label">Stop requested</span>
+            <span class="run-meta__value" id="runStopRequested">—</span>
+          </div>
+        </div>
+        <div id="runNotes" class="run-notes" aria-live="polite"></div>
+      </article>
+
+      <article class="panel">
+        <h2 class="panel__title">Funnel snapshot</h2>
+        <div class="metrics-grid">
+          <article class="metric-card">
+            <h3 class="metric-card__title">Pending Stage 1</h3>
+            <div class="metric-card__value" id="metricStage1Pending">—</div>
+            <p class="metric-card__hint">Awaiting triage</p>
+          </article>
+          <article class="metric-card">
+            <h3 class="metric-card__title">Stage 1 done</h3>
+            <div class="metric-card__value" id="metricStage1Done">—</div>
+            <p class="metric-card__hint">Ready for deeper review</p>
+          </article>
+          <article class="metric-card">
+            <h3 class="metric-card__title">Stage 2 done</h3>
+            <div class="metric-card__value" id="metricStage2Done">—</div>
+            <p class="metric-card__hint">Structured insights captured</p>
+          </article>
+          <article class="metric-card">
+            <h3 class="metric-card__title">Stage 3 done</h3>
+            <div class="metric-card__value" id="metricStage3Done">—</div>
+            <p class="metric-card__hint">Deep dives published</p>
+          </article>
+          <article class="metric-card">
+            <h3 class="metric-card__title">Failures</h3>
+            <div class="metric-card__value text-fail" id="metricFailures">—</div>
+            <p class="metric-card__hint">Monitor logs in Supabase</p>
+          </article>
+        </div>
+        <div class="cost-summary">
+          <h3 class="cost-summary__title">Cost breakdown</h3>
+          <ul class="cost-summary__list" id="costBreakdownList"></ul>
+        </div>
+      </article>
+    </section>
+
+    <section class="panel">
+      <div class="pipeline-card__header">
+        <h2 class="panel__title">Pipeline status</h2>
+        <span class="pipeline-card__meta" id="pipelineUpdated">—</span>
+      </div>
+      <div class="pipeline-grid">
+        <article class="pipeline-card" data-stage="1">
+          <div class="pipeline-card__header">
+            <h3 class="pipeline-card__title">Stage 1 · Triage</h3>
+            <span class="pipeline-card__meta" id="stage1Percent">0%</span>
+          </div>
+          <div class="progress-shell" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-label="Stage 1 completion">
+            <div class="progress-shell__bar" id="stage1Progress"></div>
+          </div>
+          <div class="pipeline-card__stats">
+            <div>Completed: <span id="stage1CompletedCount">—</span></div>
+            <div>Pending: <span id="stage1PendingCount">—</span></div>
+            <div class="text-fail">Failed: <span id="stage1FailedCount">—</span></div>
+          </div>
+          <ul class="label-list" id="stage1LabelList"></ul>
+        </article>
+        <article class="pipeline-card" data-stage="2">
+          <div class="pipeline-card__header">
+            <h3 class="pipeline-card__title">Stage 2 · Structured insights</h3>
+            <span class="pipeline-card__meta" id="stage2Percent">0%</span>
+          </div>
+          <div class="progress-shell" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-label="Stage 2 completion">
+            <div class="progress-shell__bar" id="stage2Progress"></div>
+          </div>
+          <div class="pipeline-card__stats">
+            <div>Completed: <span id="stage2CompletedCount">—</span></div>
+            <div>In queue: <span id="stage2QueueCount">—</span></div>
+            <div class="text-fail">Failures: <span id="stage2FailedCount">—</span></div>
           </div>
         </article>
-        <aside class="analyst-badge">
-          <div class="analyst-badge__photo">
-            <img src="/images/logo.png" alt="FutureFunds badge" />
+        <article class="pipeline-card" data-stage="3">
+          <div class="pipeline-card__header">
+            <h3 class="pipeline-card__title">Stage 3 · Deep dives</h3>
+            <span class="pipeline-card__meta" id="stage3Percent">0%</span>
           </div>
-          <p class="analyst-badge__name">Mr. ValueBot</p>
-          <p class="analyst-badge__role">Autonomous Lead Analyst</p>
-          <p class="analyst-badge__stamp">Revision 2 · Oct 2025 pricing baseline</p>
-          <p class="analyst-badge__status"><strong>Status:</strong> Stage 2 build in progress</p>
-          <div class="analyst-badge__actions">
-            <a class="task-launch-card" href="/planner.html">
-              <span class="task-launch-card__title">Open Planner UI</span>
-              <span class="task-launch-card__subtitle">Launch the live calculator embedded in the app</span>
-            </a>
+          <div class="progress-shell" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-label="Stage 3 completion">
+            <div class="progress-shell__bar" id="stage3Progress"></div>
           </div>
-        </aside>
-      </section>
-    </header>
-
-    <section class="editor-summary-grid">
-      <article class="summary-card">
-        <h2 class="summary-card__title">Pipeline Architecture</h2>
-        <div class="summary-card__content">
-          <ul class="process-steps">
-            <li class="process-step" data-status="complete">
-              <span class="process-step__icon" data-step="0"></span>
-              <div class="process-step__body">
-                <p class="process-step__title">Stage 0 · Deterministic screen</p>
-                <p class="process-step__meta">Universe filters (exchange, float, liquidity, sector guardrails)</p>
-              </div>
-            </li>
-            <li class="process-step" data-status="active">
-              <span class="process-step__icon" data-step="1"></span>
-              <div class="process-step__body">
-                <p class="process-step__title">Stage 1 · GPT-4o-mini triage</p>
-                <p class="process-step__meta">Return label + risk flags + data freshness check</p>
-              </div>
-            </li>
-            <li class="process-step" data-status="upcoming">
-              <span class="process-step__icon" data-step="2"></span>
-              <div class="process-step__body">
-                <p class="process-step__title">Stage 2 · GPT-5-mini thematic scoring</p>
-                <p class="process-step__meta">Batch 20 Q across profitability, reinvestment, leverage, moat, timing</p>
-              </div>
-            </li>
-            <li class="process-step" data-status="upcoming">
-              <span class="process-step__icon" data-step="3"></span>
-              <div class="process-step__body">
-                <p class="process-step__title">Stage 3 · GPT-5 deep dive</p>
-                <p class="process-step__meta">4–6 grouped prompts with RAG citations + final brief</p>
-              </div>
-            </li>
-          </ul>
-        </div>
-      </article>
-      <article class="summary-card">
-        <h2 class="summary-card__title">Cost Control Toolkit</h2>
-        <div class="summary-card__content">
-          <p>Embed the live estimator widget to simulate spend scenarios before launching runs. Persist chosen parameters to Supabase so the worker functions can enforce limits.</p>
-          <ul class="ai-settings-list">
-            <li><strong>Budget guardrail:</strong> runs.budget_usd with auto-stop toggle</li>
-            <li><strong>Usage telemetry:</strong> cost_ledger rollups + per-stage sparkline</li>
-            <li><strong>Caching:</strong> GPT Responses API to reuse 10-K summaries</li>
-          </ul>
-        </div>
-      </article>
-    </section>
-
-    <section class="summary-card summary-card--task">
-      <div class="summary-card__head">
-        <h2 class="summary-card__title">Implementation Tracks</h2>
-      </div>
-      <div class="summary-card__content">
-        <p>Work through the three parallel tracks below. Each stage can ship independently and is mapped to the development roadmap README.</p>
-        <div class="editor-summary-grid editor-summary-grid--full">
-          <article class="summary-card">
-            <h3 class="summary-card__title">Data &amp; Retrieval</h3>
-            <div class="summary-card__content">
-              <ul class="ai-settings-list">
-                <li><strong>Universe ingestion:</strong> Load tickers &amp; sector tags via Supabase cron.</li>
-                <li><strong>Feature hub:</strong> Harmonise price feeds + fundamentals with provenance metadata.</li>
-                <li><strong>Doc lake:</strong> Parse filings / transcripts into chunked embeddings for RAG.</li>
-                <li><strong>Quality gates:</strong> Flag stale fundamentals &amp; missing prices before model calls.</li>
-              </ul>
-            </div>
-          </article>
-          <article class="summary-card">
-            <h3 class="summary-card__title">Prompt &amp; Model Orchestration</h3>
-            <div class="summary-card__content">
-              <ul class="ai-settings-list">
-                <li><strong>Prompt registry:</strong> Versioned markdown templates per stage &amp; sector.</li>
-                <li><strong>Dynamic context:</strong> Stage 2/3 fetch sector notes + retrieved facts + prior answers.</li>
-                <li><strong>Batch execution:</strong> Worker API endpoints process 10–25 tickers per invocation.</li>
-                <li><strong>Safety net:</strong> Auto retry + anomaly detection on inconsistent JSON.</li>
-              </ul>
-            </div>
-          </article>
-          <article class="summary-card">
-            <h3 class="summary-card__title">Experience Layer</h3>
-            <div class="summary-card__content">
-              <ul class="ai-settings-list">
-                <li><strong>Planner UI:</strong> Slider-based estimator + “Start run” + run monitor dashboard.</li>
-                <li><strong>Universe view:</strong> Filter by label, sector, stage, recency, cost spent.</li>
-                <li><strong>Ticker drilldown:</strong> Render structured answers, stage transitions, and citations.</li>
-                <li><strong>Member sandbox:</strong> Allow manual follow-up questions post-automation (phase 2).</li>
-              </ul>
-            </div>
-          </article>
-        </div>
+          <div class="pipeline-card__stats">
+            <div>Completed: <span id="stage3CompletedCount">—</span></div>
+            <div>In queue: <span id="stage3QueueCount">—</span></div>
+            <div class="text-fail">Failures: <span id="stage3FailedCount">—</span></div>
+          </div>
+        </article>
       </div>
     </section>
 
-    <section class="analysis-export">
-      <h2 class="analysis-export__title">Operational Checklist</h2>
+    <section class="panel">
+      <div class="pipeline-card__header">
+        <h2 class="panel__title">Latest activity</h2>
+        <span class="pipeline-card__meta">Most recent answers across all stages</span>
+      </div>
+      <table class="activity-table">
+        <thead>
+          <tr>
+            <th scope="col">Time</th>
+            <th scope="col">Ticker</th>
+            <th scope="col">Stage</th>
+            <th scope="col">Label</th>
+            <th scope="col">Summary</th>
+          </tr>
+        </thead>
+        <tbody id="activityBody"></tbody>
+      </table>
+      <p class="activity-empty" id="activityEmpty">Run Stage&nbsp;1 to see triage verdicts appear here in real time.</p>
+    </section>
+
+    <section class="panel analysis-export">
+      <h2 class="panel__title">Operational checklist</h2>
       <div class="analysis-export__fields">
-        <article class="summary-card">
-          <h3 class="summary-card__title">Readiness</h3>
-          <div class="summary-card__content">
-            <ul class="ai-settings-list">
-              <li><strong>✅ Environment:</strong> Supabase, OpenAI keys, and storage buckets configured.</li>
-              <li><strong>✅ Logging:</strong> errors, cost ledger, and run metadata stored per ticker.</li>
-              <li><strong>🔄 Upcoming:</strong> Integrate scheduler to cycle Stage 1 → Stage 3 automatically.</li>
-            </ul>
-          </div>
+        <article class="metric-card">
+          <h3 class="metric-card__title">Live today</h3>
+          <ul class="checklist">
+            <li>✅ <span>Stage&nbsp;1 batches stream into Supabase with cost logging.</span></li>
+            <li>✅ <span>Command center mirrors live counts, label mix, and spend.</span></li>
+            <li>✅ <span>Planner hand-off lets operators launch new runs instantly.</span></li>
+          </ul>
         </article>
-        <article class="summary-card">
-          <h3 class="summary-card__title">Next sprint focus</h3>
-          <div class="summary-card__content">
-            <ul class="ai-settings-list">
-              <li><strong>Stage 1 worker:</strong> finish streaming pipeline &amp; UI progress counters.</li>
-              <li><strong>Sector CMS:</strong> capture analyst heuristics per vertical.</li>
-              <li><strong>Cost guardrails:</strong> enforce run.budget_usd + warnings in planner UI.</li>
-            </ul>
-          </div>
+        <article class="metric-card">
+          <h3 class="metric-card__title">Up next</h3>
+          <ul class="checklist">
+            <li>🔄 <span>Wire Stage&nbsp;2 worker + sector CMS inputs.</span></li>
+            <li>🔄 <span>Budget guardrails that auto-stop when spend caps hit.</span></li>
+            <li>🔄 <span>Optional RAG snippets to enrich Stage&nbsp;3 deep dives.</span></li>
+          </ul>
         </article>
       </div>
       <div class="analysis-export__actions">
-        <a class="task-launch-card" href="docs/equity-analyst-roadmap.md">
-          <span class="task-launch-card__title">Open development roadmap</span>
-          <span class="task-launch-card__subtitle">View checklist &amp; PR-by-PR plan</span>
-        </a>
-        <p class="muted-small">Use this hub as the staging ground for stakeholder reviews while the build advances.</p>
+        <a class="link-pill" href="/docs/equity-analyst-roadmap.md">Development roadmap →</a>
+        <a class="link-pill" href="/planner.html">Open cost planner →</a>
       </div>
+      <p class="notice">Need to backfill tickers or prompt notes? Start in the planner, then monitor execution here as each stage progresses.</p>
     </section>
   </main>
+
+  <script type="module" src="/assets/equity-analyst.js"></script>
   <script src="/assets/app.js" defer></script>
 </body>
 </html>

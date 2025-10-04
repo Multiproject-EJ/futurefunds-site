@@ -32,6 +32,19 @@ multi-stage model runs and reporting:
 | `cost_ledger` | Aggregated token usage and USD cost per stage/run for budget monitoring. |
 | `doc_chunks` | Optional retrieval corpus of text snippets (10-Ks, transcripts, etc.) used for RAG. |
 
+The analyst dashboard queries a handful of helper functions to avoid shipping large
+payloads to the browser:
+
+| Function | Purpose |
+| --- | --- |
+| `run_stage_status_counts(run_id uuid)` | Aggregates `run_items` into stage/status buckets for progress bars and totals. |
+| `run_stage1_labels(run_id uuid)` | Returns the Stage&nbsp;1 label distribution for survivors (e.g., uninvestible / consider). |
+| `run_cost_breakdown(run_id uuid)` | Summarises `cost_ledger` spend by stage/model for budget monitoring. |
+| `run_cost_summary(run_id uuid)` | Provides overall spend and token totals for a run. |
+| `run_latest_activity(run_id uuid, limit int)` | Streams the latest answers (stage, ticker, summary) for the activity feed. |
+
+Apply `sql/003_dashboard_helpers.sql` to provision or update these functions.
+
 The tables rely on three helper routines:
 
 - `handle_new_user()` – creates a profile row whenever Supabase Auth provisions a user.
