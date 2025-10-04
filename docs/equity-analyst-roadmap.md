@@ -17,10 +17,11 @@ incrementally.
 - [ ] Add Supabase migration scripts / npm tasks to run migrations locally and in staging.
 
 ## 2. Planner Experience (Week 1–2)
-- [ ] Build `web/admin/planner.html` with live cost estimator (universe slider, survival sliders,
+- [x] Build `web/admin/planner.html` with live cost estimator (universe slider, survival sliders,
       per-stage token inputs, model selectors, total cost output).
-- [ ] Persist planner state to `localStorage` and surface a **Start Run** CTA.
-- [ ] Implement `/api/runs/create` endpoint to insert a run row and queue `run_items`.
+- [x] Persist planner state to `localStorage` and surface a **Start Run** CTA.
+- [x] Implement run creation endpoint (Supabase Edge Function `supabase/functions/runs-create`) to
+      insert a run row and queue `run_items` via `runs-create`.
 
 ## 3. Stage 1 – Cheap Triage (Week 2)
 - [ ] `/api/stage1/consume` worker: pull pending items, call GPT-4o-mini, store JSON label + usage
