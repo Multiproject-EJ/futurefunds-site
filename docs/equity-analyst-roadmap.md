@@ -24,17 +24,17 @@ incrementally.
       insert a run row and queue `run_items` via `runs-create`.
 
 ## 3. Stage 1 – Cheap Triage (Week 2)
-- [ ] `/api/stage1/consume` worker: pull pending items, call GPT-4o-mini, store JSON label + usage
+- [x] `/api/stage1/consume` worker: pull pending items, call GPT-4o-mini, store JSON label + usage
       in `answers` and `cost_ledger`, update `run_items`.
-- [ ] Planner UI: add **Process Stage 1 batch** control and progress stats (processed / total /
+- [x] Planner UI: add **Process Stage 1 batch** control and progress stats (processed / total /
       remaining).
 - [ ] Add retry/backoff (429, 5xx) and structured error logging for failed items.
 
 ## 4. Stage 2 – Thematic Scoring (Week 3)
-- [ ] Survivor filter: only `label` in (`consider`, `borderline`).
-- [ ] `/api/stage2/consume`: gather sector notes, Stage 1 output, retrieved snippets; call GPT-5-mini
+- [x] Survivor filter: only `label` in (`consider`, `borderline`).
+- [x] `/api/stage2/consume`: gather sector notes, Stage 1 output, retrieved snippets; call GPT-5-mini
       with JSON schema covering profitability, reinvestment, leverage, moat, timing.
-- [ ] Persist `go_deep` boolean to `run_items` and show Stage 2 progress in planner.
+- [x] Persist `go_deep` boolean to `run_items` and show Stage 2 progress in planner.
 
 ## 5. Sector Intelligence CMS (Week 3)
 - [ ] `web/admin/sectors.html`: CRUD editor for `sector_prompts` with autosave + version tag.

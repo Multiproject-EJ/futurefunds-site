@@ -87,3 +87,38 @@ as $$
    limit greatest(p_limit, 1);
 $$;
 
+create or replace function public.run_stage2_summary(p_run_id uuid)
+returns table(
+  total_survivors bigint,
+  pending bigint,
+  completed bigint,
+  failed bigint,
+  go_deep bigint
+)
+language sql
+stable
+as $$
+  with survivors as (
+    select run_id,
+           ticker,
+           stage,
+           status,
+           lower(coalesce(label, '')) as normalized_label,
+           coalesce(stage2_go_deep, false) as stage2_go_deep
+      from public.run_items
+     where run_id = p_run_id
+       and status <> 'skipped'
+  ),
+  filtered as (
+    select *
+      from survivors
+     where normalized_label in ('consider', 'borderline')
+  )
+  select count(*)::bigint as total_survivors,
+         count(*) filter (where stage = 1 and status = 'ok')::bigint as pending,
+         count(*) filter (where stage >= 2 and status = 'ok')::bigint as completed,
+         count(*) filter (where stage >= 2 and status = 'failed')::bigint as failed,
+         count(*) filter (where stage >= 2 and status = 'ok' and stage2_go_deep)::bigint as go_deep
+    from filtered;
+$$;
+

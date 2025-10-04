@@ -39,6 +39,7 @@ payloads to the browser:
 | --- | --- |
 | `run_stage_status_counts(run_id uuid)` | Aggregates `run_items` into stage/status buckets for progress bars and totals. |
 | `run_stage1_labels(run_id uuid)` | Returns the Stage&nbsp;1 label distribution for survivors (e.g., uninvestible / consider). |
+| `run_stage2_summary(run_id uuid)` | Summarises Stage&nbsp;2 survivors, pending queue, completions, failures, and go-deep approvals. |
 | `run_cost_breakdown(run_id uuid)` | Summarises `cost_ledger` spend by stage/model for budget monitoring. |
 | `run_cost_summary(run_id uuid)` | Provides overall spend and token totals for a run. |
 | `run_latest_activity(run_id uuid, limit int)` | Streams the latest answers (stage, ticker, summary) for the activity feed. |
@@ -420,6 +421,7 @@ Composite primary key: `(run_id, ticker)`.
 | `ticker` | `text` | — | References `tickers(ticker)`. |
 | `stage` | `int` | `0` | Highest completed stage (0=not started, 1=triage, 2=medium, 3=deep). |
 | `label` | `text` | `null` | Outcome label from the last completed stage. |
+| `stage2_go_deep` | `boolean` | `null` | Stage&nbsp;2 verdict flag recorded when the thematic scoring worker runs. |
 | `status` | `text` | `'pending'` | `pending`, `ok`, `skipped`, or `failed`. |
 | `spend_est_usd` | `numeric(12,4)` | `0` | Running total of estimated spend for this ticker. |
 | `updated_at` | `timestamptz` | `now()` | Touch on each stage completion. |

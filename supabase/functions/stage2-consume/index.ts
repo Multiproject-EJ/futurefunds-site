@@ -3,19 +3,20 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
 
 type JsonRecord = Record<string, unknown>;
 
-type Metrics = {
-  total: number;
-  pending: number;
-  completed: number;
-  failed: number;
-};
-
-type StageResult = {
+type Stage2Result = {
   ticker: string;
-  label: string | null;
+  go_deep: boolean;
   summary: string;
   updated_at: string;
   status: 'ok' | 'failed';
+};
+
+type Stage2Metrics = {
+  total_survivors: number;
+  pending: number;
+  completed: number;
+  failed: number;
+  go_deep: number;
 };
 
 const corsHeaders = {
@@ -42,9 +43,13 @@ const PRICE_LOOKUP: Record<string, { in: number; out: number }> = {
   '5': { in: 1.25, out: 10.0 }
 };
 
-const SYSTEM_PROMPT = `You are a buy-side screening analyst. Classify each ticker as one of "uninvestible", "borderline", or "consider". ` +
-  `Return strict JSON with the shape {"label": "uninvestible|borderline|consider", "reasons": [short bullet strings], "flags": {"leverage": string, "governance": string, "dilution": string}}. ` +
-  `Be decisive, grounded in fundamentals, and keep reasons concise.`;
+const SURVIVOR_LABELS = new Set(['consider', 'borderline']);
+
+const SYSTEM_PROMPT =
+  `You are a buy-side equity analyst performing a thematic scoring pass. ` +
+  `Return strict JSON with the shape {"scores": {"profitability": {"score": int, "rationale": string}, "reinvestment": {"score": int, "rationale": string}, "leverage": {"score": int, "rationale": string}, "moat": {"score": int, "rationale": string}, "timing": {"score": int, "rationale": string}}, ` +
+  `"verdict": {"go_deep": boolean, "summary": string, "risks": [string], "opportunities": [string]}, "next_steps": [string]}. ` +
+  `Scores must be integers from 0-10. Keep rationales under 160 characters and ground all commentary in the provided facts.`;
 
 function jsonResponse(status: number, body: JsonRecord) {
   return new Response(JSON.stringify(body), { status, headers: jsonHeaders });
@@ -119,38 +124,24 @@ function isAdminContext(context: { user: JsonRecord | null; profile: JsonRecord 
   return false;
 }
 
-async function computeMetrics(client: ReturnType<typeof createClient>, runId: string): Promise<Metrics> {
-  const [totalRes, pendingRes, completedRes, failedRes] = await Promise.all([
-    client.from('run_items').select('*', { count: 'exact', head: true }).eq('run_id', runId),
-    client
-      .from('run_items')
-      .select('*', { count: 'exact', head: true })
-      .eq('run_id', runId)
-      .eq('status', 'pending')
-      .eq('stage', 0),
-    client
-      .from('run_items')
-      .select('*', { count: 'exact', head: true })
-      .eq('run_id', runId)
-      .eq('status', 'ok')
-      .gte('stage', 1),
-    client
-      .from('run_items')
-      .select('*', { count: 'exact', head: true })
-      .eq('run_id', runId)
-      .eq('status', 'failed')
-  ]);
+function normalizeLabel(value: unknown) {
+  if (typeof value !== 'string') return '';
+  return value.trim().toLowerCase();
+}
 
-  if (totalRes.error) throw totalRes.error;
-  if (pendingRes.error) throw pendingRes.error;
-  if (completedRes.error) throw completedRes.error;
-  if (failedRes.error) throw failedRes.error;
+function survivorFilter(builder: ReturnType<typeof createClient>['from']) {
+  return builder.filter('label', 'in', '("consider","borderline","CONSIDER","BORDERLINE")');
+}
 
+async function computeMetrics(client: ReturnType<typeof createClient>, runId: string): Promise<Stage2Metrics> {
+  const { data, error } = await client.rpc('run_stage2_summary', { p_run_id: runId }).maybeSingle();
+  if (error) throw error;
   return {
-    total: totalRes.count ?? 0,
-    pending: pendingRes.count ?? 0,
-    completed: completedRes.count ?? 0,
-    failed: failedRes.count ?? 0
+    total_survivors: Number(data?.total_survivors ?? 0),
+    pending: Number(data?.pending ?? 0),
+    completed: Number(data?.completed ?? 0),
+    failed: Number(data?.failed ?? 0),
+    go_deep: Number(data?.go_deep ?? 0)
   };
 }
 
@@ -163,19 +154,86 @@ async function fetchTickerMeta(client: ReturnType<typeof createClient>, ticker: 
   return data ?? {};
 }
 
-function buildUserPrompt(ticker: string, meta: Record<string, unknown>) {
-  const parts = [
-    `Ticker: ${ticker}`,
-    `Name: ${meta.name ?? 'Unknown'}`,
-    `Exchange: ${meta.exchange ?? 'n/a'}`,
-    `Country: ${meta.country ?? 'n/a'}`,
-    `Sector: ${meta.sector ?? 'n/a'}`,
-    `Industry: ${meta.industry ?? 'n/a'}`
-  ];
-  return parts.join('\n');
+async function fetchSectorNotes(client: ReturnType<typeof createClient>, sector: string | null | undefined) {
+  if (!sector) return null;
+  const { data } = await client.from('sector_prompts').select('notes').eq('sector', sector).maybeSingle();
+  return typeof data?.notes === 'string' && data.notes.trim().length ? data.notes.trim() : null;
 }
 
-async function callOpenAI(apiKey: string, model: string, ticker: string, meta: Record<string, unknown>) {
+async function fetchStage1Answer(client: ReturnType<typeof createClient>, runId: string, ticker: string) {
+  const { data } = await client
+    .from('answers')
+    .select('answer_json')
+    .eq('run_id', runId)
+    .eq('ticker', ticker)
+    .eq('stage', 1)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  return (data?.answer_json ?? null) as JsonRecord | null;
+}
+
+function buildUserPrompt(
+  ticker: string,
+  meta: Record<string, unknown>,
+  stage1: JsonRecord | null,
+  sectorNotes: string | null
+) {
+  const lines: string[] = [];
+  lines.push(`Ticker: ${ticker}`);
+  lines.push(`Name: ${meta.name ?? 'Unknown'}`);
+  lines.push(`Exchange: ${meta.exchange ?? 'n/a'}`);
+  lines.push(`Country: ${meta.country ?? 'n/a'}`);
+  lines.push(`Sector: ${meta.sector ?? 'n/a'}`);
+  lines.push(`Industry: ${meta.industry ?? 'n/a'}`);
+  lines.push('');
+
+  const stage1Label = stage1?.label ?? stage1?.classification ?? null;
+  if (stage1Label) {
+    lines.push(`Stage 1 classification: ${stage1Label}`);
+  }
+  const reasons = Array.isArray(stage1?.reasons) ? stage1?.reasons : [];
+  if (reasons && reasons.length) {
+    lines.push('Stage 1 reasons:');
+    reasons.slice(0, 4).forEach((reason: unknown, index: number) => {
+      lines.push(`  ${index + 1}. ${String(reason)}`);
+    });
+  }
+  const flags = stage1?.flags as JsonRecord | null;
+  if (flags && typeof flags === 'object') {
+    const flagEntries = Object.entries(flags)
+      .filter(([, value]) => value != null && value !== '')
+      .map(([key, value]) => `${key}: ${value}`);
+    if (flagEntries.length) {
+      lines.push('Risk flags:');
+      flagEntries.slice(0, 4).forEach((flag) => lines.push(`  - ${flag}`));
+    }
+  }
+
+  if (typeof stage1?.summary === 'string' && stage1.summary.trim()) {
+    lines.push('Stage 1 summary:');
+    lines.push(stage1.summary.trim());
+  }
+
+  if (sectorNotes) {
+    lines.push('');
+    lines.push('Sector heuristics to consider:');
+    lines.push(sectorNotes);
+  }
+
+  lines.push('');
+  lines.push('Deliver mid-depth scoring with crisp rationales tied to these facts.');
+  return lines.join('\n');
+}
+
+async function callOpenAI(
+  apiKey: string,
+  model: string,
+  ticker: string,
+  meta: Record<string, unknown>,
+  stage1: JsonRecord | null,
+  sectorNotes: string | null
+) {
   const response = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
     headers: {
@@ -184,11 +242,11 @@ async function callOpenAI(apiKey: string, model: string, ticker: string, meta: R
     },
     body: JSON.stringify({
       model,
-      temperature: 0.1,
+      temperature: 0.2,
       response_format: { type: 'json_object' },
       messages: [
         { role: 'system', content: SYSTEM_PROMPT },
-        { role: 'user', content: buildUserPrompt(ticker, meta) }
+        { role: 'user', content: buildUserPrompt(ticker, meta, stage1, sectorNotes) }
       ]
     })
   });
@@ -212,7 +270,7 @@ async function callOpenAI(apiKey: string, model: string, ticker: string, meta: R
 }
 
 function computeCost(modelKey: string, usage: { prompt_tokens?: number; completion_tokens?: number }) {
-  const price = PRICE_LOOKUP[modelKey] ?? PRICE_LOOKUP['4o-mini'];
+  const price = PRICE_LOOKUP[modelKey] ?? PRICE_LOOKUP['5-mini'];
   const promptTokens = usage.prompt_tokens ?? 0;
   const completionTokens = usage.completion_tokens ?? 0;
   const inCost = (promptTokens / 1_000_000) * price.in;
@@ -222,6 +280,29 @@ function computeCost(modelKey: string, usage: { prompt_tokens?: number; completi
     promptTokens,
     completionTokens
   };
+}
+
+function extractSummary(answer: JsonRecord) {
+  const verdict = answer?.verdict as JsonRecord | undefined;
+  if (verdict && typeof verdict.summary === 'string' && verdict.summary.trim()) {
+    return verdict.summary.trim();
+  }
+
+  const nextSteps = Array.isArray(answer?.next_steps) ? answer?.next_steps : [];
+  if (nextSteps.length) {
+    return String(nextSteps[0]);
+  }
+
+  const scores = answer?.scores as JsonRecord | undefined;
+  if (scores && typeof scores === 'object') {
+    for (const [key, value] of Object.entries(scores)) {
+      if (value && typeof (value as JsonRecord).rationale === 'string' && (value as JsonRecord).rationale.trim()) {
+        return `${key}: ${(value as JsonRecord).rationale}`;
+      }
+    }
+  }
+
+  return '—';
 }
 
 serve(async (req) => {
@@ -238,7 +319,7 @@ serve(async (req) => {
   const openaiKey = Deno.env.get('OPENAI_API_KEY');
 
   if (!supabaseUrl || !serviceRoleKey || !openaiKey) {
-    console.error('Missing required environment configuration for stage1-consume');
+    console.error('Missing required environment configuration for stage2-consume');
     return jsonResponse(500, { error: 'Server misconfigured' });
   }
 
@@ -250,7 +331,7 @@ serve(async (req) => {
     return jsonResponse(400, { error: 'Invalid JSON payload' });
   }
 
-  const limit = clamp(asNumber(payload?.limit, 8), 1, 25);
+  const limit = clamp(asNumber(payload?.limit, 4), 1, 15);
   const requestedRunId = typeof payload?.run_id === 'string' ? payload.run_id.trim() : '';
   const runId = isUuid(requestedRunId) ? requestedRunId : null;
 
@@ -334,62 +415,88 @@ serve(async (req) => {
   const modelKeyRaw = ((): string => {
     try {
       const notes = typeof runRow.notes === 'string' ? JSON.parse(runRow.notes) : runRow.notes;
-      return notes?.planner?.stage1?.model ?? '4o-mini';
+      return notes?.planner?.stage2?.model ?? '5-mini';
     } catch {
-      return '4o-mini';
+      return '5-mini';
     }
   })();
 
-  const modelKey = PRICE_LOOKUP[modelKeyRaw] ? modelKeyRaw : '4o-mini';
-  const openaiModel = MODEL_ALIASES[modelKey] ?? MODEL_ALIASES['4o-mini'];
+  const modelKey = PRICE_LOOKUP[modelKeyRaw] ? modelKeyRaw : '5-mini';
+  const openaiModel = MODEL_ALIASES[modelKey] ?? MODEL_ALIASES['5-mini'];
 
-  const { data: pending, error: pendingError } = await supabaseAdmin
-    .from('run_items')
-    .select('ticker, spend_est_usd')
-    .eq('run_id', runRow.id)
-    .eq('status', 'pending')
-    .eq('stage', 0)
-    .order('updated_at', { ascending: true })
-    .limit(limit);
+  const { data: pending, error: pendingError } = await survivorFilter(
+    supabaseAdmin
+      .from('run_items')
+      .select('ticker, label, spend_est_usd')
+      .eq('run_id', runRow.id)
+      .eq('status', 'ok')
+      .eq('stage', 1)
+      .order('updated_at', { ascending: true })
+  ).limit(limit);
 
   if (pendingError) {
-    console.error('Failed to load pending run items', pendingError);
-    return jsonResponse(500, { error: 'Failed to load pending run items', details: pendingError.message });
+    console.error('Failed to load Stage 2 candidates', pendingError);
+    return jsonResponse(500, { error: 'Failed to load Stage 2 candidates', details: pendingError.message });
   }
 
   const items = pending ?? [];
-  if (items.length === 0) {
+  if (!items.length) {
     const metrics = await computeMetrics(supabaseAdmin, runRow.id);
     const message = metrics.pending === 0
-      ? 'Stage 1 complete for this run.'
-      : 'No pending items available for Stage 1.';
+      ? 'Stage 2 complete or no survivors available.'
+      : 'No eligible Stage 2 survivors pending.';
     return jsonResponse(200, {
       run_id: runRow.id,
       processed: 0,
       failed: 0,
       metrics,
       results: [],
+      model: modelKey,
       message
     });
   }
 
-  const results: StageResult[] = [];
+  const results: Stage2Result[] = [];
   let processed = 0;
   let failures = 0;
 
   for (const item of items) {
     const ticker = item.ticker as string;
     const startedAt = new Date().toISOString();
+
     try {
       const meta = await fetchTickerMeta(supabaseAdmin, ticker);
-      const { parsed, usage } = await callOpenAI(openaiKey, openaiModel, ticker, meta);
+      const sector = typeof meta?.sector === 'string' ? (meta.sector as string) : null;
+      const sectorNotes = await fetchSectorNotes(supabaseAdmin, sector);
+      const stage1Answer = await fetchStage1Answer(supabaseAdmin, runRow.id, ticker);
+
+      if (!SURVIVOR_LABELS.has(normalizeLabel(item.label))) {
+        results.push({
+          ticker,
+          go_deep: false,
+          summary: 'Ticker no longer qualifies for Stage 2.',
+          updated_at: startedAt,
+          status: 'failed'
+        });
+        await supabaseAdmin
+          .from('run_items')
+          .update({ stage: 1, status: 'failed', updated_at: new Date().toISOString() })
+          .eq('run_id', runRow.id)
+          .eq('ticker', ticker);
+        failures += 1;
+        continue;
+      }
+
+      const { parsed, usage } = await callOpenAI(openaiKey, openaiModel, ticker, meta, stage1Answer, sectorNotes);
       const { cost, promptTokens, completionTokens } = computeCost(modelKey, usage);
+      const verdict = (parsed?.verdict ?? null) as JsonRecord | null;
+      const goDeep = Boolean(verdict?.go_deep);
 
       await supabaseAdmin.from('answers').insert({
         run_id: runRow.id,
         ticker,
-        stage: 1,
-        question_group: 'triage',
+        stage: 2,
+        question_group: 'medium',
         answer_json: parsed,
         tokens_in: promptTokens,
         tokens_out: completionTokens,
@@ -400,10 +507,9 @@ serve(async (req) => {
       await supabaseAdmin
         .from('run_items')
         .update({
-          stage: 1,
+          stage: 2,
           status: 'ok',
-          label: typeof parsed?.label === 'string' ? parsed.label : null,
-          stage2_go_deep: null,
+          stage2_go_deep: goDeep,
           spend_est_usd: Number(item.spend_est_usd ?? 0) + cost,
           updated_at: new Date().toISOString()
         })
@@ -412,7 +518,7 @@ serve(async (req) => {
 
       await supabaseAdmin.from('cost_ledger').insert({
         run_id: runRow.id,
-        stage: 1,
+        stage: 2,
         model: modelKey,
         tokens_in: promptTokens,
         tokens_out: completionTokens,
@@ -420,45 +526,38 @@ serve(async (req) => {
         created_at: startedAt
       });
 
-      const summary = Array.isArray(parsed?.reasons) && parsed.reasons.length
-        ? String(parsed.reasons[0])
-        : typeof parsed?.summary === 'string'
-          ? parsed.summary
-          : typeof parsed?.reason === 'string'
-            ? parsed.reason
-            : '—';
-
       results.push({
         ticker,
-        label: typeof parsed?.label === 'string' ? parsed.label : null,
-        summary,
+        go_deep: goDeep,
+        summary: extractSummary(parsed),
         updated_at: startedAt,
         status: 'ok'
       });
       processed += 1;
     } catch (error) {
-      console.error(`Stage 1 processing failed for ${ticker}`, error);
+      console.error(`Stage 2 processing failed for ${ticker}`, error);
       failures += 1;
       const message = error instanceof Error ? error.message : String(error);
+
+      await supabaseAdmin
+        .from('run_items')
+        .update({ stage: 2, status: 'failed', stage2_go_deep: null, updated_at: new Date().toISOString() })
+        .eq('run_id', runRow.id)
+        .eq('ticker', ticker);
+
       results.push({
         ticker,
-        label: null,
+        go_deep: false,
         summary: message,
         updated_at: startedAt,
         status: 'failed'
       });
-
-      await supabaseAdmin
-        .from('run_items')
-        .update({ status: 'failed', stage2_go_deep: null, updated_at: new Date().toISOString() })
-        .eq('run_id', runRow.id)
-        .eq('ticker', ticker);
     }
   }
 
   const metrics = await computeMetrics(supabaseAdmin, runRow.id);
   const message = processed > 0
-    ? `Processed ${processed} ticker${processed === 1 ? '' : 's'}. Pending: ${metrics.pending}.`
+    ? `Processed ${processed} ticker${processed === 1 ? '' : 's'}. Pending survivors: ${metrics.pending}.`
     : 'No tickers processed.';
 
   return jsonResponse(200, {

@@ -56,12 +56,22 @@ const inputs = {
   stage1Pending: $('stage1Pending'),
   stage1Completed: $('stage1Completed'),
   stage1Failed: $('stage1Failed'),
-  stage1RecentBody: $('stage1RecentBody')
+  stage1RecentBody: $('stage1RecentBody'),
+  stage2Btn: $('processStage2Btn'),
+  stage2RefreshBtn: $('refreshStage2Btn'),
+  stage2Status: $('stage2Status'),
+  stage2Total: $('stage2Total'),
+  stage2Pending: $('stage2Pending'),
+  stage2Completed: $('stage2Completed'),
+  stage2Failed: $('stage2Failed'),
+  stage2GoDeep: $('stage2GoDeep'),
+  stage2RecentBody: $('stage2RecentBody')
 };
 
 const FUNCTIONS_BASE = SUPABASE_URL.replace(/\.supabase\.co$/, '.functions.supabase.co');
 const RUNS_CREATE_ENDPOINT = `${FUNCTIONS_BASE}/runs-create`;
 const STAGE1_CONSUME_ENDPOINT = `${FUNCTIONS_BASE}/stage1-consume`;
+const STAGE2_CONSUME_ENDPOINT = `${FUNCTIONS_BASE}/stage2-consume`;
 const RUNS_STOP_ENDPOINT = `${FUNCTIONS_BASE}/runs-stop`;
 const RUN_STORAGE_KEY = 'ff-active-run-id';
 
@@ -78,6 +88,7 @@ let activeRunId = null;
 let currentRunMeta = null;
 let runChannel = null;
 let stage1RefreshTimer = null;
+let stage2RefreshTimer = null;
 
 function loadSettings() {
   try {
@@ -210,8 +221,34 @@ function scheduleStage1Refresh({ immediate = false } = {}) {
   }, 400);
 }
 
+function clearStage2RefreshTimer() {
+  if (stage2RefreshTimer) {
+    clearTimeout(stage2RefreshTimer);
+    stage2RefreshTimer = null;
+  }
+}
+
+function scheduleStage2Refresh({ immediate = false } = {}) {
+  clearStage2RefreshTimer();
+  if (!activeRunId) return;
+  if (immediate) {
+    fetchStage2Summary({ silent: true }).catch((error) => {
+      console.error('Stage 2 auto refresh failed', error);
+    });
+    return;
+  }
+
+  stage2RefreshTimer = window.setTimeout(() => {
+    stage2RefreshTimer = null;
+    fetchStage2Summary({ silent: true }).catch((error) => {
+      console.error('Stage 2 auto refresh failed', error);
+    });
+  }, 500);
+}
+
 function unsubscribeFromRunChannel() {
   clearStage1RefreshTimer();
+  clearStage2RefreshTimer();
   if (runChannel) {
     try {
       supabase.removeChannel(runChannel);
@@ -230,9 +267,11 @@ function subscribeToRunChannel(runId) {
     .channel(`planner-run-${runId}`)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'run_items', filter: `run_id=eq.${runId}` }, () => {
       scheduleStage1Refresh();
+      scheduleStage2Refresh();
     })
     .on('postgres_changes', { event: '*', schema: 'public', table: 'answers', filter: `run_id=eq.${runId}` }, () => {
       scheduleStage1Refresh();
+      scheduleStage2Refresh();
     })
     .on('postgres_changes', { event: '*', schema: 'public', table: 'runs', filter: `id=eq.${runId}` }, () => {
       fetchRunMeta({ silent: true }).catch((error) => {
@@ -242,6 +281,7 @@ function subscribeToRunChannel(runId) {
     .subscribe((status) => {
       if (status === 'SUBSCRIBED') {
         scheduleStage1Refresh({ immediate: true });
+        scheduleStage2Refresh({ immediate: true });
         fetchRunMeta({ silent: true }).catch((error) => {
           console.error('Initial run meta load failed', error);
         });
@@ -355,6 +395,7 @@ async function toggleRunStop(stopRequested) {
     const logMessage = stopRequested ? 'Stop requested for active run.' : 'Stop request cleared for active run.';
     logStatus(logMessage);
     scheduleStage1Refresh({ immediate: true });
+    scheduleStage2Refresh({ immediate: true });
   } catch (error) {
     console.error('Failed to toggle stop request', error);
     if (inputs.runMetaStatus) {
@@ -403,6 +444,48 @@ function renderRecentClassifications(entries = []) {
       <td>${entry.ticker ?? '—'}</td>
       <td data-label>${entry.label ?? '—'}</td>
       <td>${safeSummary}</td>
+      <td>${updated}</td>
+    `;
+    body.appendChild(row);
+  });
+}
+
+function updateStage2Metrics(metrics = null) {
+  const formatter = (value) => {
+    if (value == null || Number.isNaN(value)) return '—';
+    return Number(value).toLocaleString();
+  };
+
+  if (inputs.stage2Total) inputs.stage2Total.textContent = formatter(metrics?.total);
+  if (inputs.stage2Pending) inputs.stage2Pending.textContent = formatter(metrics?.pending);
+  if (inputs.stage2Completed) inputs.stage2Completed.textContent = formatter(metrics?.completed);
+  if (inputs.stage2Failed) inputs.stage2Failed.textContent = formatter(metrics?.failed);
+  if (inputs.stage2GoDeep) inputs.stage2GoDeep.textContent = formatter(metrics?.goDeep);
+}
+
+function renderStage2Insights(entries = []) {
+  const body = inputs.stage2RecentBody;
+  if (!body) return;
+
+  body.innerHTML = '';
+
+  if (!entries.length) {
+    const row = document.createElement('tr');
+    row.innerHTML = '<td colspan="4" class="recent-empty">No Stage 2 calls yet.</td>';
+    body.appendChild(row);
+    return;
+  }
+
+  entries.forEach((entry) => {
+    const row = document.createElement('tr');
+    const goDeep = entry.go_deep ? 'Yes' : entry.status === 'failed' ? 'Failed' : 'No';
+    const updated = entry.updated_at
+      ? new Date(entry.updated_at).toLocaleString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+      : '—';
+    row.innerHTML = `
+      <td>${entry.ticker ?? '—'}</td>
+      <td data-label>${goDeep}</td>
+      <td>${entry.summary ?? '—'}</td>
       <td>${updated}</td>
     `;
     body.appendChild(row);
@@ -497,6 +580,76 @@ async function fetchStage1Summary({ silent = false } = {}) {
   }
 }
 
+async function fetchStage2Summary({ silent = false } = {}) {
+  if (!inputs.stage2Status) return;
+
+  if (!activeRunId) {
+    updateStage2Metrics();
+    renderStage2Insights([]);
+    if (!silent) inputs.stage2Status.textContent = 'Set a run ID to monitor Stage 2 progress.';
+    return;
+  }
+
+  if (!silent) inputs.stage2Status.textContent = 'Fetching Stage 2 progress…';
+
+  try {
+    const [summaryResult, answersResult] = await Promise.all([
+      supabase.rpc('run_stage2_summary', { p_run_id: activeRunId }).maybeSingle(),
+      supabase
+        .from('answers')
+        .select('ticker, answer_json, created_at')
+        .eq('run_id', activeRunId)
+        .eq('stage', 2)
+        .order('created_at', { ascending: false })
+        .limit(8)
+    ]);
+
+    if (summaryResult.error) throw summaryResult.error;
+    if (answersResult.error) throw answersResult.error;
+
+    const summary = summaryResult.data ?? null;
+    const metrics = {
+      total: summary ? Number(summary.total_survivors ?? 0) : 0,
+      pending: summary ? Number(summary.pending ?? 0) : 0,
+      completed: summary ? Number(summary.completed ?? 0) : 0,
+      failed: summary ? Number(summary.failed ?? 0) : 0,
+      goDeep: summary ? Number(summary.go_deep ?? 0) : 0
+    };
+
+    updateStage2Metrics(metrics);
+
+    const recent = (answersResult.data ?? []).map((row) => {
+      const answer = row.answer_json ?? {};
+      const verdict = answer?.verdict ?? {};
+      const rawGoDeep = verdict?.go_deep;
+      const goDeep = typeof rawGoDeep === 'boolean'
+        ? rawGoDeep
+        : typeof rawGoDeep === 'string'
+          ? rawGoDeep.toLowerCase() === 'true'
+          : false;
+      let summaryText = typeof verdict?.summary === 'string' ? verdict.summary : '';
+      if (!summaryText && Array.isArray(answer?.next_steps) && answer.next_steps.length) {
+        summaryText = String(answer.next_steps[0]);
+      }
+      return {
+        ticker: row.ticker,
+        go_deep: goDeep,
+        summary: summaryText || '—',
+        updated_at: row.created_at,
+        status: 'ok'
+      };
+    });
+
+    renderStage2Insights(recent);
+
+    const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    inputs.stage2Status.textContent = `Last updated ${timestamp}`;
+  } catch (error) {
+    console.error('Failed to load Stage 2 summary', error);
+    inputs.stage2Status.textContent = 'Failed to load Stage 2 progress.';
+  }
+}
+
 function setActiveRunId(value, { announce = true, silent = false } = {}) {
   const normalized = typeof value === 'string' ? value.trim() : '';
   if (normalized && !isValidUuid(normalized)) {
@@ -522,8 +675,11 @@ function setActiveRunId(value, { announce = true, silent = false } = {}) {
     updateRunMeta(null);
     updateStage1Metrics();
     renderRecentClassifications([]);
+    updateStage2Metrics();
+    renderStage2Insights([]);
     if (announce && inputs.stage1Status) inputs.stage1Status.textContent = 'Active run cleared. Set a run ID to continue.';
     if (announce) logStatus('Active run cleared.');
+    if (inputs.stage2Status) inputs.stage2Status.textContent = 'Active run cleared.';
     return changed;
   }
 
@@ -536,12 +692,18 @@ function setActiveRunId(value, { announce = true, silent = false } = {}) {
   if (announce) {
     const message = `Active run set to ${activeRunId}`;
     if (inputs.stage1Status) inputs.stage1Status.textContent = message;
+    if (inputs.stage2Status) inputs.stage2Status.textContent = 'Loading Stage 2 progress…';
     logStatus(message);
   }
 
   fetchStage1Summary({ silent }).catch((error) => {
     console.error('Failed to refresh Stage 1 summary', error);
     if (inputs.stage1Status) inputs.stage1Status.textContent = 'Failed to load Stage 1 progress.';
+  });
+
+  fetchStage2Summary({ silent }).catch((error) => {
+    console.error('Failed to refresh Stage 2 summary', error);
+    if (inputs.stage2Status) inputs.stage2Status.textContent = 'Failed to load Stage 2 progress.';
   });
 
   return changed;
@@ -631,6 +793,101 @@ async function processStage1Batch() {
     } catch (error) {
       console.error('Failed to refresh Stage 1 summary after batch', error);
     }
+    try {
+      await fetchStage2Summary({ silent: true });
+    } catch (error) {
+      console.error('Failed to refresh Stage 2 summary after Stage 1 batch', error);
+    }
+    applyAccessState({ preserveStatus: true });
+  }
+}
+
+async function processStage2Batch() {
+  if (!inputs.stage2Btn) return;
+
+  if (!activeRunId) {
+    if (inputs.stage2Status) inputs.stage2Status.textContent = 'Assign a run ID before processing.';
+    return;
+  }
+
+  if (currentRunMeta?.stop_requested) {
+    if (inputs.stage2Status) inputs.stage2Status.textContent = 'Run flagged to stop. Clear the stop request to continue processing.';
+    return;
+  }
+
+  await syncAccess({ preserveStatus: true });
+  if (!authContext.isAdmin) {
+    if (inputs.stage2Status) inputs.stage2Status.textContent = 'Admin access required for Stage 2.';
+    return;
+  }
+  if (!authContext.token) {
+    if (inputs.stage2Status) inputs.stage2Status.textContent = 'Session expired. Refresh and try again.';
+    return;
+  }
+
+  inputs.stage2Btn.disabled = true;
+  if (inputs.stage2Status) inputs.stage2Status.textContent = 'Processing Stage 2 batch…';
+
+  try {
+    const response = await fetch(STAGE2_CONSUME_ENDPOINT, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${authContext.token}`
+      },
+      body: JSON.stringify({
+        run_id: activeRunId,
+        limit: 4,
+        client_meta: {
+          origin: window.location.origin,
+          triggered_at: new Date().toISOString()
+        }
+      })
+    });
+
+    const raw = await response.text();
+    let payload = {};
+    if (raw) {
+      try {
+        payload = JSON.parse(raw);
+      } catch (error) {
+        console.warn('Unable to parse Stage 2 response JSON', error);
+      }
+    }
+
+    if (!response.ok) {
+      const message = payload?.error || `Stage 2 endpoint responded ${response.status}`;
+      throw new Error(message);
+    }
+
+    const results = Array.isArray(payload.results) ? payload.results : [];
+    if (results.length) {
+      renderStage2Insights(results);
+    }
+
+    if (payload.metrics) {
+      updateStage2Metrics({
+        total: Number(payload.metrics.total_survivors ?? payload.metrics.total ?? 0),
+        pending: Number(payload.metrics.pending ?? 0),
+        completed: Number(payload.metrics.completed ?? 0),
+        failed: Number(payload.metrics.failed ?? 0),
+        goDeep: Number(payload.metrics.go_deep ?? payload.metrics.goDeep ?? 0)
+      });
+    }
+
+    const message = payload.message || `Processed ${results.length} ticker${results.length === 1 ? '' : 's'}.`;
+    if (inputs.stage2Status) inputs.stage2Status.textContent = message;
+    logStatus(`[Stage 2] ${message}`);
+  } catch (error) {
+    console.error('Stage 2 batch error', error);
+    if (inputs.stage2Status) inputs.stage2Status.textContent = `Stage 2 failed: ${error.message}`;
+    logStatus(`Stage 2 batch failed: ${error.message}`);
+  } finally {
+    try {
+      await fetchStage2Summary({ silent: true });
+    } catch (error) {
+      console.error('Failed to refresh Stage 2 summary after batch', error);
+    }
     applyAccessState({ preserveStatus: true });
   }
 }
@@ -693,6 +950,15 @@ function applyAccessState({ preserveStatus = false } = {}) {
 
   if (inputs.stage1RefreshBtn) {
     inputs.stage1RefreshBtn.disabled = !activeRunId;
+  }
+
+  if (inputs.stage2Btn) {
+    inputs.stage2Btn.disabled =
+      state !== 'admin-ok' || !activeRunId || (currentRunMeta?.stop_requested ?? false);
+  }
+
+  if (inputs.stage2RefreshBtn) {
+    inputs.stage2RefreshBtn.disabled = !activeRunId;
   }
 
   if (inputs.stopRunBtn) {
@@ -903,6 +1169,8 @@ function bindEvents() {
   inputs.resetBtn?.addEventListener('click', resetDefaults);
   inputs.stage1Btn?.addEventListener('click', processStage1Batch);
   inputs.stage1RefreshBtn?.addEventListener('click', () => fetchStage1Summary());
+  inputs.stage2Btn?.addEventListener('click', processStage2Batch);
+  inputs.stage2RefreshBtn?.addEventListener('click', () => fetchStage2Summary());
   inputs.stopRunBtn?.addEventListener('click', () => toggleRunStop(true));
   inputs.resumeRunBtn?.addEventListener('click', () => toggleRunStop(false));
   inputs.applyRunIdBtn?.addEventListener('click', () => {
@@ -942,6 +1210,9 @@ async function bootstrap() {
     updateRunMeta(null);
     updateStage1Metrics();
     if (inputs.stage1Status) inputs.stage1Status.textContent = 'No active run selected.';
+    updateStage2Metrics();
+    renderStage2Insights([]);
+    if (inputs.stage2Status) inputs.stage2Status.textContent = 'No active run selected.';
   }
 
   await syncAccess();

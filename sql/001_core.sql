@@ -29,6 +29,7 @@ create table if not exists public.run_items (
   ticker text references public.tickers(ticker) on delete cascade,
   stage int default 0,
   label text,
+  stage2_go_deep boolean,
   status text check (status in ('pending','ok','skipped','failed')) default 'pending',
   spend_est_usd numeric(12,4) default 0,
   updated_at timestamptz default now(),

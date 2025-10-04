@@ -686,6 +686,60 @@
         </table>
       </section>
     </section>
+    <section class="panel controller-panel" id="stage2Panel">
+      <header>
+        <h2>Stage 2 — Thematic scoring</h2>
+        <p>Score promising names with GPT-5 mini and decide whether to advance them to the deep-dive queue. Track go-deep approvals as you go.</p>
+      </header>
+
+      <dl class="controller-metrics" aria-live="polite" aria-label="Stage two progress metrics">
+        <div class="controller-metrics__item">
+          <dt>Total survivors</dt>
+          <dd id="stage2Total">—</dd>
+        </div>
+        <div class="controller-metrics__item">
+          <dt>Pending scoring</dt>
+          <dd id="stage2Pending">—</dd>
+        </div>
+        <div class="controller-metrics__item">
+          <dt>Completed</dt>
+          <dd id="stage2Completed">—</dd>
+        </div>
+        <div class="controller-metrics__item">
+          <dt>Go-deep approvals</dt>
+          <dd id="stage2GoDeep">—</dd>
+        </div>
+        <div class="controller-metrics__item">
+          <dt>Failed</dt>
+          <dd id="stage2Failed">—</dd>
+        </div>
+      </dl>
+
+      <div class="controller-actions">
+        <button class="btn-primary" type="button" id="processStage2Btn">Process Stage 2 batch</button>
+        <button class="btn-secondary" type="button" id="refreshStage2Btn">Refresh status</button>
+        <span id="stage2Status" role="status" aria-live="polite"></span>
+      </div>
+
+      <section class="recent-results" aria-live="polite">
+        <h3>Latest Stage 2 insights</h3>
+        <table class="recent-table">
+          <thead>
+            <tr>
+              <th scope="col">Ticker</th>
+              <th scope="col">Go deep?</th>
+              <th scope="col">Summary</th>
+              <th scope="col">Updated</th>
+            </tr>
+          </thead>
+          <tbody id="stage2RecentBody">
+            <tr>
+              <td colspan="4" class="recent-empty">No Stage 2 calls yet.</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+    </section>
   </main>
 
   <script type="module" src="/assets/planner.js"></script>
