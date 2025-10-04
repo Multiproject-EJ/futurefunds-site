@@ -1,0 +1,358 @@
+<!doctype html>
+<html lang="en" data-lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>FutureFunds — Automated Equity Analyst Command Center</title>
+  <link rel="stylesheet" href="/assets/styles.css" />
+  <style>
+    .analyst-shell{max-width:1100px;margin:32px auto 64px;padding:0 16px;display:grid;gap:32px}
+    .analyst-hero{display:grid;gap:20px;border:1px solid var(--border,#e5e7eb);border-radius:26px;background:var(--panel,#fff);padding:28px;box-shadow:0 26px 42px rgba(15,23,42,.08)}
+    .analyst-hero__header{display:grid;gap:10px}
+    .analyst-hero__header .badge{justify-self:flex-start}
+    .analyst-hero__header .editor-title{margin:0;font-size:2rem;color:var(--text,#0f172a)}
+    .analyst-hero__header .editor-intro{margin:0;color:var(--muted,#475569);max-width:720px}
+    .analyst-hero__metrics{display:grid;gap:16px;grid-template-columns:repeat(auto-fit,minmax(200px,1fr))}
+    .hero-metric{border:1px solid var(--border,#e5e7eb);border-radius:18px;background:var(--panel-muted,#f8fafc);padding:18px;display:grid;gap:6px}
+    .hero-metric__label{text-transform:uppercase;letter-spacing:.08em;font-size:.75rem;color:var(--muted,#64748b);font-weight:600}
+    .hero-metric__value{font-size:1.9rem;font-weight:700;color:var(--text,#0f172a)}
+    .hero-metric__hint{font-size:.82rem;color:var(--muted,#475569)}
+    .badge{display:inline-flex;align-items:center;gap:6px;padding:4px 12px;border-radius:999px;background:rgba(37,99,235,.12);color:var(--accent,#2563eb);font-size:.72rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase}
+    .panel{border:1px solid var(--border,#e5e7eb);border-radius:22px;background:var(--panel,#fff);padding:24px;box-shadow:0 22px 38px rgba(15,23,42,.08);display:grid;gap:18px}
+    .panel__title{margin:0;font-size:1.25rem;font-weight:600;color:var(--text,#0f172a)}
+    .analyst-grid{display:grid;gap:20px;grid-template-columns:1fr}
+    @media (min-width:960px){.analyst-grid{grid-template-columns:minmax(0,.55fr) minmax(0,.45fr)}}
+    .form-stack{display:grid;gap:14px}
+    .form-row{display:grid;gap:8px}
+    .form-row--inline{display:flex;flex-wrap:wrap;align-items:center;gap:10px}
+    .form-row label{font-weight:600;font-size:.92rem;color:var(--text,#0f172a)}
+    select.run-select{min-width:220px;padding:10px 14px;border-radius:14px;border:1px solid var(--border,#e5e7eb);background:var(--panel-muted,#f8fafc);font:inherit;color:var(--text,#0f172a)}
+    button.action-btn{padding:10px 16px;border-radius:14px;border:1px solid rgba(37,99,235,.4);background:rgba(37,99,235,.08);color:var(--accent,#2563eb);font-weight:600;font:inherit;cursor:pointer;transition:background .2s ease,transform .2s ease}
+    button.action-btn:hover{background:rgba(37,99,235,.12);transform:translateY(-1px)}
+    button.action-btn:disabled{opacity:.5;cursor:not-allowed}
+    a.link-pill{display:inline-flex;align-items:center;gap:6px;padding:10px 16px;border-radius:14px;border:1px solid rgba(37,99,235,.4);text-decoration:none;color:var(--accent,#2563eb);font-weight:600}
+    a.link-pill:hover{background:rgba(37,99,235,.08)}
+    .run-meta{display:grid;gap:10px;margin:6px 0 0}
+    .run-meta__item{display:flex;align-items:center;justify-content:space-between;gap:16px;font-size:.86rem}
+    .run-meta__label{text-transform:uppercase;letter-spacing:.08em;font-weight:600;color:var(--muted,#64748b);font-size:.72rem}
+    .run-meta__value{color:var(--text,#0f172a);font-weight:600}
+    .run-notes{border-left:3px solid rgba(37,99,235,.35);padding-left:12px;font-size:.85rem;color:var(--muted,#475569);display:none}
+    .run-notes--visible{display:block}
+    .metrics-grid{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(160px,1fr))}
+    .metric-card{border:1px solid var(--border,#e5e7eb);border-radius:18px;background:var(--panel-muted,#f8fafc);padding:16px;display:grid;gap:6px}
+    .metric-card__title{margin:0;font-size:.92rem;font-weight:600;color:var(--text,#0f172a)}
+    .metric-card__value{font-size:1.4rem;font-weight:700;color:var(--text,#0f172a)}
+    .metric-card__hint{font-size:.78rem;color:var(--muted,#64748b)}
+    .cost-summary{display:grid;gap:10px}
+    .cost-summary__title{margin:8px 0 0;font-size:.95rem;font-weight:600;color:var(--text,#0f172a)}
+    .cost-summary__list{list-style:none;padding:0;margin:0;display:grid;gap:6px;font-size:.82rem;color:var(--muted,#475569)}
+    .cost-summary__list strong{color:var(--text,#0f172a)}
+    .pipeline-grid{display:grid;gap:18px}
+    @media (min-width:900px){.pipeline-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+    .pipeline-card{border:1px solid var(--border,#e5e7eb);border-radius:20px;background:var(--panel-muted,#f8fafc);padding:20px;display:grid;gap:12px}
+    .pipeline-card__header{display:flex;align-items:center;justify-content:space-between;gap:12px}
+    .pipeline-card__title{margin:0;font-size:1.05rem;font-weight:600;color:var(--text,#0f172a)}
+    .pipeline-card__meta{font-size:.78rem;color:var(--muted,#64748b)}
+    .progress-shell{position:relative;height:12px;border-radius:999px;background:rgba(37,99,235,.16);overflow:hidden}
+    .progress-shell__bar{position:absolute;top:0;left:0;height:100%;width:0;background:var(--accent,#2563eb);transition:width .3s ease}
+    .pipeline-card__stats{display:grid;gap:6px;font-size:.84rem;color:var(--muted,#475569)}
+    .pipeline-card__stats span{color:var(--text,#0f172a);font-weight:600}
+    .label-list{list-style:none;margin:4px 0 0;padding:0;display:grid;gap:4px;font-size:.82rem;color:var(--muted,#475569)}
+    .label-list strong{color:var(--text,#0f172a)}
+    .text-success{color:var(--accent,#2563eb)}
+    .text-fail{color:#b91c1c}
+    .activity-table{width:100%;border-collapse:separate;border-spacing:0;margin:8px 0 0;font-size:.85rem}
+    .activity-table th,.activity-table td{padding:10px 12px;border-bottom:1px solid var(--border,#e5e7eb);text-align:left}
+    .activity-table tbody tr:hover{background:rgba(37,99,235,.08)}
+    .activity-empty{margin:8px 0 0;font-size:.86rem;color:var(--muted,#64748b)}
+    .notice{font-size:.85rem;color:var(--muted,#64748b)}
+    .notice--warning{color:#b45309}
+    .checklist{list-style:none;margin:0;padding:0;display:grid;gap:8px;font-size:.88rem}
+    .checklist li{display:flex;gap:8px;align-items:flex-start}
+    .checklist li span{color:var(--muted,#475569)}
+    .analysis-export__fields{display:grid;gap:16px}
+    @media (min-width:820px){.analysis-export__fields{grid-template-columns:repeat(2,minmax(0,1fr))}}
+    .analysis-export__actions{display:flex;flex-wrap:wrap;gap:12px;align-items:center}
+  </style>
+</head>
+<body>
+  <header class="site-header">
+    <a class="brand" href="/">
+      <img src="/images/logo.webp" alt="FutureFunds.ai logo" class="logo" />
+      <span>FutureFunds.ai</span>
+    </a>
+    <button class="nav-toggle" id="navToggle" type="button" aria-expanded="false" aria-controls="siteNav">
+      <span class="sr-only">Menu</span>
+      <span class="nav-toggle__bar"></span>
+    </button>
+    <nav class="nav" id="siteNav" aria-label="Primary navigation">
+      <div class="nav-links">
+        <div class="nav-item nav-item--team">
+          <a href="/team.html" class="nav-link" data-i18n="nav.team">Experiment</a>
+        </div>
+        <div class="nav-item nav-item--has-panel nav-item--tools">
+          <a href="/tools.html" class="nav-link" data-i18n="nav.investmentTools">Investment Tools</a>
+          <div class="nav-panel nav-panel--tools" role="group" aria-label="Investment tools">
+            <div class="nav-panel__header">
+              <span class="nav-panel__title">Featured tools</span>
+              <a class="nav-panel__cta" href="/tools.html">Explore tools →</a>
+            </div>
+            <div class="nav-panel__content nav-panel__content--tools">
+              <a class="nav-tool" href="/tool.html?id=ff-pms">
+                <span class="chip membership">Member</span>
+                <h4>Portfolio OS</h4>
+                <p>Run strategies end-to-end with sheets + AI copilots.</p>
+              </a>
+              <a class="nav-tool" href="/tool.html?id=stockalpha-journal">
+                <span class="chip free">Free</span>
+                <h4>StockAlpha Journal</h4>
+                <p>Track theses, catalysts, and behavioral loops.</p>
+              </a>
+              <a class="nav-tool" href="/tool.html?id=valuebot">
+                <span class="chip paid">Paid</span>
+                <h4>ValueBot Valuation</h4>
+                <p>Get sourced, step-by-step valuations on demand.</p>
+              </a>
+            </div>
+          </div>
+        </div>
+        <div class="nav-item nav-item--has-panel nav-item--ai">
+          <a href="/ai-economy.html" class="nav-link" data-i18n="nav.aiEconomy">The AI Economy</a>
+          <div class="nav-panel nav-panel--ai" role="group" aria-label="AI economy preview">
+            <div class="nav-panel__header">
+              <span class="nav-panel__title">AI economy brief</span>
+              <a class="nav-panel__cta" href="/ai-economy.html">Dive in →</a>
+            </div>
+            <div class="nav-ai">
+              <p class="nav-ai__pitch">Weekly signals on how automation, capital, and policy collide. Built from filings, expert transcripts, and on-chain data.</p>
+              <form class="nav-ai__signup newsletter-form" action="/ai-economy.html#newsletter" method="get">
+                <label class="sr-only" for="nav-ai-email">Email address</label>
+                <input id="nav-ai-email" type="email" name="email" placeholder="you@example.com" autocomplete="email" />
+                <button type="submit" class="btn primary">Get the brief</button>
+                <p class="nav-ai__status newsletter-status muted" aria-live="polite"></p>
+              </form>
+            </div>
+          </div>
+        </div>
+        <a href="/portfolio.html" class="nav-link" data-i18n="nav.portfolios">Portfolios</a>
+        <a href="/universe.html" class="nav-link" data-i18n="nav.universe">Universe</a>
+      </div>
+      <div class="nav-actions">
+        <button id="langBtn" class="btn small">EN ▾</button>
+        <button id="themeToggle" class="btn small ghost theme-toggle" aria-label="Toggle theme">
+          <span class="theme-toggle__icon" aria-hidden="true">🌗</span>
+          <span class="theme-toggle__label" data-i18n="nav.themeToggle">Theme</span>
+        </button>
+        <a id="membershipLogin" class="btn danger" href="/membership.html" data-i18n="cta.membership">Membership</a>
+      </div>
+    </nav>
+  </header>
+
+  <main class="analyst-shell">
+    <section class="analyst-hero">
+      <div class="analyst-hero__header">
+        <span class="badge">Automation Control</span>
+        <h1 class="editor-title">Automated Equity Analyst Command Center</h1>
+        <p class="editor-intro">Coordinate staged AI coverage, watch spend in real time, and surface the latest analyst summaries. This dashboard reads directly from Supabase so operators can steer the sequential research robot with live data.</p>
+      </div>
+      <div class="analyst-hero__metrics">
+        <div class="hero-metric">
+          <span class="hero-metric__label">Universe processed</span>
+          <span class="hero-metric__value" id="metricTotalTickers">—</span>
+          <span class="hero-metric__hint">Stage&nbsp;1 complete: <strong id="metricStage1Complete">—</strong></span>
+        </div>
+        <div class="hero-metric">
+          <span class="hero-metric__label">Next queues</span>
+          <span class="hero-metric__value" id="metricStage2Queue">—</span>
+          <span class="hero-metric__hint">Deep dive queue: <strong id="metricStage3Queue">—</strong></span>
+        </div>
+        <div class="hero-metric">
+          <span class="hero-metric__label">Spend to date</span>
+          <span class="hero-metric__value" id="metricSpend">—</span>
+          <span class="hero-metric__hint">Tokens used: <strong id="metricTokens">—</strong></span>
+        </div>
+      </div>
+    </section>
+
+    <section class="analyst-grid">
+      <article class="panel">
+        <h2 class="panel__title">Run overview</h2>
+        <div class="form-stack">
+          <div class="form-row">
+            <label for="runSelect">Active run</label>
+            <div class="form-row--inline">
+              <select id="runSelect" class="run-select" aria-describedby="accessNotice">
+                <option value="">Select a run…</option>
+              </select>
+              <button type="button" class="action-btn" id="refreshRunsBtn">Refresh</button>
+              <a class="link-pill" href="/planner.html">Open planner →</a>
+            </div>
+          </div>
+          <p id="accessNotice" class="notice">Sign in with analyst access to load run telemetry.</p>
+          <p id="dashboardStatus" class="notice" hidden></p>
+        </div>
+        <div class="run-meta" aria-live="polite">
+          <div class="run-meta__item">
+            <span class="run-meta__label">Status</span>
+            <span class="run-meta__value" id="runStatus">—</span>
+          </div>
+          <div class="run-meta__item">
+            <span class="run-meta__label">Created</span>
+            <span class="run-meta__value" id="runCreated">—</span>
+          </div>
+          <div class="run-meta__item">
+            <span class="run-meta__label">Stage 1 pending</span>
+            <span class="run-meta__value" id="runStage1Pending">—</span>
+          </div>
+          <div class="run-meta__item">
+            <span class="run-meta__label">Failures</span>
+            <span class="run-meta__value" id="runFailures">—</span>
+          </div>
+          <div class="run-meta__item">
+            <span class="run-meta__label">Stop requested</span>
+            <span class="run-meta__value" id="runStopRequested">—</span>
+          </div>
+        </div>
+        <div id="runNotes" class="run-notes" aria-live="polite"></div>
+      </article>
+
+      <article class="panel">
+        <h2 class="panel__title">Funnel snapshot</h2>
+        <div class="metrics-grid">
+          <article class="metric-card">
+            <h3 class="metric-card__title">Pending Stage 1</h3>
+            <div class="metric-card__value" id="metricStage1Pending">—</div>
+            <p class="metric-card__hint">Awaiting triage</p>
+          </article>
+          <article class="metric-card">
+            <h3 class="metric-card__title">Stage 1 done</h3>
+            <div class="metric-card__value" id="metricStage1Done">—</div>
+            <p class="metric-card__hint">Ready for deeper review</p>
+          </article>
+          <article class="metric-card">
+            <h3 class="metric-card__title">Stage 2 done</h3>
+            <div class="metric-card__value" id="metricStage2Done">—</div>
+            <p class="metric-card__hint">Structured insights captured</p>
+          </article>
+          <article class="metric-card">
+            <h3 class="metric-card__title">Stage 3 done</h3>
+            <div class="metric-card__value" id="metricStage3Done">—</div>
+            <p class="metric-card__hint">Deep dives published</p>
+          </article>
+          <article class="metric-card">
+            <h3 class="metric-card__title">Failures</h3>
+            <div class="metric-card__value text-fail" id="metricFailures">—</div>
+            <p class="metric-card__hint">Monitor logs in Supabase</p>
+          </article>
+        </div>
+        <div class="cost-summary">
+          <h3 class="cost-summary__title">Cost breakdown</h3>
+          <ul class="cost-summary__list" id="costBreakdownList"></ul>
+        </div>
+      </article>
+    </section>
+
+    <section class="panel">
+      <div class="pipeline-card__header">
+        <h2 class="panel__title">Pipeline status</h2>
+        <span class="pipeline-card__meta" id="pipelineUpdated">—</span>
+      </div>
+      <div class="pipeline-grid">
+        <article class="pipeline-card" data-stage="1">
+          <div class="pipeline-card__header">
+            <h3 class="pipeline-card__title">Stage 1 · Triage</h3>
+            <span class="pipeline-card__meta" id="stage1Percent">0%</span>
+          </div>
+          <div class="progress-shell" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-label="Stage 1 completion">
+            <div class="progress-shell__bar" id="stage1Progress"></div>
+          </div>
+          <div class="pipeline-card__stats">
+            <div>Completed: <span id="stage1CompletedCount">—</span></div>
+            <div>Pending: <span id="stage1PendingCount">—</span></div>
+            <div class="text-fail">Failed: <span id="stage1FailedCount">—</span></div>
+          </div>
+          <ul class="label-list" id="stage1LabelList"></ul>
+        </article>
+        <article class="pipeline-card" data-stage="2">
+          <div class="pipeline-card__header">
+            <h3 class="pipeline-card__title">Stage 2 · Structured insights</h3>
+            <span class="pipeline-card__meta" id="stage2Percent">0%</span>
+          </div>
+          <div class="progress-shell" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-label="Stage 2 completion">
+            <div class="progress-shell__bar" id="stage2Progress"></div>
+          </div>
+          <div class="pipeline-card__stats">
+            <div>Completed: <span id="stage2CompletedCount">—</span></div>
+            <div>In queue: <span id="stage2QueueCount">—</span></div>
+            <div class="text-fail">Failures: <span id="stage2FailedCount">—</span></div>
+          </div>
+        </article>
+        <article class="pipeline-card" data-stage="3">
+          <div class="pipeline-card__header">
+            <h3 class="pipeline-card__title">Stage 3 · Deep dives</h3>
+            <span class="pipeline-card__meta" id="stage3Percent">0%</span>
+          </div>
+          <div class="progress-shell" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-label="Stage 3 completion">
+            <div class="progress-shell__bar" id="stage3Progress"></div>
+          </div>
+          <div class="pipeline-card__stats">
+            <div>Completed: <span id="stage3CompletedCount">—</span></div>
+            <div>In queue: <span id="stage3QueueCount">—</span></div>
+            <div class="text-fail">Failures: <span id="stage3FailedCount">—</span></div>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="pipeline-card__header">
+        <h2 class="panel__title">Latest activity</h2>
+        <span class="pipeline-card__meta">Most recent answers across all stages</span>
+      </div>
+      <table class="activity-table">
+        <thead>
+          <tr>
+            <th scope="col">Time</th>
+            <th scope="col">Ticker</th>
+            <th scope="col">Stage</th>
+            <th scope="col">Label</th>
+            <th scope="col">Summary</th>
+          </tr>
+        </thead>
+        <tbody id="activityBody"></tbody>
+      </table>
+      <p class="activity-empty" id="activityEmpty">Run Stage&nbsp;1 to see triage verdicts appear here in real time.</p>
+    </section>
+
+    <section class="panel analysis-export">
+      <h2 class="panel__title">Operational checklist</h2>
+      <div class="analysis-export__fields">
+        <article class="metric-card">
+          <h3 class="metric-card__title">Live today</h3>
+          <ul class="checklist">
+            <li>✅ <span>Stage&nbsp;1 batches stream into Supabase with cost logging.</span></li>
+            <li>✅ <span>Command center mirrors live counts, label mix, and spend.</span></li>
+            <li>✅ <span>Planner hand-off lets operators launch new runs instantly.</span></li>
+          </ul>
+        </article>
+        <article class="metric-card">
+          <h3 class="metric-card__title">Up next</h3>
+          <ul class="checklist">
+            <li>🔄 <span>Wire Stage&nbsp;2 worker + sector CMS inputs.</span></li>
+            <li>🔄 <span>Budget guardrails that auto-stop when spend caps hit.</span></li>
+            <li>🔄 <span>Optional RAG snippets to enrich Stage&nbsp;3 deep dives.</span></li>
+          </ul>
+        </article>
+      </div>
+      <div class="analysis-export__actions">
+        <a class="link-pill" href="/docs/equity-analyst-roadmap.md">Development roadmap →</a>
+        <a class="link-pill" href="/planner.html">Open cost planner →</a>
+      </div>
+      <p class="notice">Need to backfill tickers or prompt notes? Start in the planner, then monitor execution here as each stage progresses.</p>
+    </section>
+  </main>
+
+  <script type="module" src="/assets/equity-analyst.js"></script>
+  <script src="/assets/app.js" defer></script>
+</body>
+</html>
