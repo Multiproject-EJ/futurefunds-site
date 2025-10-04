@@ -39,11 +39,25 @@ const inputs = {
   stage2Value: $('stage2Value'),
   stage3Value: $('stage3Value'),
   startBtn: $('startRunBtn'),
-  resetBtn: $('resetDefaultsBtn')
+  resetBtn: $('resetDefaultsBtn'),
+  runIdInput: $('runIdInput'),
+  applyRunIdBtn: $('applyRunIdBtn'),
+  clearRunIdBtn: $('clearRunIdBtn'),
+  runIdDisplay: $('runIdDisplay'),
+  stage1Btn: $('processStage1Btn'),
+  stage1RefreshBtn: $('refreshStage1Btn'),
+  stage1Status: $('stage1Status'),
+  stage1Total: $('stage1Total'),
+  stage1Pending: $('stage1Pending'),
+  stage1Completed: $('stage1Completed'),
+  stage1Failed: $('stage1Failed'),
+  stage1RecentBody: $('stage1RecentBody')
 };
 
 const FUNCTIONS_BASE = SUPABASE_URL.replace(/\.supabase\.co$/, '.functions.supabase.co');
 const RUNS_CREATE_ENDPOINT = `${FUNCTIONS_BASE}/runs-create`;
+const STAGE1_CONSUME_ENDPOINT = `${FUNCTIONS_BASE}/stage1-consume`;
+const RUN_STORAGE_KEY = 'ff-active-run-id';
 
 let authContext = {
   user: null,
@@ -54,6 +68,7 @@ let authContext = {
   membershipActive: false
 };
 let lastAccessState = 'unknown';
+let activeRunId = null;
 
 function loadSettings() {
   try {
@@ -118,6 +133,273 @@ function applySettings(settings) {
   inputs.stage3Out.value = settings.stage3.outTokens;
 }
 
+function isValidUuid(value) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
+}
+
+function updateRunDisplay() {
+  if (inputs.runIdDisplay) {
+    inputs.runIdDisplay.textContent = activeRunId ?? '—';
+  }
+
+  if (inputs.runIdInput && document.activeElement !== inputs.runIdInput) {
+    inputs.runIdInput.value = activeRunId ?? '';
+  }
+}
+
+function updateStage1Metrics(metrics = null) {
+  const formatter = (value) => {
+    if (value == null || Number.isNaN(value)) return '—';
+    return Number(value).toLocaleString();
+  };
+
+  if (inputs.stage1Total) inputs.stage1Total.textContent = formatter(metrics?.total);
+  if (inputs.stage1Pending) inputs.stage1Pending.textContent = formatter(metrics?.pending);
+  if (inputs.stage1Completed) inputs.stage1Completed.textContent = formatter(metrics?.completed);
+  if (inputs.stage1Failed) inputs.stage1Failed.textContent = formatter(metrics?.failed);
+}
+
+function renderRecentClassifications(entries = []) {
+  const body = inputs.stage1RecentBody;
+  if (!body) return;
+
+  body.innerHTML = '';
+
+  if (!entries.length) {
+    const row = document.createElement('tr');
+    row.innerHTML = '<td colspan="4" class="recent-empty">No classifications yet.</td>';
+    body.appendChild(row);
+    return;
+  }
+
+  entries.forEach((entry) => {
+    const row = document.createElement('tr');
+    const safeSummary = entry.summary ? String(entry.summary) : '—';
+    const updated = entry.updated_at
+      ? new Date(entry.updated_at).toLocaleString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+      : '—';
+    row.innerHTML = `
+      <td>${entry.ticker ?? '—'}</td>
+      <td data-label>${entry.label ?? '—'}</td>
+      <td>${safeSummary}</td>
+      <td>${updated}</td>
+    `;
+    body.appendChild(row);
+  });
+}
+
+async function fetchStage1Summary({ silent = false } = {}) {
+  if (!inputs.stage1Status) return;
+
+  if (!activeRunId) {
+    updateStage1Metrics();
+    renderRecentClassifications([]);
+    if (!silent) inputs.stage1Status.textContent = 'Set a run ID to monitor triage progress.';
+    return;
+  }
+
+  if (!silent) inputs.stage1Status.textContent = 'Fetching Stage 1 progress…';
+
+  try {
+    const [totalRes, pendingRes, completedRes, failedRes, answersRes] = await Promise.all([
+      supabase
+        .from('run_items')
+        .select('*', { count: 'exact', head: true })
+        .eq('run_id', activeRunId),
+      supabase
+        .from('run_items')
+        .select('*', { count: 'exact', head: true })
+        .eq('run_id', activeRunId)
+        .eq('status', 'pending')
+        .eq('stage', 0),
+      supabase
+        .from('run_items')
+        .select('*', { count: 'exact', head: true })
+        .eq('run_id', activeRunId)
+        .eq('status', 'ok')
+        .gte('stage', 1),
+      supabase
+        .from('run_items')
+        .select('*', { count: 'exact', head: true })
+        .eq('run_id', activeRunId)
+        .eq('status', 'failed'),
+      supabase
+        .from('answers')
+        .select('ticker, answer_json, created_at')
+        .eq('run_id', activeRunId)
+        .eq('stage', 1)
+        .order('created_at', { ascending: false })
+        .limit(8)
+    ]);
+
+    if (totalRes.error) throw totalRes.error;
+    if (pendingRes.error) throw pendingRes.error;
+    if (completedRes.error) throw completedRes.error;
+    if (failedRes.error) throw failedRes.error;
+    if (answersRes.error) throw answersRes.error;
+
+    const metrics = {
+      total: totalRes.count ?? 0,
+      pending: pendingRes.count ?? 0,
+      completed: completedRes.count ?? 0,
+      failed: failedRes.count ?? 0
+    };
+
+    updateStage1Metrics(metrics);
+
+    const recent = (answersRes.data ?? []).map((row) => {
+      const answer = row.answer_json ?? {};
+      let summary = '';
+      if (Array.isArray(answer.reasons) && answer.reasons.length) {
+        summary = answer.reasons[0];
+      } else if (typeof answer.summary === 'string') {
+        summary = answer.summary;
+      } else if (typeof answer.reason === 'string') {
+        summary = answer.reason;
+      }
+
+      return {
+        ticker: row.ticker,
+        label: answer.label ?? answer.classification ?? null,
+        summary: summary || '—',
+        updated_at: row.created_at
+      };
+    });
+
+    renderRecentClassifications(recent);
+
+    const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    inputs.stage1Status.textContent = `Last updated ${timestamp}`;
+  } catch (error) {
+    console.error('Failed to load Stage 1 summary', error);
+    inputs.stage1Status.textContent = 'Failed to load Stage 1 progress.';
+  }
+}
+
+function setActiveRunId(value, { announce = true, silent = false } = {}) {
+  const normalized = typeof value === 'string' ? value.trim() : '';
+  if (normalized && !isValidUuid(normalized)) {
+    if (inputs.stage1Status) inputs.stage1Status.textContent = 'Run ID must be a valid UUID.';
+    return false;
+  }
+
+  const previous = activeRunId;
+  activeRunId = normalized || null;
+
+  if (activeRunId) {
+    localStorage.setItem(RUN_STORAGE_KEY, activeRunId);
+  } else {
+    localStorage.removeItem(RUN_STORAGE_KEY);
+  }
+
+  updateRunDisplay();
+  applyAccessState({ preserveStatus: true });
+
+  if (!activeRunId) {
+    updateStage1Metrics();
+    renderRecentClassifications([]);
+    if (announce && inputs.stage1Status) inputs.stage1Status.textContent = 'Active run cleared. Set a run ID to continue.';
+    if (announce) logStatus('Active run cleared.');
+    return previous !== activeRunId;
+  }
+
+  if (announce) {
+    const message = `Active run set to ${activeRunId}`;
+    if (inputs.stage1Status) inputs.stage1Status.textContent = message;
+    logStatus(message);
+  }
+
+  fetchStage1Summary({ silent }).catch((error) => {
+    console.error('Failed to refresh Stage 1 summary', error);
+    if (inputs.stage1Status) inputs.stage1Status.textContent = 'Failed to load Stage 1 progress.';
+  });
+
+  return previous !== activeRunId;
+}
+
+async function processStage1Batch() {
+  if (!inputs.stage1Btn) return;
+
+  if (!activeRunId) {
+    if (inputs.stage1Status) inputs.stage1Status.textContent = 'Assign a run ID before processing.';
+    return;
+  }
+
+  await syncAccess({ preserveStatus: true });
+
+  if (!authContext.user) {
+    if (inputs.stage1Status) inputs.stage1Status.textContent = 'Sign in required.';
+    return;
+  }
+
+  if (!authContext.isAdmin) {
+    if (inputs.stage1Status) inputs.stage1Status.textContent = 'Admin access required.';
+    return;
+  }
+
+  if (!authContext.token) {
+    if (inputs.stage1Status) inputs.stage1Status.textContent = 'Session expired. Sign in again to continue.';
+    await syncAccess();
+    return;
+  }
+
+  inputs.stage1Btn.disabled = true;
+  if (inputs.stage1Status) inputs.stage1Status.textContent = 'Processing Stage 1 batch…';
+
+  try {
+    const response = await fetch(STAGE1_CONSUME_ENDPOINT, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${authContext.token}`
+      },
+      body: JSON.stringify({
+        run_id: activeRunId,
+        limit: 8,
+        client_meta: {
+          origin: window.location.origin,
+          triggered_at: new Date().toISOString()
+        }
+      })
+    });
+
+    const raw = await response.text();
+    let payload = {};
+    if (raw) {
+      try {
+        payload = JSON.parse(raw);
+      } catch (error) {
+        console.warn('Unable to parse Stage 1 response JSON', error);
+      }
+    }
+
+    if (!response.ok) {
+      const message = payload?.error || `Stage 1 endpoint responded ${response.status}`;
+      throw new Error(message);
+    }
+
+    const results = Array.isArray(payload.results) ? payload.results : [];
+    if (results.length) {
+      renderRecentClassifications(results);
+    }
+
+    const message = payload.message || `Processed ${results.length} ticker${results.length === 1 ? '' : 's'}.`;
+    if (inputs.stage1Status) inputs.stage1Status.textContent = message;
+    logStatus(`[Stage 1] ${message}`);
+  } catch (error) {
+    console.error('Stage 1 batch error', error);
+    if (inputs.stage1Status) inputs.stage1Status.textContent = `Stage 1 failed: ${error.message}`;
+    logStatus(`Stage 1 batch failed: ${error.message}`);
+  } finally {
+    try {
+      await fetchStage1Summary({ silent: true });
+    } catch (error) {
+      console.error('Failed to refresh Stage 1 summary after batch', error);
+    }
+    applyAccessState({ preserveStatus: true });
+  }
+}
+
 function stageCost(n, inTok, outTok, modelKey) {
   const model = PRICES[modelKey];
   if (!model || !n) return { total: 0, inCost: 0, outCost: 0 };
@@ -160,17 +442,27 @@ function logStatus(message) {
 }
 
 function applyAccessState({ preserveStatus = false } = {}) {
-  if (!inputs.startBtn || !inputs.status) return;
   const state = !authContext.user
     ? 'signed-out'
     : authContext.isAdmin
       ? 'admin-ok'
       : 'no-admin';
 
-  if (state === 'admin-ok') {
-    inputs.startBtn.disabled = false;
-  } else {
-    inputs.startBtn.disabled = true;
+  if (inputs.startBtn) {
+    inputs.startBtn.disabled = state !== 'admin-ok';
+  }
+
+  if (inputs.stage1Btn) {
+    inputs.stage1Btn.disabled = state !== 'admin-ok' || !activeRunId;
+  }
+
+  if (inputs.stage1RefreshBtn) {
+    inputs.stage1RefreshBtn.disabled = !activeRunId;
+  }
+
+  if (!inputs.status) {
+    lastAccessState = state;
+    return;
   }
 
   const changed = state !== lastAccessState;
@@ -311,7 +603,12 @@ async function startRun() {
     }
 
     const data = await response.json();
-    inputs.status.textContent = `Run created: ${data.run_id || 'unknown id'}`;
+    const runId = typeof data.run_id === 'string' ? data.run_id : null;
+    inputs.status.textContent = `Run created: ${runId || 'unknown id'}`;
+    if (runId) {
+      setActiveRunId(runId, { announce: true, silent: true });
+      if (inputs.stage1Status) inputs.stage1Status.textContent = 'Run queued. Process Stage 1 batches to begin triage.';
+    }
     const total = typeof data.total_items === 'number' ? data.total_items : 'n/a';
     logStatus(`Run created successfully with ${total} tickers queued.`);
   } catch (error) {
@@ -332,7 +629,6 @@ function resetDefaults() {
 }
 
 function bindEvents() {
-  if (!inputs.startBtn) return;
   const watchedInputs = [
     inputs.universe,
     inputs.stage2Slider,
@@ -360,8 +656,24 @@ function bindEvents() {
     });
   });
 
-  inputs.startBtn.addEventListener('click', startRun);
+  inputs.startBtn?.addEventListener('click', startRun);
   inputs.resetBtn?.addEventListener('click', resetDefaults);
+  inputs.stage1Btn?.addEventListener('click', processStage1Batch);
+  inputs.stage1RefreshBtn?.addEventListener('click', () => fetchStage1Summary());
+  inputs.applyRunIdBtn?.addEventListener('click', () => {
+    const value = inputs.runIdInput?.value ?? '';
+    setActiveRunId(value, { announce: true });
+  });
+  inputs.clearRunIdBtn?.addEventListener('click', () => {
+    if (inputs.runIdInput) inputs.runIdInput.value = '';
+    setActiveRunId('', { announce: true });
+  });
+  inputs.runIdInput?.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      setActiveRunId(inputs.runIdInput.value, { announce: true });
+    }
+  });
 }
 
 async function bootstrap() {
@@ -376,6 +688,15 @@ async function bootstrap() {
   updateCostOutput();
   logStatus('Planner ready. Configure and launch when models are wired.');
   inputs.status.textContent = 'Checking access…';
+
+  const storedRunId = localStorage.getItem(RUN_STORAGE_KEY);
+  if (storedRunId) {
+    setActiveRunId(storedRunId, { announce: false, silent: true });
+  } else {
+    updateRunDisplay();
+    updateStage1Metrics();
+    if (inputs.stage1Status) inputs.stage1Status.textContent = 'No active run selected.';
+  }
 
   await syncAccess();
 

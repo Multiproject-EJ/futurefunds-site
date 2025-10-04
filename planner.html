@@ -246,6 +246,180 @@
       text-decoration: none;
       font-weight: 600;
     }
+
+    .controller-panel {
+      border: 1px solid rgba(15,23,42,.1);
+      border-radius: 22px;
+      background: var(--panel,#fff);
+      box-shadow: 0 18px 32px rgba(15,23,42,.08);
+      padding: 24px;
+      display: grid;
+      gap: 22px;
+    }
+
+    .controller-panel header h2 {
+      margin: 0;
+      font-size: 1.4rem;
+      font-weight: 700;
+    }
+
+    .controller-panel header p {
+      margin: 4px 0 0;
+      color: var(--muted,#475569);
+      font-size: .94rem;
+      max-width: 680px;
+    }
+
+    .field-inline {
+      display: grid;
+      gap: 8px;
+    }
+
+    .field-inline label {
+      font-size: .9rem;
+      font-weight: 600;
+      color: var(--text,#0f172a);
+    }
+
+    .field-inline__controls {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .field-inline__controls input[type="text"] {
+      flex: 1 1 280px;
+      min-width: 220px;
+      height: 42px;
+      padding: 0 12px;
+      border-radius: 12px;
+      border: 1px solid var(--border,#cbd5f5);
+      font: inherit;
+      background: rgba(255,255,255,.92);
+      transition: border-color .2s ease, box-shadow .2s ease;
+    }
+
+    .field-inline__controls input[type="text"]:focus {
+      outline: none;
+      border-color: var(--accent,#2563eb);
+      box-shadow: 0 0 0 3px rgba(37,99,235,.2);
+    }
+
+    .field-inline small {
+      font-size: .78rem;
+      color: var(--muted,#64748b);
+    }
+
+    .controller-metrics {
+      display: grid;
+      gap: 14px;
+      grid-template-columns: repeat(auto-fit,minmax(140px,1fr));
+    }
+
+    .controller-metrics__item {
+      border: 1px solid rgba(15,23,42,.08);
+      border-radius: 16px;
+      padding: 14px 16px;
+      background: rgba(37,99,235,.05);
+      display: grid;
+      gap: 4px;
+    }
+
+    .controller-metrics__item dt {
+      font-size: .8rem;
+      font-weight: 600;
+      color: var(--muted,#475569);
+      text-transform: uppercase;
+      letter-spacing: .05em;
+    }
+
+    .controller-metrics__item dd {
+      margin: 0;
+      font-size: 1.35rem;
+      font-weight: 700;
+      color: var(--text,#0f172a);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .controller-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .controller-actions span[role="status"] {
+      font-size: .85rem;
+      color: var(--muted,#475569);
+    }
+
+    .recent-results h3 {
+      margin: 0 0 8px;
+      font-size: 1.05rem;
+      font-weight: 600;
+    }
+
+    .recent-table {
+      width: 100%;
+      border-collapse: collapse;
+      border-radius: 14px;
+      overflow: hidden;
+      border: 1px solid rgba(15,23,42,.08);
+      font-size: .88rem;
+    }
+
+    .recent-table thead {
+      background: rgba(15,23,42,.06);
+    }
+
+    .recent-table th,
+    .recent-table td {
+      padding: 10px 12px;
+      text-align: left;
+    }
+
+    .recent-table tbody tr:nth-child(odd) {
+      background: rgba(15,23,42,.02);
+    }
+
+    .recent-table td[data-label] {
+      font-weight: 600;
+    }
+
+    .recent-empty {
+      text-align: center;
+      color: var(--muted,#64748b);
+      padding: 16px;
+    }
+
+    .run-id-display {
+      font-size: .8rem;
+      color: var(--muted,#475569);
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .run-id-display code {
+      padding: 2px 6px;
+      border-radius: 8px;
+      background: rgba(15,23,42,.08);
+      font-family: "JetBrains Mono", "Fira Code", monospace;
+      font-size: .78rem;
+    }
+
+    @media (max-width: 720px) {
+      .controller-actions {
+        flex-direction: column;
+        align-items: stretch;
+      }
+
+      .controller-actions .btn-primary,
+      .controller-actions .btn-secondary {
+        width: 100%;
+      }
+    }
   </style>
 </head>
 <body>
@@ -372,6 +546,68 @@
           <pre id="statusLog">Ready when you are.</pre>
         </section>
       </aside>
+    </section>
+
+    <section class="panel controller-panel" id="stage1Panel">
+      <header>
+        <h2>Stage 1 — Triage processor</h2>
+        <p>Batch GPT-driven classifications to prune uninvestible names before spending on deeper research. Process small groups to stay within rate limits.</p>
+      </header>
+
+      <div class="field-inline">
+        <label for="runIdInput">Active run identifier</label>
+        <div class="field-inline__controls">
+          <input type="text" id="runIdInput" placeholder="Paste run UUID" autocomplete="off" />
+          <button type="button" class="btn-secondary" id="applyRunIdBtn">Apply</button>
+          <button type="button" class="btn-secondary" id="clearRunIdBtn">Clear</button>
+          <span class="run-id-display">Current:<code id="runIdDisplay">—</code></span>
+        </div>
+        <small>The latest run ID is stored automatically after you launch a new batch from this planner.</small>
+      </div>
+
+      <dl class="controller-metrics" aria-live="polite" aria-label="Stage one progress metrics">
+        <div class="controller-metrics__item">
+          <dt>Total queued</dt>
+          <dd id="stage1Total">—</dd>
+        </div>
+        <div class="controller-metrics__item">
+          <dt>Pending triage</dt>
+          <dd id="stage1Pending">—</dd>
+        </div>
+        <div class="controller-metrics__item">
+          <dt>Completed</dt>
+          <dd id="stage1Completed">—</dd>
+        </div>
+        <div class="controller-metrics__item">
+          <dt>Failed</dt>
+          <dd id="stage1Failed">—</dd>
+        </div>
+      </dl>
+
+      <div class="controller-actions">
+        <button class="btn-primary" type="button" id="processStage1Btn">Process Stage 1 batch</button>
+        <button class="btn-secondary" type="button" id="refreshStage1Btn">Refresh status</button>
+        <span id="stage1Status" role="status" aria-live="polite"></span>
+      </div>
+
+      <section class="recent-results" aria-live="polite">
+        <h3>Latest classifications</h3>
+        <table class="recent-table">
+          <thead>
+            <tr>
+              <th scope="col">Ticker</th>
+              <th scope="col">Label</th>
+              <th scope="col">Summary</th>
+              <th scope="col">Updated</th>
+            </tr>
+          </thead>
+          <tbody id="stage1RecentBody">
+            <tr>
+              <td colspan="4" class="recent-empty">No classifications yet.</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
     </section>
   </main>
 
