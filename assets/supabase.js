@@ -1,8 +1,8 @@
 // /assets/supabase.js
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
-const SUPABASE_URL = 'https://rhzaxqljwvaykuozxzcg.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJoemF4cWxqd3ZheWt1b3p4emNnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc4NzMxNjIsImV4cCI6MjA3MzQ0OTE2Mn0.t2dXlzk8fuaDqMmRgLnRB0Kga3yfMeopwnkDzy275k0';
+export const SUPABASE_URL = 'https://rhzaxqljwvaykuozxzcg.supabase.co';
+export const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJoemF4cWxqd3ZheWt1b3p4emNnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc4NzMxNjIsImV4cCI6MjA3MzQ0OTE2Mn0.t2dXlzk8fuaDqMmRgLnRB0Kga3yfMeopwnkDzy275k0';
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: { persistSession: true, detectSessionInUrl: true }
