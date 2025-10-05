@@ -1,0 +1,54 @@
+{
+  "updated_at": "2025-01-16T00:00:00Z",
+  "countries": [
+    {
+      "country": "USA",
+      "exchanges": [
+        {
+          "exchange": "NYSE",
+          "sorting_basis": "Company name (alphabetical)",
+          "current_letter": "A",
+          "status": "in-progress",
+          "completed_companies": [
+            {
+              "company_name": "Agilent Technologies, Inc.",
+              "ticker": "A",
+              "analysis_topic": "Quality & Valuation Review — Agilent Technologies (NYSE: A)",
+              "analysis_date": "2025-01-16",
+              "data_file": "data/universe.json"
+            }
+          ],
+          "next_queue": [
+            {
+              "letter": "A",
+              "description": "Continue through remaining NYSE-listed companies beginning with 'A'."
+            },
+            {
+              "letter": "B",
+              "description": "Advance to letter 'B' once all 'A' companies are covered."
+            }
+          ],
+          "review_triggers": [
+            "Quarterly earnings results deviate >5% vs last published model",
+            "Stock experiences >20% drawdown from last analysis per free price API",
+            "Material corporate action (M&A, restructuring, regulatory) detected via news API"
+          ],
+          "tracking_sources": [
+            {
+              "type": "price-monitor",
+              "provider": "Alpha Vantage",
+              "endpoint": "TIME_SERIES_DAILY_ADJUSTED",
+              "notes": "Use to flag price drawdowns for potential rerun."
+            },
+            {
+              "type": "news-monitor",
+              "provider": "Financial Modeling Prep",
+              "endpoint": "/api/v3/stock_news",
+              "notes": "Free news feed to surface material corporate actions."
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
