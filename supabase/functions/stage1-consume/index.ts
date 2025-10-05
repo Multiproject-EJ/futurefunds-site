@@ -4,8 +4,18 @@ import {
   resolveModel,
   resolveCredential,
   computeUsageCost,
-  requestChatCompletion
+  requestChatCompletion,
+  withRetry
 } from '../_shared/ai.ts';
+import { validateStage1Response, explainValidation } from '../_shared/prompt-validators.ts';
+import { recordErrorLog } from '../_shared/observability.ts';
+import {
+  applyRequestSettings,
+  getStageConfig,
+  unpackRetrySettings
+} from '../_shared/model-config.ts';
+import { loadPromptTemplate, renderTemplate } from '../_shared/prompt-loader.ts';
+import { resolveServiceAuth } from '../_shared/service-auth.ts';
 
 type JsonRecord = Record<string, unknown>;
 
@@ -36,11 +46,14 @@ const jsonHeaders = {
   'Cache-Control': 'no-store'
 };
 
-const DEFAULT_STAGE1_MODEL = 'openrouter/gpt-4o-mini';
+const stageDefaults = getStageConfig('stage1');
+const DEFAULT_STAGE1_MODEL = stageDefaults?.default_model ?? 'openrouter/gpt-4o-mini';
+const FALLBACK_STAGE1_MODEL = stageDefaults?.fallback_model ?? 'openai/gpt-4o-mini';
+const stageRequestSettings = stageDefaults?.request ?? null;
+const stageRetry = unpackRetrySettings(stageDefaults?.retry);
 
-const SYSTEM_PROMPT = `You are a buy-side screening analyst. Classify each ticker as one of "uninvestible", "borderline", or "consider". ` +
-  `Return strict JSON with the shape {"label": "uninvestible|borderline|consider", "reasons": [short bullet strings], "flags": {"leverage": string, "governance": string, "dilution": string}}. ` +
-  `Be decisive, grounded in fundamentals, and keep reasons concise.`;
+const systemPromptTemplate = loadPromptTemplate('stage1/system');
+const userPromptTemplate = loadPromptTemplate('stage1/user');
 
 function jsonResponse(status: number, body: JsonRecord) {
   return new Response(JSON.stringify(body), { status, headers: jsonHeaders });
@@ -184,16 +197,16 @@ async function fetchTickerMeta(client: ReturnType<typeof createClient>, ticker: 
   return data ?? {};
 }
 
-function buildUserPrompt(ticker: string, meta: Record<string, unknown>) {
-  const parts = [
-    `Ticker: ${ticker}`,
-    `Name: ${meta.name ?? 'Unknown'}`,
-    `Exchange: ${meta.exchange ?? 'n/a'}`,
-    `Country: ${meta.country ?? 'n/a'}`,
-    `Sector: ${meta.sector ?? 'n/a'}`,
-    `Industry: ${meta.industry ?? 'n/a'}`
-  ];
-  return parts.join('\n');
+async function buildUserPrompt(ticker: string, meta: Record<string, unknown>) {
+  const template = await userPromptTemplate;
+  return renderTemplate(template, {
+    ticker,
+    name: String(meta.name ?? 'Unknown'),
+    exchange: String(meta.exchange ?? 'n/a'),
+    country: String(meta.country ?? 'n/a'),
+    sector: String(meta.sector ?? 'n/a'),
+    industry: String(meta.industry ?? 'n/a')
+  });
 }
 
 serve(async (req) => {
@@ -225,41 +238,45 @@ serve(async (req) => {
   const requestedRunId = typeof payload?.run_id === 'string' ? payload.run_id.trim() : '';
   const runId = isUuid(requestedRunId) ? requestedRunId : null;
 
+  const serviceAuth = resolveServiceAuth(req);
   const authHeader = req.headers.get('Authorization') ?? '';
   const tokenMatch = authHeader.match(/^Bearer\s+(.+)$/i);
   const accessToken = tokenMatch?.[1]?.trim();
-  if (!accessToken) {
-    return jsonResponse(401, { error: 'Missing bearer token' });
-  }
 
   const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, { auth: { persistSession: false } });
 
-  const { data: userData, error: userError } = await supabaseAdmin.auth.getUser(accessToken);
-  if (userError || !userData?.user) {
-    console.error('Invalid session token', userError);
-    return jsonResponse(401, { error: 'Invalid or expired session token' });
-  }
+  if (!serviceAuth.authorized) {
+    if (!accessToken) {
+      return jsonResponse(401, { error: 'Missing bearer token' });
+    }
 
-  const [profileResult, membershipResult] = await Promise.all([
-    supabaseAdmin.from('profiles').select('*').eq('id', userData.user.id).maybeSingle(),
-    supabaseAdmin.from('memberships').select('*').eq('user_id', userData.user.id).maybeSingle()
-  ]);
+    const { data: userData, error: userError } = await supabaseAdmin.auth.getUser(accessToken);
+    if (userError || !userData?.user) {
+      console.error('Invalid session token', userError);
+      return jsonResponse(401, { error: 'Invalid or expired session token' });
+    }
 
-  if (profileResult.error) {
-    console.error('Failed to load profile', profileResult.error);
-  }
-  if (membershipResult.error) {
-    console.error('Failed to load membership', membershipResult.error);
-  }
+    const [profileResult, membershipResult] = await Promise.all([
+      supabaseAdmin.from('profiles').select('*').eq('id', userData.user.id).maybeSingle(),
+      supabaseAdmin.from('memberships').select('*').eq('user_id', userData.user.id).maybeSingle()
+    ]);
 
-  const context = {
-    user: userData.user as JsonRecord,
-    profile: (profileResult.data ?? null) as JsonRecord | null,
-    membership: (membershipResult.data ?? null) as JsonRecord | null
-  };
+    if (profileResult.error) {
+      console.error('Failed to load profile', profileResult.error);
+    }
+    if (membershipResult.error) {
+      console.error('Failed to load membership', membershipResult.error);
+    }
 
-  if (!isAdminContext(context)) {
-    return jsonResponse(403, { error: 'Admin access required' });
+    const context = {
+      user: userData.user as JsonRecord,
+      profile: (profileResult.data ?? null) as JsonRecord | null,
+      membership: (membershipResult.data ?? null) as JsonRecord | null
+    };
+
+    if (!isAdminContext(context)) {
+      return jsonResponse(403, { error: 'Admin access required' });
+    }
   }
 
   let runRow;
@@ -306,8 +323,9 @@ serve(async (req) => {
   const stageConfig = extractStageConfig(plannerNotes, 'stage1');
 
   let modelRecord;
+  const desiredModel = stageConfig.model?.trim() || DEFAULT_STAGE1_MODEL;
   try {
-    modelRecord = await resolveModel(supabaseAdmin, stageConfig.model ?? '', DEFAULT_STAGE1_MODEL);
+    modelRecord = await resolveModel(supabaseAdmin, desiredModel, FALLBACK_STAGE1_MODEL);
   } catch (error) {
     console.error('Stage 1 model configuration error', error);
     return jsonResponse(500, {
@@ -374,23 +392,56 @@ serve(async (req) => {
   for (const item of items) {
     const ticker = item.ticker as string;
     const startedAt = new Date().toISOString();
+    let rawMessage = '{}';
+    let parsed: JsonRecord = {};
+
     try {
       const meta = await fetchTickerMeta(supabaseAdmin, ticker);
-      const completion = await requestChatCompletion(modelRecord, credentialRecord, {
-        temperature: 0.1,
-        response_format: { type: 'json_object' },
-        messages: [
-          { role: 'system', content: SYSTEM_PROMPT },
-          { role: 'user', content: buildUserPrompt(ticker, meta) }
-        ]
-      });
+      const [systemPrompt, userPrompt] = await Promise.all([
+        systemPromptTemplate,
+        buildUserPrompt(ticker, meta)
+      ]);
+      const requestBody = applyRequestSettings(
+        {
+          response_format: { type: 'json_object' },
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userPrompt }
+          ]
+        },
+        stageRequestSettings
+      );
+      const completion = await withRetry(
+        stageRetry.attempts,
+        stageRetry.backoffMs,
+        () => requestChatCompletion(modelRecord, credentialRecord, requestBody),
+        { jitter: stageRetry.jitter }
+      );
 
-      const rawMessage = completion?.choices?.[0]?.message?.content ?? '{}';
-      let parsed: JsonRecord;
+      rawMessage = completion?.choices?.[0]?.message?.content ?? '{}';
       try {
         parsed = JSON.parse(rawMessage);
       } catch (error) {
-        throw new Error(`Failed to parse model response JSON: ${error instanceof Error ? error.message : String(error)}`);
+        const parseMessage = error instanceof Error ? error.message : String(error);
+        const parseError = new Error(`Failed to parse model response JSON: ${parseMessage}`);
+        (parseError as Error & { logPayload?: JsonRecord }).logPayload = {
+          raw_response: rawMessage,
+          parse_error: parseMessage
+        };
+        throw parseError;
+      }
+
+      const validation = validateStage1Response(parsed);
+      if (!validation.valid) {
+        const validationError = new Error(
+          `Stage 1 schema validation failed: ${explainValidation(validation)}`
+        );
+        (validationError as Error & { logPayload?: JsonRecord }).logPayload = {
+          raw_response: rawMessage,
+          validation_errors: validation.errors,
+          parsed
+        };
+        throw validationError;
       }
 
       const usage = completion?.usage ?? {};
@@ -451,6 +502,38 @@ serve(async (req) => {
       console.error(`Stage 1 processing failed for ${ticker}`, error);
       failures += 1;
       const message = error instanceof Error ? error.message : String(error);
+
+      const basePayload: JsonRecord =
+        error && typeof (error as { logPayload?: JsonRecord }).logPayload === 'object'
+          ? { ...(error as { logPayload?: JsonRecord }).logPayload }
+          : {};
+      if (!basePayload.raw_response) {
+        basePayload.raw_response = rawMessage;
+      }
+      basePayload.error_message = message;
+      basePayload.ticker = ticker;
+
+      await recordErrorLog(supabaseAdmin, {
+        context: 'stage1-consume',
+        message,
+        runId: runRow.id,
+        ticker,
+        stage: 1,
+        promptId: 'stage1-triage',
+        payload: {
+          ...basePayload,
+          run_item: {
+            status: item.status,
+            stage: item.stage,
+            spend_est_usd: item.spend_est_usd
+          }
+        },
+        metadata: {
+          planner_model: stageConfig.model,
+          planner_credential: stageConfig.credentialId
+        }
+      });
+
       results.push({
         ticker,
         label: null,

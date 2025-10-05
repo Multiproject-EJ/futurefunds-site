@@ -626,6 +626,174 @@
       gap: 12px;
       align-items: center;
     }
+
+    .auto-continue {
+      border: 1px solid rgba(37,99,235,.18);
+      background: rgba(37,99,235,.05);
+      border-radius: 16px;
+      padding: 14px 16px;
+      display: grid;
+      gap: 8px;
+    }
+
+    .auto-continue__controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .auto-continue__label {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-weight: 600;
+      font-size: .92rem;
+      color: var(--text,#0f172a);
+    }
+
+    .auto-continue__label input[type="checkbox"] {
+      width: 18px;
+      height: 18px;
+    }
+
+    .auto-continue select {
+      height: 34px;
+      border-radius: 10px;
+      border: 1px solid var(--border,#cbd5f5);
+      background: rgba(255,255,255,.92);
+      font: inherit;
+      padding: 0 12px;
+      color: var(--text,#0f172a);
+    }
+
+    .auto-continue__status {
+      margin: 0;
+      font-size: .85rem;
+      color: var(--muted,#475569);
+    }
+
+    .background-scheduler {
+      border: 1px solid rgba(16,185,129,.18);
+      background: rgba(16,185,129,.05);
+      border-radius: 16px;
+      padding: 16px 18px;
+      display: grid;
+      gap: 12px;
+    }
+
+    .background-scheduler__intro h3 {
+      margin: 0 0 4px;
+      font-size: 1rem;
+      font-weight: 600;
+    }
+
+    .background-scheduler__intro p {
+      margin: 0;
+      font-size: .88rem;
+      color: var(--muted,#475569);
+    }
+
+    .background-scheduler__controls {
+      display: grid;
+      gap: 12px;
+    }
+
+    .background-scheduler__toggle {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      font-size: .9rem;
+      font-weight: 600;
+      color: var(--text,#0f172a);
+    }
+
+    .background-scheduler__toggle input[type="checkbox"] {
+      width: 18px;
+      height: 18px;
+    }
+
+    .background-scheduler__grid {
+      display: grid;
+      gap: 12px;
+      grid-template-columns: repeat(auto-fit,minmax(160px,1fr));
+    }
+
+    .background-scheduler__grid label {
+      display: grid;
+      gap: 6px;
+      font-size: .85rem;
+      font-weight: 600;
+      color: var(--muted,#475569);
+    }
+
+    .background-scheduler__grid input,
+    .background-scheduler__grid select {
+      height: 36px;
+      border-radius: 10px;
+      border: 1px solid var(--border,#cbd5f5);
+      background: rgba(255,255,255,.95);
+      font: inherit;
+      padding: 0 12px;
+      color: var(--text,#0f172a);
+    }
+
+    .background-scheduler__grid input[type="number"] {
+      font-variant-numeric: tabular-nums;
+    }
+
+    .background-scheduler__actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .background-scheduler__status {
+      margin: 0;
+      font-size: .85rem;
+      color: var(--muted,#475569);
+    }
+
+    .background-scheduler__toast {
+      margin: 0;
+      font-size: .85rem;
+      line-height: 1.45;
+      border-radius: 12px;
+      padding: 10px 12px;
+      border: 1px solid rgba(37,99,235,.28);
+      background: rgba(37,99,235,.1);
+      color: var(--text,#0f172a);
+    }
+
+    .background-scheduler__toast.is-success {
+      border-color: rgba(16,185,129,.35);
+      background: rgba(16,185,129,.14);
+      color: #047857;
+    }
+
+    .background-scheduler__toast.is-error {
+      border-color: rgba(239,68,68,.35);
+      background: rgba(239,68,68,.14);
+      color: #b91c1c;
+    }
+
+    .background-scheduler__toast.is-info {
+      border-color: rgba(37,99,235,.28);
+      background: rgba(37,99,235,.1);
+      color: var(--text,#0f172a);
+    }
+
+    .background-scheduler__toast[hidden] {
+      display: none;
+    }
+
+    .background-scheduler__summary {
+      margin: 0;
+      font-size: .9rem;
+      font-weight: 500;
+      color: var(--text,#0f172a);
+    }
     .sector-notes {
       border: 1px solid rgba(37,99,235,.18);
       background: rgba(37,99,235,.05);
@@ -1429,7 +1597,7 @@
     </nav>
   </header>
 
-  <main class="planner-shell planner-wrap">
+  <main class="planner-shell planner-wrap" data-gated="member">
     <header class="planner-headline">
       <a class="inline-link" href="/equity_analyst.html">← Back to analyst blueprint</a>
       <h1>Market Scan Planner & Cost Estimator</h1>
@@ -1692,6 +1860,73 @@
         <span id="stage1Status" role="status" aria-live="polite"></span>
       </div>
 
+      <section class="auto-continue" aria-label="Automation controls">
+        <div class="auto-continue__controls">
+          <label class="auto-continue__label" for="autoContinueToggle">
+            <input type="checkbox" id="autoContinueToggle" />
+            <span>Auto continue</span>
+          </label>
+          <label class="sr-only" for="autoContinueInterval">Auto continue interval</label>
+          <select id="autoContinueInterval">
+            <option value="15">Every 15 seconds</option>
+            <option value="30" selected>Every 30 seconds</option>
+            <option value="60">Every 60 seconds</option>
+          </select>
+        </div>
+        <p class="auto-continue__status" id="autoContinueStatus" role="status" aria-live="polite">
+          Auto continue idle.
+        </p>
+      </section>
+
+      <section class="background-scheduler" aria-label="Background scheduler" id="schedulerSection">
+        <div class="background-scheduler__intro">
+          <h3>Background scheduler</h3>
+          <p>Let automation continue when the planner is closed. Configure cadence and batch sizes for unattended dispatch.</p>
+        </div>
+        <div class="background-scheduler__controls">
+          <label class="background-scheduler__toggle" for="schedulerEnabled">
+            <input type="checkbox" id="schedulerEnabled" />
+            <span>Enable background dispatch</span>
+          </label>
+          <div class="background-scheduler__grid">
+            <label>
+              <span>Cadence</span>
+              <select id="schedulerCadence">
+                <option value="1800">Every 30 minutes</option>
+                <option value="3600" selected>Every hour</option>
+                <option value="7200">Every 2 hours</option>
+                <option value="14400">Every 4 hours</option>
+              </select>
+            </label>
+            <label>
+              <span>Stage 1 batch</span>
+              <input type="number" id="schedulerStage1Limit" min="1" max="25" value="1" />
+            </label>
+            <label>
+              <span>Stage 2 batch</span>
+              <input type="number" id="schedulerStage2Limit" min="1" max="25" value="1" />
+            </label>
+            <label>
+              <span>Stage 3 batch</span>
+              <input type="number" id="schedulerStage3Limit" min="1" max="25" value="1" />
+            </label>
+            <label>
+              <span>Cycles per trigger</span>
+              <input type="number" id="schedulerCycles" min="1" max="10" value="1" />
+            </label>
+          </div>
+          <div class="background-scheduler__actions">
+            <button class="btn-primary" type="button" id="schedulerSaveBtn">Save schedule</button>
+            <button class="btn-secondary" type="button" id="schedulerRefreshBtn">Refresh</button>
+          </div>
+          <p class="background-scheduler__status" id="schedulerStatus" role="status" aria-live="polite"></p>
+          <div class="background-scheduler__toast" id="schedulerToast" role="status" aria-live="polite" hidden></div>
+        </div>
+        <p class="background-scheduler__summary" id="schedulerSummary">
+          Assign a run to enable background automation.
+        </p>
+      </section>
+
       <section class="recent-results" aria-live="polite">
         <h3>Latest classifications</h3>
         <table class="recent-table">
@@ -1737,6 +1972,14 @@
         <div class="controller-metrics__item">
           <dt>Failed</dt>
           <dd id="stage2Failed">—</dd>
+        </div>
+        <div class="controller-metrics__item">
+          <dt>Retrieved snippets</dt>
+          <dd id="stage2ContextHits">—</dd>
+        </div>
+        <div class="controller-metrics__item">
+          <dt>Embedding tokens</dt>
+          <dd id="stage2ContextTokens">—</dd>
         </div>
       </dl>
 
@@ -1802,6 +2045,14 @@
         <dt>Failed</dt>
         <dd id="stage3Failed">—</dd>
       </div>
+      <div class="controller-metrics__item">
+        <dt>Retrieved snippets</dt>
+        <dd id="stage3ContextHits">—</dd>
+      </div>
+      <div class="controller-metrics__item">
+        <dt>Embedding tokens</dt>
+        <dd id="stage3ContextTokens">—</dd>
+      </div>
     </dl>
 
     <div class="controller-actions">
@@ -1824,6 +2075,58 @@
         <tbody id="stage3RecentBody">
           <tr>
             <td colspan="4" class="recent-empty">No deep dives yet.</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+  </section>
+
+  <section class="panel controller-panel" id="observabilityPanel" hidden>
+    <header>
+      <h2>Observability &amp; safety</h2>
+      <p>Verify worker health and inspect recent automation failures before triggering unattended runs.</p>
+    </header>
+
+    <div class="health-grid" id="healthStatus">
+      <article class="health-card" id="healthDatabaseCard" data-status="unknown">
+        <h3>Database</h3>
+        <p id="healthDatabaseStatus">Not checked</p>
+        <small id="healthDatabaseDetail">Run a check to confirm Supabase connectivity.</small>
+      </article>
+      <article class="health-card" id="healthOpenAICard" data-status="unknown">
+        <h3>OpenAI</h3>
+        <p id="healthOpenAIStatus">Not checked</p>
+        <small id="healthOpenAIDetail">We ping the models API to ensure credentials work.</small>
+      </article>
+    </div>
+
+    <div class="health-actions">
+      <button class="btn-secondary" type="button" id="refreshHealthBtn">Refresh health</button>
+      <span class="health-timestamp" id="healthCheckedAt">Health checks have not run yet.</span>
+    </div>
+
+    <section class="error-log" aria-live="polite">
+      <header class="error-log__header">
+        <h3>Recent error logs</h3>
+        <div class="error-log__actions">
+          <button class="btn-secondary" type="button" id="refreshErrorsBtn">Refresh log</button>
+          <span class="error-log__status" id="errorLogStatus"></span>
+        </div>
+      </header>
+      <table class="error-log__table">
+        <thead>
+          <tr>
+            <th scope="col">When</th>
+            <th scope="col">Stage</th>
+            <th scope="col">Ticker</th>
+            <th scope="col">Prompt</th>
+            <th scope="col">Message</th>
+            <th scope="col">Retries</th>
+          </tr>
+        </thead>
+        <tbody id="errorLogBody">
+          <tr class="error-log__empty">
+            <td colspan="6">No failures recorded in the last 50 entries.</td>
           </tr>
         </tbody>
       </table>
@@ -1941,7 +2244,20 @@
       </div>
     </div>
   </div>
-</main>
+
+    <div class="gate-cta">
+      <div class="gate-cta__inner">
+        <div>
+          <strong>Members only</strong>
+          <p>Join FutureFunds.ai or sign in to run automated analyst sweeps.</p>
+        </div>
+        <div class="gate-cta__actions">
+          <button class="btn primary" type="button" data-open-auth="signup">Join membership</button>
+          <button class="btn" type="button" data-open-auth="signin">Sign in</button>
+        </div>
+      </div>
+    </div>
+  </main>
 
 <button type="button" class="guided-fab" id="guidedFab" aria-label="Start guided walkthrough">
   <strong>Need a tour?</strong>

@@ -28,6 +28,7 @@ multi-stage model runs and reporting:
 | `sector_prompts` | Optional sector-specific prompt augmentations injected into Stage 2+. |
 | `runs` | High-level batch execution log for each analysis sweep (start time, status, budget flags). |
 | `run_items` | Per-ticker processing state tracking the current stage, label, and spend. |
+| `run_schedules` | Stores per-run automation cadence, batch limits, and activation state for the background dispatcher. |
 | `answers` | Stores structured and narrative outputs produced at each stage of the pipeline. |
 | `cost_ledger` | Aggregated token usage and USD cost per stage/run for budget monitoring. |
 | `doc_chunks` | Optional retrieval corpus of text snippets (10-Ks, transcripts, etc.) used for RAG. |
@@ -38,6 +39,15 @@ multi-stage model runs and reporting:
 
 The analyst dashboard queries a handful of helper functions to avoid shipping large
 payloads to the browser:
+
+## Prompt templates & model registry
+
+- Markdown prompt templates now live under `/prompts`, grouped by stage. Each template supports
+  mustache-style interpolation tokens (e.g., `{{ticker}}`, `{{stage1_block}}`) rendered at runtime by
+  `supabase/functions/_shared/prompt-loader.ts`.
+- Static model metadata and stage-level request policies live in `config/models.json`. Edge functions
+  call `shared/model-config.js` to resolve default and fallback models, preferred cache settings, and
+  retry policies when Supabase lookups are unavailable.
 
 | Function | Purpose |
 | --- | --- |
@@ -418,6 +428,12 @@ Seed the table with `/sql/002_seed.sql` for local development when you need samp
 | `status` | `text` | `'queued'` | Allowed values: `queued`, `running`, `done`, `failed`. |
 | `notes` | `text` | `null` | Optional metadata (e.g., user, budget). |
 | `stop_requested` | `boolean` | `false` | Workers should check this before processing the next batch. |
+| `created_by` | `uuid` | `null` | Populated by the `runs-create` edge function to record who launched the batch for quota enforcement.【F:supabase/functions/runs-create/index.ts†L232-L330】 |
+| `created_by_email` | `text` | `null` | Snapshot of the operator’s email for audit trails.【F:supabase/functions/runs-create/index.ts†L232-L330】 |
+
+Indexes on `created_by` and `created_at` support daily quota checks (`sql/009_member_access.sql`).【F:sql/009_member_access.sql†L1-L6】
+
+Set `RUNS_DAILY_LIMIT` (default `5`) in the edge runtime to cap how many batches a user can initiate within a rolling 24‑hour window; exceeding the quota triggers a `429` from `runs-create`.【F:supabase/functions/runs-create/index.ts†L104-L194】
 
 ### `run_items`
 
@@ -433,6 +449,31 @@ Composite primary key: `(run_id, ticker)`.
 | `status` | `text` | `'pending'` | `pending`, `ok`, `skipped`, or `failed`. |
 | `spend_est_usd` | `numeric(12,4)` | `0` | Running total of estimated spend for this ticker. |
 | `updated_at` | `timestamptz` | `now()` | Touch on each stage completion. |
+
+### `run_schedules`
+
+*Primary key*: `id uuid`.
+
+| Column | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `id` | `uuid` | `gen_random_uuid()` | Stable identifier for the schedule row. |
+| `run_id` | `uuid` | — | References `runs(id)` and must be unique so each run has at most one schedule. |
+| `label` | `text` | — | Optional operator-friendly descriptor for admin UIs. |
+| `cadence_seconds` | `integer` | `3600` | Minimum of 60 seconds. Controls how frequently the dispatcher invokes `runs-continue`. |
+| `stage1_limit` | `integer` | `8` | Batch size for Stage&nbsp;1 when the scheduler triggers (1–25). |
+| `stage2_limit` | `integer` | `4` | Batch size for Stage&nbsp;2 when the scheduler triggers. |
+| `stage3_limit` | `integer` | `2` | Batch size for Stage&nbsp;3 when the scheduler triggers. |
+| `max_cycles` | `integer` | `1` | Number of sequential `runs-continue` cycles per dispatch (1–10). |
+| `active` | `boolean` | `true` | Whether the dispatcher should consider this schedule. |
+| `last_triggered_at` | `timestamptz` | — | Updated whenever the dispatcher runs; used to enforce cadence spacing. |
+| `created_at` | `timestamptz` | `now()` | Creation timestamp. |
+| `updated_at` | `timestamptz` | `now()` | Updated by edge functions when the schedule changes. |
+
+`sql/011_run_schedules.sql` provisions the table, indexes, and validation constraints. Operators call
+the `runs-schedule` edge function to create or update rows, while the unattended dispatcher
+(`runs-dispatch`) polls this table on a cron cadence and invokes `runs-continue` with the
+stored limits. Both endpoints expect an `AUTOMATION_SERVICE_SECRET` environment variable so
+service-to-service calls can bypass interactive auth without exposing the Supabase service role key.
 
 ### `answers`
 
@@ -463,16 +504,65 @@ Composite primary key: `(run_id, ticker)`.
 | `cost_usd` | `numeric(12,4)` | USD spend at logging time. |
 | `created_at` | `timestamptz` | Timestamp of the ledger entry. |
 
+### `docs`
+
+*Primary key*: `id uuid` generated with `gen_random_uuid()`.
+
+| Column | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `ticker` | `text` | — | References `tickers(ticker)`; nullable for general-market research. |
+| `title` | `text` | — | Human-readable label shown in the uploader and citations. |
+| `source_type` | `text` | `null` | Free-form category (10-K, investor letter, transcript, etc.). |
+| `published_at` | `timestamptz` | `null` | Optional publication timestamp surfaced in the UI. |
+| `source_url` | `text` | `null` | Canonical URL for the underlying document. |
+| `storage_path` | `text` | — | Supabase Storage path (e.g., `raw/MSFT/2024-10-10-letter.pdf`). |
+| `uploaded_by` | `uuid` | `null` | References `auth.users(id)` for audit trails. |
+| `status` | `text` | `'pending'` | Processing lifecycle (`pending`, `processed`, `failed`). |
+| `chunk_count` | `int` | `0` | Populated by the chunking job. |
+| `token_count` | `int` | `0` | Sum of token estimates across stored chunks. |
+| `last_error` | `text` | `null` | Last processing failure captured by the edge worker. |
+| `processed_at` | `timestamptz` | `null` | Timestamp of the most recent successful chunk+embed run. |
+| `created_at` / `updated_at` | `timestamptz` | `now()` | Managed timestamps. |
+
+Uploads are saved to the Supabase Storage bucket `docs` under `raw/<ticker>/...` by the admin console at `/docs/index.html`.
+
 ### `doc_chunks`
 
 | Column | Type | Notes |
 | --- | --- | --- |
 | `id` | `bigserial` | Primary key. |
-| `ticker` | `text` | References `tickers`. |
-| `source` | `text` | Describes the document source (10-K 2024, investor letter, etc.). |
+| `doc_id` | `uuid` | References `docs(id)`; cascades on delete. |
+| `ticker` | `text` | Denormalised symbol for fast filtering. |
+| `source` | `text` | Optional legacy label retained for back-compat. |
+| `chunk_index` | `int` | Sequential index (0-based) assigned by the chunking worker. |
 | `chunk` | `text` | Plain-text snippet used for retrieval-augmented prompts. |
+| `token_length` | `int` | Approximate token count used for budgeting. |
+| `embedding` | `vector(1536)` | pgvector representation generated via `text-embedding-3-small`. |
 
-When enabling pgvector for semantic search, add an `embedding vector` column via a follow-up migration.
+An IVFFlat index on `embedding` accelerates similarity search for the retrieval helper.
+
+### `error_logs`
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | `bigserial` | Primary key. |
+| `context` | `text` | Logical component (e.g., `docs-process`). |
+| `message` | `text` | Short description of the failure. |
+| `payload` | `jsonb` | Structured blob (request params, stack traces). |
+| `run_id` | `uuid` | Optional pointer to the affected run. |
+| `ticker` | `text` | Optional ticker reference for per-run issues. |
+| `stage` | `int` | Stage that generated the failure (`null` for ingestion or misc). |
+| `prompt_id` | `text` | Prompt or function identifier captured by the worker. |
+| `retry_count` | `int` | Number of attempts recorded when the worker retried. |
+| `status_code` | `int` | HTTP status returned by the worker (if applicable). |
+| `metadata` | `jsonb` | Supplemental structured context (e.g., doc ID, embeddings). |
+| `created_at` | `timestamptz` | Defaults to `now()`. |
+
+Reuse this table for worker instrumentation (Stages 12–13) by logging run/ticker context, prompt identifiers, and structured payloads for observability dashboards.
+
+The Postgres RPC `match_doc_chunks(query_embedding double precision[], query_ticker text, match_limit int)` converts an array
+of floats into a `vector(1536)` and returns the top-k snippets ordered by cosine distance alongside document metadata. Workers
+invoke it after computing embeddings so they can inject `[D1]`-style citations into prompts.
 
 ### `analysis_dimensions`
 

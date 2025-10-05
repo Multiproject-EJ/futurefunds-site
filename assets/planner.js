@@ -62,6 +62,21 @@ const inputs = {
   runRemaining: $('runRemainingValue'),
   runRemainingStat: $('runRemainingStat'),
   runMetaStatus: $('runMetaStatus'),
+  autoContinueToggle: $('autoContinueToggle'),
+  autoContinueInterval: $('autoContinueInterval'),
+  autoContinueStatus: $('autoContinueStatus'),
+  schedulerSection: $('schedulerSection'),
+  schedulerEnabled: $('schedulerEnabled'),
+  schedulerCadence: $('schedulerCadence'),
+  schedulerStage1: $('schedulerStage1Limit'),
+  schedulerStage2: $('schedulerStage2Limit'),
+  schedulerStage3: $('schedulerStage3Limit'),
+  schedulerCycles: $('schedulerCycles'),
+  schedulerSaveBtn: $('schedulerSaveBtn'),
+  schedulerRefreshBtn: $('schedulerRefreshBtn'),
+  schedulerStatus: $('schedulerStatus'),
+  schedulerToast: $('schedulerToast'),
+  schedulerSummary: $('schedulerSummary'),
   stageSpendSection: $('stageSpendSection'),
   stageSpendChart: $('stageSpendChart'),
   stageSpendTotal: $('stageSpendTotal'),
@@ -87,6 +102,8 @@ const inputs = {
   stage2Completed: $('stage2Completed'),
   stage2Failed: $('stage2Failed'),
   stage2GoDeep: $('stage2GoDeep'),
+  stage2ContextHits: $('stage2ContextHits'),
+  stage2ContextTokens: $('stage2ContextTokens'),
   stage2RecentBody: $('stage2RecentBody'),
   stage3Btn: $('processStage3Btn'),
   stage3RefreshBtn: $('refreshStage3Btn'),
@@ -96,10 +113,24 @@ const inputs = {
   stage3Completed: $('stage3Completed'),
   stage3Spend: $('stage3Spend'),
   stage3Failed: $('stage3Failed'),
+  stage3ContextHits: $('stage3ContextHits'),
+  stage3ContextTokens: $('stage3ContextTokens'),
   stage3RecentBody: $('stage3RecentBody'),
   sectorNotesList: $('sectorNotesList'),
   sectorNotesEmpty: $('sectorNotesEmpty'),
-  refreshRegistryBtn: $('refreshRegistryBtn')
+  refreshRegistryBtn: $('refreshRegistryBtn'),
+  observabilityPanel: $('observabilityPanel'),
+  refreshHealthBtn: $('refreshHealthBtn'),
+  refreshErrorsBtn: $('refreshErrorsBtn'),
+  healthDatabaseCard: $('healthDatabaseCard'),
+  healthDatabaseStatus: $('healthDatabaseStatus'),
+  healthDatabaseDetail: $('healthDatabaseDetail'),
+  healthOpenAICard: $('healthOpenAICard'),
+  healthOpenAIStatus: $('healthOpenAIStatus'),
+  healthOpenAIDetail: $('healthOpenAIDetail'),
+  healthCheckedAt: $('healthCheckedAt'),
+  errorLogStatus: $('errorLogStatus'),
+  errorLogBody: $('errorLogBody')
 };
 
 const notices = {
@@ -113,6 +144,9 @@ const STAGE1_CONSUME_ENDPOINT = `${FUNCTIONS_BASE}/stage1-consume`;
 const STAGE2_CONSUME_ENDPOINT = `${FUNCTIONS_BASE}/stage2-consume`;
 const STAGE3_CONSUME_ENDPOINT = `${FUNCTIONS_BASE}/stage3-consume`;
 const RUNS_STOP_ENDPOINT = `${FUNCTIONS_BASE}/runs-stop`;
+const RUNS_CONTINUE_ENDPOINT = `${FUNCTIONS_BASE}/runs-continue`;
+const RUNS_SCHEDULE_ENDPOINT = `${FUNCTIONS_BASE}/runs-schedule`;
+const HEALTH_ENDPOINT = `${FUNCTIONS_BASE}/health`;
 const RUN_STORAGE_KEY = 'ff-active-run-id';
 
 let authContext = {
@@ -143,6 +177,26 @@ const STAGE_LABELS = {
   2: 'Stage 2 · Scoring',
   3: 'Stage 3 · Deep dive'
 };
+const AUTO_CONTINUE_LIMITS = { stage1: 8, stage2: 4, stage3: 2 };
+const AUTO_CONTINUE_DEFAULT_SECONDS = 30;
+const SCHEDULER_DEFAULTS = {
+  cadenceSeconds: 3600,
+  stage1Limit: 1,
+  stage2Limit: 1,
+  stage3Limit: 1,
+  maxCycles: 1
+};
+let autoContinueTimer = null;
+let autoContinueActive = false;
+let autoContinueInFlight = false;
+let schedulerLoading = false;
+let schedulerDirty = false;
+let currentSchedule = null;
+const scheduleCache = new Map();
+let schedulerToastTimer = null;
+let healthLoading = false;
+let errorLogLoading = false;
+let errorLogRows = [];
 
 function loadSettings() {
   try {
@@ -1449,6 +1503,642 @@ async function toggleRunStop(stopRequested) {
   }
 }
 
+function updateAutoContinueStatus(message) {
+  if (inputs.autoContinueStatus) {
+    inputs.autoContinueStatus.textContent = message;
+  }
+}
+
+function getAutoContinueIntervalMs() {
+  const rawValue = Number(inputs.autoContinueInterval?.value ?? AUTO_CONTINUE_DEFAULT_SECONDS);
+  const seconds = Number.isFinite(rawValue) && rawValue > 0 ? rawValue : AUTO_CONTINUE_DEFAULT_SECONDS;
+  const clamped = Math.min(Math.max(Math.round(seconds), 5), 600);
+  return clamped * 1000;
+}
+
+function clearAutoContinueTimer() {
+  if (autoContinueTimer) {
+    window.clearTimeout(autoContinueTimer);
+    autoContinueTimer = null;
+  }
+}
+
+function disableAutoContinue(message = 'Auto continue paused.') {
+  clearAutoContinueTimer();
+  autoContinueActive = false;
+  autoContinueInFlight = false;
+  if (inputs.autoContinueToggle) {
+    inputs.autoContinueToggle.checked = false;
+  }
+  updateAutoContinueStatus(message);
+}
+
+function scheduleAutoContinue({ immediate = false } = {}) {
+  clearAutoContinueTimer();
+  if (!autoContinueActive) return;
+
+  if (immediate) {
+    runAutoContinue().catch((error) => {
+      console.error('Auto continue execution failed', error);
+    });
+    return;
+  }
+
+  const delay = getAutoContinueIntervalMs();
+  autoContinueTimer = window.setTimeout(() => {
+    autoContinueTimer = null;
+    runAutoContinue().catch((error) => {
+      console.error('Auto continue execution failed', error);
+    });
+  }, delay);
+}
+
+function updateAutoContinueAvailability() {
+  const toggle = inputs.autoContinueToggle;
+  const intervalSelect = inputs.autoContinueInterval;
+  const halted = currentRunMeta?.stop_requested
+    ? 'stop'
+    : currentRunMeta?.budget_exhausted
+      ? 'budget'
+      : null;
+  const hasAuth = Boolean(authContext.user && authContext.isAdmin && authContext.token);
+  const ready = Boolean(activeRunId && hasAuth && !halted);
+
+  if (!ready && autoContinueActive) {
+    clearAutoContinueTimer();
+    autoContinueActive = false;
+    autoContinueInFlight = false;
+    if (toggle) toggle.checked = false;
+    if (halted === 'budget') {
+      updateAutoContinueStatus('Auto continue halted — budget reached.');
+    } else if (halted === 'stop') {
+      updateAutoContinueStatus('Auto continue halted — stop requested.');
+    } else if (!authContext.user) {
+      updateAutoContinueStatus('Sign in to enable auto continue.');
+    } else if (!authContext.isAdmin) {
+      updateAutoContinueStatus('Admin access required for auto continue.');
+    } else if (!activeRunId) {
+      updateAutoContinueStatus('Select a run to enable auto continue.');
+    } else {
+      updateAutoContinueStatus('Auto continue paused.');
+    }
+  }
+
+  if (toggle) {
+    toggle.disabled = !ready && !autoContinueActive;
+  }
+
+  if (intervalSelect) {
+    intervalSelect.disabled = !ready || autoContinueInFlight;
+  }
+
+  if (!autoContinueActive) {
+    if (!activeRunId) {
+      updateAutoContinueStatus('Select a run to enable auto continue.');
+    } else if (!authContext.user) {
+      updateAutoContinueStatus('Sign in to enable auto continue.');
+    } else if (!authContext.isAdmin) {
+      updateAutoContinueStatus('Admin access required for auto continue.');
+    } else if (halted === 'stop') {
+      updateAutoContinueStatus('Auto continue halted — stop requested.');
+    } else if (halted === 'budget') {
+      updateAutoContinueStatus('Auto continue halted — budget reached.');
+    } else if (!autoContinueInFlight && (!inputs.autoContinueStatus || !inputs.autoContinueStatus.textContent)) {
+      updateAutoContinueStatus('Auto continue idle.');
+    }
+  }
+}
+
+async function runAutoContinue() {
+  if (!autoContinueActive || autoContinueInFlight) return;
+
+  if (!activeRunId) {
+    disableAutoContinue('Select a run to enable auto continue.');
+    updateAutoContinueAvailability();
+    return;
+  }
+
+  if (!authContext.token) {
+    await syncAccess({ preserveStatus: true });
+  }
+
+  if (!authContext.token) {
+    disableAutoContinue('Session expired. Sign in again to continue.');
+    updateAutoContinueAvailability();
+    return;
+  }
+
+  autoContinueInFlight = true;
+  updateAutoContinueStatus('Auto continue running…');
+
+  try {
+    const response = await fetch(RUNS_CONTINUE_ENDPOINT, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${authContext.token}`
+      },
+      body: JSON.stringify({
+        run_id: activeRunId,
+        stage_limits: AUTO_CONTINUE_LIMITS,
+        cycles: 1,
+        client_meta: {
+          origin: window.location.origin,
+          triggered_at: new Date().toISOString()
+        }
+      })
+    });
+
+    const raw = await response.text();
+    let payload = {};
+    if (raw) {
+      try {
+        payload = JSON.parse(raw);
+      } catch (error) {
+        console.warn('Unable to parse runs-continue response JSON', error);
+        payload = {};
+      }
+    }
+
+    if (!response.ok) {
+      const message = payload?.error || `Auto continue failed (${response.status})`;
+      updateAutoContinueStatus(message);
+      logStatus(`[Auto] ${message}`);
+      disableAutoContinue('Auto continue stopped due to error.');
+      updateAutoContinueAvailability();
+      return;
+    }
+
+    const message = typeof payload?.message === 'string' ? payload.message : 'Auto continue cycle completed.';
+    updateAutoContinueStatus(message);
+    logStatus(`[Auto] ${message}`);
+
+    if (Array.isArray(payload?.operations)) {
+      payload.operations.forEach((operation) => {
+        if (!operation || typeof operation !== 'object') return;
+        const stageNumber = Number(operation.stage);
+        const stageLabel = STAGE_LABELS[stageNumber] ?? `Stage ${stageNumber}`;
+        const opMessage = operation.message || 'Stage call completed.';
+        logStatus(`[Auto] ${stageLabel}: ${opMessage}`);
+      });
+    }
+
+    if (payload?.halted) {
+      const haltMessage = typeof payload.halted.message === 'string'
+        ? payload.halted.message
+        : 'Auto continue halted.';
+      logStatus(`[Auto] ${haltMessage}`);
+      disableAutoContinue(haltMessage);
+    }
+
+    await Promise.all([
+      fetchStage1Summary({ silent: true }),
+      fetchStage2Summary({ silent: true }),
+      fetchStage3Summary({ silent: true }),
+      fetchRunMeta({ silent: true })
+    ]).catch((error) => {
+      console.error('Auto continue refresh failed', error);
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error('Auto continue error', error);
+    updateAutoContinueStatus(`Auto continue error: ${message}`);
+    logStatus(`Auto continue error: ${message}`);
+    disableAutoContinue('Auto continue stopped due to error.');
+  } finally {
+    autoContinueInFlight = false;
+    updateAutoContinueAvailability();
+    if (autoContinueActive) {
+      scheduleAutoContinue();
+    }
+  }
+}
+
+async function handleAutoContinueToggle(event) {
+  const checked = Boolean(event?.target?.checked);
+
+  if (checked) {
+    await syncAccess({ preserveStatus: true });
+
+    if (!authContext.user) {
+      updateAutoContinueStatus('Sign in to enable auto continue.');
+      if (inputs.autoContinueToggle) inputs.autoContinueToggle.checked = false;
+      updateAutoContinueAvailability();
+      return;
+    }
+
+    if (!authContext.isAdmin) {
+      updateAutoContinueStatus('Admin access required for auto continue.');
+      if (inputs.autoContinueToggle) inputs.autoContinueToggle.checked = false;
+      updateAutoContinueAvailability();
+      return;
+    }
+
+    if (!authContext.token) {
+      updateAutoContinueStatus('Session expired. Sign in again to continue.');
+      if (inputs.autoContinueToggle) inputs.autoContinueToggle.checked = false;
+      updateAutoContinueAvailability();
+      return;
+    }
+
+    if (!activeRunId) {
+      updateAutoContinueStatus('Select a run to enable auto continue.');
+      if (inputs.autoContinueToggle) inputs.autoContinueToggle.checked = false;
+      updateAutoContinueAvailability();
+      return;
+    }
+
+    if (currentRunMeta?.stop_requested) {
+      updateAutoContinueStatus('Auto continue halted — stop requested.');
+      if (inputs.autoContinueToggle) inputs.autoContinueToggle.checked = false;
+      updateAutoContinueAvailability();
+      return;
+    }
+
+    if (currentRunMeta?.budget_exhausted) {
+      updateAutoContinueStatus('Auto continue halted — budget reached.');
+      if (inputs.autoContinueToggle) inputs.autoContinueToggle.checked = false;
+      updateAutoContinueAvailability();
+      return;
+    }
+
+    autoContinueActive = true;
+    logStatus('Auto continue enabled.');
+    updateAutoContinueAvailability();
+    scheduleAutoContinue({ immediate: true });
+  } else {
+    disableAutoContinue('Auto continue paused.');
+    logStatus('Auto continue paused by operator.');
+    updateAutoContinueAvailability();
+  }
+}
+
+function formatSchedulerCadence(seconds) {
+  const value = Number(seconds);
+  if (!Number.isFinite(value) || value <= 0) return 'custom interval';
+  if (value % 3600 === 0) {
+    const hours = Math.round(value / 3600);
+    if (hours === 1) return '60 minutes';
+    return `${hours} hour${hours === 1 ? '' : 's'}`;
+  }
+  if (value % 60 === 0) {
+    const minutes = Math.round(value / 60);
+    return `${minutes} minute${minutes === 1 ? '' : 's'}`;
+  }
+  return `${value} seconds`;
+}
+
+function formatRelativeFutureTimestamp(value) {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  const delta = date.getTime() - Date.now();
+  if (delta <= 0) {
+    return formatRelativeTimestamp(value);
+  }
+  if (delta < 60_000) return 'in under a minute';
+  if (delta < 3_600_000) {
+    const minutes = Math.round(delta / 60_000);
+    return `in ${minutes} minute${minutes === 1 ? '' : 's'}`;
+  }
+  if (delta < 86_400_000) {
+    const hours = Math.round(delta / 3_600_000);
+    return `in ${hours} hour${hours === 1 ? '' : 's'}`;
+  }
+  const days = Math.round(delta / 86_400_000);
+  return `in ${days} day${days === 1 ? '' : 's'}`;
+}
+
+function markSchedulerDirty(message = 'Unsaved changes. Save schedule to update the background dispatcher.') {
+  schedulerDirty = true;
+  if (inputs.schedulerStatus) {
+    inputs.schedulerStatus.textContent = message;
+  }
+  hideSchedulerToast();
+}
+
+function applySchedulerUI(schedule, { cache = true } = {}) {
+  const sanitized = schedule ? { ...schedule } : null;
+  const scheduleData = sanitized;
+  currentSchedule = scheduleData;
+  if (cache && activeRunId) {
+    scheduleCache.set(activeRunId, scheduleData ? { ...scheduleData } : null);
+  }
+  schedulerDirty = false;
+
+  const toggle = inputs.schedulerEnabled;
+  const cadenceSelect = inputs.schedulerCadence;
+  const stage1Input = inputs.schedulerStage1;
+  const stage2Input = inputs.schedulerStage2;
+  const stage3Input = inputs.schedulerStage3;
+  const cyclesInput = inputs.schedulerCycles;
+
+  const cadenceSeconds = Number(scheduleData?.cadence_seconds ?? SCHEDULER_DEFAULTS.cadenceSeconds);
+  const stage1Limit = Number(scheduleData?.stage1_limit ?? SCHEDULER_DEFAULTS.stage1Limit);
+  const stage2Limit = Number(scheduleData?.stage2_limit ?? SCHEDULER_DEFAULTS.stage2Limit);
+  const stage3Limit = Number(scheduleData?.stage3_limit ?? SCHEDULER_DEFAULTS.stage3Limit);
+  const maxCycles = Number(scheduleData?.max_cycles ?? SCHEDULER_DEFAULTS.maxCycles);
+
+  if (toggle) toggle.checked = Boolean(scheduleData?.active);
+  if (cadenceSelect) cadenceSelect.value = String(cadenceSeconds);
+  if (stage1Input) stage1Input.value = String(stage1Limit);
+  if (stage2Input) stage2Input.value = String(stage2Limit);
+  if (stage3Input) stage3Input.value = String(stage3Limit);
+  if (cyclesInput) cyclesInput.value = String(maxCycles);
+
+  let summary;
+  if (!activeRunId) {
+    summary = 'Assign a run to enable background automation.';
+  } else if (!scheduleData) {
+    summary = 'No background schedule saved. Configure cadence and save to dispatch unattended batches.';
+  } else if (!scheduleData.active) {
+    summary = 'Background dispatcher disabled for this run.';
+  } else {
+    const cadenceLabel = formatSchedulerCadence(cadenceSeconds);
+    summary = `Dispatches every ${cadenceLabel} · Stage 1 ${stage1Limit}, Stage 2 ${stage2Limit}, Stage 3 ${stage3Limit}`;
+    if (maxCycles > 1) {
+      summary += ` · ${maxCycles} cycles per trigger`;
+    }
+
+    const descriptors = [];
+    if (scheduleData.next_trigger_at) {
+      const relative = formatRelativeFutureTimestamp(scheduleData.next_trigger_at);
+      const absolute = new Date(scheduleData.next_trigger_at).toLocaleString();
+      descriptors.push(`next run ${relative ?? 'soon'} (${absolute})`);
+    }
+    if (scheduleData.last_triggered_at) {
+      descriptors.push(`last triggered ${formatRelativeTimestamp(scheduleData.last_triggered_at)}`);
+    }
+    if (descriptors.length) {
+      summary += `. ${descriptors.join('; ')}.`;
+    } else {
+      summary += '.';
+    }
+  }
+
+  if (inputs.schedulerSummary) {
+    inputs.schedulerSummary.textContent = summary;
+  }
+
+  if (inputs.schedulerStatus) {
+    if (!scheduleData) {
+      inputs.schedulerStatus.textContent = '';
+    } else if (!scheduleData.active) {
+      inputs.schedulerStatus.textContent = 'Scheduler disabled for this run.';
+    } else {
+      const relative = formatRelativeFutureTimestamp(scheduleData.next_trigger_at);
+      inputs.schedulerStatus.textContent = relative ? `Scheduler enabled (${relative}).` : 'Scheduler enabled.';
+    }
+  }
+
+  applyAccessState({ preserveStatus: true });
+}
+
+function hideSchedulerToast() {
+  if (!inputs.schedulerToast) return;
+  if (schedulerToastTimer) {
+    clearTimeout(schedulerToastTimer);
+    schedulerToastTimer = null;
+  }
+  inputs.schedulerToast.hidden = true;
+  inputs.schedulerToast.textContent = '';
+  inputs.schedulerToast.classList.remove('is-success', 'is-error', 'is-info');
+}
+
+function showSchedulerToast(message, variant = 'info') {
+  if (!inputs.schedulerToast) return;
+  if (schedulerToastTimer) {
+    clearTimeout(schedulerToastTimer);
+    schedulerToastTimer = null;
+  }
+
+  const toast = inputs.schedulerToast;
+  const variantClass =
+    variant === 'error' ? 'is-error' : variant === 'success' ? 'is-success' : 'is-info';
+
+  toast.hidden = false;
+  toast.textContent = message;
+  toast.classList.remove('is-success', 'is-error', 'is-info');
+  toast.classList.add(variantClass);
+
+  schedulerToastTimer = window.setTimeout(() => {
+    toast.hidden = true;
+    toast.classList.remove(variantClass);
+    toast.textContent = '';
+    schedulerToastTimer = null;
+  }, 4000);
+}
+
+function readSchedulerNumber(input, { min, max, fallback }) {
+  if (!input) return fallback;
+  const raw = Number(input.value);
+  if (!Number.isFinite(raw)) {
+    input.value = String(fallback);
+    return fallback;
+  }
+  const clamped = Math.min(Math.max(Math.floor(raw), min), max);
+  input.value = String(clamped);
+  return clamped;
+}
+
+async function fetchRunSchedule({ silent = false } = {}) {
+  if (!inputs.schedulerSummary) return;
+  if (!silent) hideSchedulerToast();
+  if (!activeRunId) {
+    applySchedulerUI(null, { cache: false });
+    hideSchedulerToast();
+    if (!silent && inputs.schedulerStatus) {
+      inputs.schedulerStatus.textContent = 'Assign a run to configure background automation.';
+    }
+    return;
+  }
+
+  if (!authContext.token) {
+    if (!silent && inputs.schedulerStatus) {
+      inputs.schedulerStatus.textContent = 'Sign in to view the background scheduler.';
+    }
+    return;
+  }
+
+  if (schedulerLoading) return;
+  schedulerLoading = true;
+  applyAccessState({ preserveStatus: true });
+
+  if (!silent && inputs.schedulerStatus) {
+    inputs.schedulerStatus.textContent = 'Loading background schedule…';
+  }
+
+  try {
+    const response = await fetch(`${RUNS_SCHEDULE_ENDPOINT}?run_id=${activeRunId}`, {
+      headers: {
+        Authorization: `Bearer ${authContext.token}`
+      }
+    });
+
+    const raw = await response.text();
+    let payload = {};
+    if (raw) {
+      try {
+        payload = JSON.parse(raw);
+      } catch (error) {
+        console.warn('Unable to parse run schedule response', error);
+      }
+    }
+
+    if (!response.ok) {
+      const message = payload?.error || `Schedule endpoint responded ${response.status}`;
+      throw new Error(message);
+    }
+
+    applySchedulerUI(payload?.schedule ?? null);
+
+    if (!silent && inputs.schedulerStatus) {
+      if (payload?.schedule) {
+        inputs.schedulerStatus.textContent = payload.schedule.active
+          ? 'Background dispatcher enabled.'
+          : 'Background dispatcher disabled.';
+      } else {
+        inputs.schedulerStatus.textContent = 'No background schedule configured.';
+      }
+    }
+  } catch (error) {
+    console.error('Failed to fetch run schedule', error);
+    if (!silent && inputs.schedulerStatus) {
+      inputs.schedulerStatus.textContent = `Failed to load schedule: ${error.message}`;
+    }
+    if (!silent) {
+      showSchedulerToast(`Failed to load schedule: ${error.message}`, 'error');
+    }
+  } finally {
+    schedulerLoading = false;
+    applyAccessState({ preserveStatus: true });
+  }
+}
+
+async function saveRunSchedule() {
+  if (!inputs.schedulerStatus) return;
+
+  if (!activeRunId) {
+    inputs.schedulerStatus.textContent = 'Assign a run ID before saving the schedule.';
+    return;
+  }
+
+  await syncAccess({ preserveStatus: true });
+
+  if (!authContext.user) {
+    inputs.schedulerStatus.textContent = 'Sign in required to manage the scheduler.';
+    return;
+  }
+
+  if (!authContext.isAdmin) {
+    inputs.schedulerStatus.textContent = 'Admin access required to manage the scheduler.';
+    return;
+  }
+
+  if (!authContext.token) {
+    inputs.schedulerStatus.textContent = 'Session expired. Sign in again to continue.';
+    await syncAccess();
+    return;
+  }
+
+  const active = Boolean(inputs.schedulerEnabled?.checked);
+  const cadenceSeconds = readSchedulerNumber(inputs.schedulerCadence, {
+    min: 60,
+    max: 21_600,
+    fallback: SCHEDULER_DEFAULTS.cadenceSeconds
+  });
+  const stage1Limit = readSchedulerNumber(inputs.schedulerStage1, {
+    min: 1,
+    max: 25,
+    fallback: SCHEDULER_DEFAULTS.stage1Limit
+  });
+  const stage2Limit = readSchedulerNumber(inputs.schedulerStage2, {
+    min: 1,
+    max: 25,
+    fallback: SCHEDULER_DEFAULTS.stage2Limit
+  });
+  const stage3Limit = readSchedulerNumber(inputs.schedulerStage3, {
+    min: 1,
+    max: 25,
+    fallback: SCHEDULER_DEFAULTS.stage3Limit
+  });
+  const maxCycles = readSchedulerNumber(inputs.schedulerCycles, {
+    min: 1,
+    max: 10,
+    fallback: SCHEDULER_DEFAULTS.maxCycles
+  });
+
+  schedulerLoading = true;
+  applyAccessState({ preserveStatus: true });
+
+  hideSchedulerToast();
+  inputs.schedulerStatus.textContent = active ? 'Saving scheduler…' : 'Disabling scheduler…';
+
+  try {
+    const response = await fetch(RUNS_SCHEDULE_ENDPOINT, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${authContext.token}`
+      },
+      body: JSON.stringify({
+        run_id: activeRunId,
+        cadence_seconds: cadenceSeconds,
+        stage_limits: {
+          stage1: stage1Limit,
+          stage2: stage2Limit,
+          stage3: stage3Limit
+        },
+        max_cycles: maxCycles,
+        active
+      })
+    });
+
+    const raw = await response.text();
+    let payload = {};
+    if (raw) {
+      try {
+        payload = JSON.parse(raw);
+      } catch (error) {
+        console.warn('Unable to parse schedule save response', error);
+      }
+    }
+
+    if (!response.ok) {
+      const message = payload?.error || `Scheduler save failed (${response.status})`;
+      throw new Error(message);
+    }
+
+    applySchedulerUI(payload?.schedule ?? null);
+
+    if (inputs.schedulerStatus) {
+      if (payload?.schedule && payload.schedule.active) {
+        const cadenceLabel = formatSchedulerCadence(payload.schedule.cadence_seconds ?? cadenceSeconds);
+        inputs.schedulerStatus.textContent = `Background dispatcher enabled (${cadenceLabel}).`;
+      } else {
+        inputs.schedulerStatus.textContent = 'Background dispatcher saved.';
+      }
+    }
+
+      if (payload?.schedule?.active) {
+        const cadenceLabel = formatSchedulerCadence(payload.schedule.cadence_seconds ?? cadenceSeconds);
+        logStatus(`Background scheduler enabled: ${cadenceLabel} cadence.`);
+        showSchedulerToast(`Scheduler enabled · ${cadenceLabel} cadence`, 'success');
+      } else {
+        logStatus('Background scheduler disabled for this run.');
+        showSchedulerToast('Scheduler disabled for this run', 'info');
+      }
+    } catch (error) {
+      console.error('Failed to save run schedule', error);
+      inputs.schedulerStatus.textContent = `Failed to save schedule: ${error.message}`;
+      schedulerDirty = true;
+      showSchedulerToast(`Failed to save schedule: ${error.message}`, 'error');
+    } finally {
+      schedulerLoading = false;
+      applyAccessState({ preserveStatus: true });
+    }
+  }
+
 function updateStage1Metrics(metrics = null) {
   const formatter = (value) => {
     if (value == null || Number.isNaN(value)) return '—';
@@ -1490,7 +2180,7 @@ function renderRecentClassifications(entries = []) {
   });
 }
 
-function updateStage2Metrics(metrics = null) {
+function updateStage2Metrics(metrics = null, retrieval = null) {
   const formatter = (value) => {
     if (value == null || Number.isNaN(value)) return '—';
     return Number(value).toLocaleString();
@@ -1501,6 +2191,14 @@ function updateStage2Metrics(metrics = null) {
   if (inputs.stage2Completed) inputs.stage2Completed.textContent = formatter(metrics?.completed);
   if (inputs.stage2Failed) inputs.stage2Failed.textContent = formatter(metrics?.failed);
   if (inputs.stage2GoDeep) inputs.stage2GoDeep.textContent = formatter(metrics?.goDeep);
+  if (inputs.stage2ContextHits) {
+    const hits = retrieval?.total_hits ?? retrieval?.hits ?? retrieval?.average_hits ?? null;
+    inputs.stage2ContextHits.textContent = formatter(hits);
+  }
+  if (inputs.stage2ContextTokens) {
+    const tokens = retrieval?.embedding_tokens ?? retrieval?.tokens ?? null;
+    inputs.stage2ContextTokens.textContent = formatter(tokens);
+  }
 }
 
 function renderStage2Insights(entries = []) {
@@ -1532,7 +2230,7 @@ function renderStage2Insights(entries = []) {
   });
 }
 
-function updateStage3Metrics(metrics = null) {
+function updateStage3Metrics(metrics = null, retrieval = null) {
   const formatter = (value) => {
     if (value == null || Number.isNaN(value)) return '—';
     return Number(value).toLocaleString();
@@ -1546,6 +2244,14 @@ function updateStage3Metrics(metrics = null) {
     inputs.stage3Spend.textContent = spend == null || Number.isNaN(spend) ? '—' : formatCurrency(Number(spend));
   }
   if (inputs.stage3Failed) inputs.stage3Failed.textContent = formatter(metrics?.failed);
+  if (inputs.stage3ContextHits) {
+    const hits = retrieval?.total_hits ?? retrieval?.hits ?? null;
+    inputs.stage3ContextHits.textContent = formatter(hits);
+  }
+  if (inputs.stage3ContextTokens) {
+    const tokens = retrieval?.embedding_tokens ?? retrieval?.tokens ?? null;
+    inputs.stage3ContextTokens.textContent = formatter(tokens);
+  }
 }
 
 function renderStage3Reports(entries = []) {
@@ -1826,6 +2532,10 @@ function setActiveRunId(value, { announce = true, silent = false } = {}) {
   activeRunId = normalized || null;
   const changed = previous !== activeRunId;
 
+  if (changed && autoContinueActive) {
+    disableAutoContinue('Auto continue paused while switching runs.');
+  }
+
   if (activeRunId) {
     localStorage.setItem(RUN_STORAGE_KEY, activeRunId);
   } else {
@@ -1844,8 +2554,14 @@ function setActiveRunId(value, { announce = true, silent = false } = {}) {
     renderStage2Insights([]);
     updateStage3Metrics();
     renderStage3Reports([]);
-    if (announce && inputs.stage1Status) inputs.stage1Status.textContent = 'Active run cleared. Set a run ID to continue.';
-    if (announce) logStatus('Active run cleared.');
+    applySchedulerUI(null);
+    hideSchedulerToast();
+    if (announce && inputs.stage1Status) {
+      inputs.stage1Status.textContent = 'Active run cleared. Set a run ID to continue.';
+    }
+    if (announce) {
+      logStatus('Active run cleared.');
+    }
     if (inputs.stage2Status) inputs.stage2Status.textContent = 'Active run cleared.';
     if (inputs.stage3Status) inputs.stage3Status.textContent = 'Active run cleared.';
     return changed;
@@ -1853,8 +2569,23 @@ function setActiveRunId(value, { announce = true, silent = false } = {}) {
 
   subscribeToRunChannel(activeRunId);
 
+  hideSchedulerToast();
+  const hasCachedSchedule = scheduleCache.has(activeRunId);
+  const cachedSchedule = hasCachedSchedule ? scheduleCache.get(activeRunId) : null;
+  applySchedulerUI(cachedSchedule ?? null, { cache: hasCachedSchedule });
+  if (!hasCachedSchedule && inputs.schedulerStatus) {
+    inputs.schedulerStatus.textContent = 'Loading background schedule…';
+  }
+  if (!hasCachedSchedule && inputs.schedulerSummary) {
+    inputs.schedulerSummary.textContent = 'Loading background schedule…';
+  }
+
   fetchRunMeta({ silent }).catch((error) => {
     console.error('Failed to refresh run details', error);
+  });
+
+  fetchRunSchedule({ silent: true }).catch((error) => {
+    console.error('Failed to refresh run schedule', error);
   });
 
   if (announce) {
@@ -2055,13 +2786,16 @@ async function processStage2Batch() {
     }
 
     if (payload.metrics) {
-      updateStage2Metrics({
-        total: Number(payload.metrics.total_survivors ?? payload.metrics.total ?? 0),
-        pending: Number(payload.metrics.pending ?? 0),
-        completed: Number(payload.metrics.completed ?? 0),
-        failed: Number(payload.metrics.failed ?? 0),
-        goDeep: Number(payload.metrics.go_deep ?? payload.metrics.goDeep ?? 0)
-      });
+      updateStage2Metrics(
+        {
+          total: Number(payload.metrics.total_survivors ?? payload.metrics.total ?? 0),
+          pending: Number(payload.metrics.pending ?? 0),
+          completed: Number(payload.metrics.completed ?? 0),
+          failed: Number(payload.metrics.failed ?? 0),
+          goDeep: Number(payload.metrics.go_deep ?? payload.metrics.goDeep ?? 0)
+        },
+        payload.retrieval ?? null
+      );
     }
 
     const message = payload.message || `Processed ${results.length} ticker${results.length === 1 ? '' : 's'}.`;
@@ -2155,13 +2889,16 @@ async function processStage3Batch() {
     }
 
     if (payload.metrics) {
-      updateStage3Metrics({
-        finalists: Number(payload.metrics.total_finalists ?? payload.metrics.finalists ?? payload.metrics.total ?? 0),
-        pending: Number(payload.metrics.pending ?? 0),
-        completed: Number(payload.metrics.completed ?? 0),
-        failed: Number(payload.metrics.failed ?? 0),
-        spend: Number(payload.metrics.spend ?? payload.metrics.total_spend ?? 0)
-      });
+      updateStage3Metrics(
+        {
+          finalists: Number(payload.metrics.total_finalists ?? payload.metrics.finalists ?? payload.metrics.total ?? 0),
+          pending: Number(payload.metrics.pending ?? 0),
+          completed: Number(payload.metrics.completed ?? 0),
+          failed: Number(payload.metrics.failed ?? 0),
+          spend: Number(payload.metrics.spend ?? payload.metrics.total_spend ?? 0)
+        },
+        payload.retrieval ?? null
+      );
     }
 
     const message = payload.message || `Processed ${reports.length} finalist${reports.length === 1 ? '' : 's'}.`;
@@ -2353,9 +3090,46 @@ function applyAccessState({ preserveStatus = false } = {}) {
     ? 'signed-out'
     : authContext.isAdmin
       ? 'admin-ok'
-      : 'no-admin';
+      : authContext.membershipActive
+        ? 'member'
+        : 'no-membership';
 
   const haltRequested = (currentRunMeta?.stop_requested ?? false) || (currentRunMeta?.budget_exhausted ?? false);
+
+  updateAutoContinueAvailability();
+
+  const schedulerReady = state === 'admin-ok' && Boolean(activeRunId);
+  const schedulerDisabled = !schedulerReady || schedulerLoading;
+  if (inputs.schedulerEnabled) {
+    inputs.schedulerEnabled.disabled = schedulerDisabled;
+  }
+  [
+    inputs.schedulerCadence,
+    inputs.schedulerStage1,
+    inputs.schedulerStage2,
+    inputs.schedulerStage3,
+    inputs.schedulerCycles
+  ].forEach((input) => {
+    if (input) input.disabled = schedulerDisabled;
+  });
+  if (inputs.schedulerSaveBtn) {
+    inputs.schedulerSaveBtn.disabled = schedulerDisabled;
+  }
+  if (inputs.schedulerRefreshBtn) {
+    inputs.schedulerRefreshBtn.disabled = !activeRunId || schedulerLoading;
+  }
+
+  if (inputs.observabilityPanel) {
+    const shouldShow = state === 'admin-ok';
+    inputs.observabilityPanel.hidden = !shouldShow;
+    if (shouldShow && previousState !== 'admin-ok') {
+      refreshHealthStatus({ silent: true });
+      refreshErrorLogs({ silent: true });
+    }
+    if (!shouldShow) {
+      setErrorLogStatus('');
+    }
+  }
 
   if (state === 'admin-ok' && previousState !== 'admin-ok') {
     subscribeSectorNotes();
@@ -2414,6 +3188,8 @@ function applyAccessState({ preserveStatus = false } = {}) {
     if (!preserveStatus) {
       if (state === 'admin-ok') inputs.status.textContent = 'Ready';
       else if (state === 'signed-out') inputs.status.textContent = 'Sign in required';
+      else if (state === 'member') inputs.status.textContent = 'Read-only member access';
+      else if (state === 'no-membership') inputs.status.textContent = 'Membership required';
       else inputs.status.textContent = 'Admin access required';
     }
 
@@ -2421,7 +3197,11 @@ function applyAccessState({ preserveStatus = false } = {}) {
       ? 'Authenticated as admin. Automation ready to launch.'
       : state === 'signed-out'
         ? 'Sign in to launch automated runs.'
-        : 'Current user lacks admin privileges. Contact an administrator to continue.';
+        : state === 'member'
+          ? 'Read-only mode: membership active. Contact an administrator to run the automation.'
+          : state === 'no-membership'
+            ? 'Launch blocked: activate a FutureFunds.ai membership to access automation.'
+            : 'Current user lacks admin privileges. Contact an administrator to continue.';
     logStatus(logMessage);
     lastAccessState = state;
   }
@@ -2576,6 +3356,181 @@ function resetDefaults() {
   if (inputs.status) inputs.status.textContent = 'Defaults restored';
 }
 
+function formatRelativeTimestamp(value) {
+  if (!value) return 'Just now';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'Just now';
+  const delta = Date.now() - date.getTime();
+  if (delta < 60_000) return 'Just now';
+  if (delta < 3_600_000) {
+    const minutes = Math.floor(delta / 60_000);
+    return `${minutes} min${minutes === 1 ? '' : 's'} ago`;
+  }
+  if (delta < 86_400_000) {
+    const hours = Math.floor(delta / 3_600_000);
+    return `${hours} hour${hours === 1 ? '' : 's'} ago`;
+  }
+  return date.toLocaleString();
+}
+
+function updateHealthCard(card, statusEl, detailEl, check) {
+  if (!card || !statusEl || !detailEl) return;
+  const status = check?.status || 'unknown';
+  card.dataset.status = status;
+  let label = 'Unknown';
+  if (status === 'ok') label = 'Operational';
+  else if (status === 'degraded') label = 'Degraded';
+  else if (status === 'error') label = 'Offline';
+  statusEl.textContent = label;
+  const latency = typeof check?.latency_ms === 'number' ? ` · ${check.latency_ms} ms` : '';
+  detailEl.textContent = check?.message ? `${check.message}${latency}` : `Awaiting check${latency}`;
+}
+
+async function refreshHealthStatus({ silent = false } = {}) {
+  if (!authContext.isAdmin || !authContext.token) return;
+  if (healthLoading) return;
+  healthLoading = true;
+  if (!silent && inputs.healthCheckedAt) {
+    inputs.healthCheckedAt.textContent = 'Checking worker health…';
+  }
+  try {
+    const response = await fetch(HEALTH_ENDPOINT, {
+      headers: {
+        Authorization: `Bearer ${authContext.token}`
+      }
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(data?.error || `Health check failed (${response.status})`);
+    }
+    updateHealthCard(
+      inputs.healthDatabaseCard,
+      inputs.healthDatabaseStatus,
+      inputs.healthDatabaseDetail,
+      data?.checks?.database
+    );
+    updateHealthCard(
+      inputs.healthOpenAICard,
+      inputs.healthOpenAIStatus,
+      inputs.healthOpenAIDetail,
+      data?.checks?.openai
+    );
+    if (inputs.healthCheckedAt) {
+      inputs.healthCheckedAt.textContent = `Last checked ${formatRelativeTimestamp(data?.timestamp)}`;
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    updateHealthCard(
+      inputs.healthDatabaseCard,
+      inputs.healthDatabaseStatus,
+      inputs.healthDatabaseDetail,
+      { status: 'error', message }
+    );
+    updateHealthCard(
+      inputs.healthOpenAICard,
+      inputs.healthOpenAIStatus,
+      inputs.healthOpenAIDetail,
+      { status: 'error', message }
+    );
+    if (inputs.healthCheckedAt) {
+      inputs.healthCheckedAt.textContent = `Health check failed: ${message}`;
+    }
+  } finally {
+    healthLoading = false;
+  }
+}
+
+function setErrorLogStatus(message) {
+  if (inputs.errorLogStatus) {
+    inputs.errorLogStatus.textContent = message || '';
+  }
+}
+
+function renderErrorLogs(rows) {
+  const tbody = inputs.errorLogBody;
+  if (!tbody) return;
+  tbody.innerHTML = '';
+  if (!rows.length) {
+    const emptyRow = document.createElement('tr');
+    emptyRow.className = 'error-log__empty';
+    const cell = document.createElement('td');
+    cell.colSpan = 6;
+    cell.textContent = 'No failures recorded in the last 50 entries.';
+    emptyRow.append(cell);
+    tbody.append(emptyRow);
+    return;
+  }
+
+  rows.forEach((row) => {
+    const tr = document.createElement('tr');
+
+    const whenCell = document.createElement('td');
+    const created = row.created_at ? new Date(row.created_at) : null;
+    whenCell.textContent = created ? created.toLocaleString() : '—';
+    tr.append(whenCell);
+
+    const stageCell = document.createElement('td');
+    stageCell.textContent = Number.isFinite(row.stage) ? `Stage ${row.stage}` : row.context || '—';
+    tr.append(stageCell);
+
+    const tickerCell = document.createElement('td');
+    tickerCell.textContent = row.ticker || '—';
+    tr.append(tickerCell);
+
+    const promptCell = document.createElement('td');
+    promptCell.textContent = row.prompt_id || row.context || '—';
+    tr.append(promptCell);
+
+    const messageCell = document.createElement('td');
+    const summary = document.createElement('div');
+    summary.className = 'error-log__message';
+    summary.textContent = row.message || '—';
+    messageCell.append(summary);
+    if (row.payload || row.metadata) {
+      const details = document.createElement('details');
+      details.className = 'error-log__details';
+      const summaryEl = document.createElement('summary');
+      summaryEl.textContent = 'Payload';
+      details.append(summaryEl);
+      const pre = document.createElement('pre');
+      pre.textContent = JSON.stringify({ payload: row.payload, metadata: row.metadata }, null, 2);
+      details.append(pre);
+      messageCell.append(details);
+    }
+    tr.append(messageCell);
+
+    const retryCell = document.createElement('td');
+    retryCell.textContent = Number.isFinite(row.retry_count) ? String(row.retry_count) : '0';
+    tr.append(retryCell);
+
+    tbody.append(tr);
+  });
+}
+
+async function refreshErrorLogs({ silent = false } = {}) {
+  if (!authContext.isAdmin) return;
+  if (errorLogLoading) return;
+  errorLogLoading = true;
+  if (!silent) setErrorLogStatus('Loading error history…');
+  try {
+    const { data, error } = await supabase
+      .from('error_logs')
+      .select('id, created_at, stage, ticker, prompt_id, message, retry_count, context, payload, metadata')
+      .order('created_at', { ascending: false })
+      .limit(50);
+    if (error) throw error;
+    errorLogRows = data || [];
+    renderErrorLogs(errorLogRows);
+    setErrorLogStatus(`Updated ${formatRelativeTimestamp(new Date().toISOString())}`);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    setErrorLogStatus(`Failed to load error logs: ${message}`);
+    renderErrorLogs([]);
+  } finally {
+    errorLogLoading = false;
+  }
+}
+
 function bindEvents() {
   const inputElements = [
     inputs.universe,
@@ -2651,6 +3606,43 @@ function bindEvents() {
     logStatus('Registry refreshed.');
     inputs.status.textContent = 'Registry updated';
   });
+  inputs.refreshHealthBtn?.addEventListener('click', () => refreshHealthStatus());
+  inputs.refreshErrorsBtn?.addEventListener('click', () => refreshErrorLogs());
+  inputs.autoContinueToggle?.addEventListener('change', handleAutoContinueToggle);
+  inputs.autoContinueInterval?.addEventListener('change', () => {
+    if (!autoContinueActive) return;
+    if (autoContinueInFlight) return;
+    scheduleAutoContinue();
+    updateAutoContinueStatus(`Auto continue interval set to ${inputs.autoContinueInterval.value || AUTO_CONTINUE_DEFAULT_SECONDS} seconds.`);
+  });
+
+  inputs.schedulerSaveBtn?.addEventListener('click', () => {
+    saveRunSchedule().catch((error) => {
+      console.error('Failed to save schedule', error);
+    });
+  });
+  inputs.schedulerRefreshBtn?.addEventListener('click', () => {
+    fetchRunSchedule({ silent: false }).catch((error) => {
+      console.error('Failed to refresh schedule', error);
+    });
+  });
+  inputs.schedulerEnabled?.addEventListener('change', () => {
+    if (!inputs.schedulerEnabled) return;
+    const message = inputs.schedulerEnabled.checked
+      ? 'Scheduler enabled. Save changes to activate unattended dispatch.'
+      : 'Scheduler disabled. Save changes to pause unattended dispatch.';
+    markSchedulerDirty(message);
+    applyAccessState({ preserveStatus: true });
+  });
+  [
+    inputs.schedulerCadence,
+    inputs.schedulerStage1,
+    inputs.schedulerStage2,
+    inputs.schedulerStage3,
+    inputs.schedulerCycles
+  ].forEach((input) => {
+    input?.addEventListener('input', () => markSchedulerDirty());
+  });
 }
 
 async function bootstrap() {
@@ -2686,8 +3678,19 @@ async function bootstrap() {
 
   await syncAccess();
 
+  if (activeRunId) {
+    fetchRunSchedule({ silent: true }).catch((error) => {
+      console.error('Failed to refresh run schedule after access sync', error);
+    });
+  }
+
   supabase.auth.onAuthStateChange(async () => {
     await syncAccess();
+    if (activeRunId) {
+      fetchRunSchedule({ silent: true }).catch((error) => {
+        console.error('Failed to refresh run schedule after auth change', error);
+      });
+    }
   });
 }
 

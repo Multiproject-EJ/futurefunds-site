@@ -68,30 +68,30 @@ incrementally.
 - [x] Add sparkline / bar chart for stage-level spend (client-side or lightweight chart lib).
 
 ## 9. Automation Loop (Week 6)
-- [ ] `/api/runs/continue` endpoint to sequentially trigger Stage 1 → 3 until batch limit / stop.
-- [ ] Planner toggle for **Auto continue** that polls the endpoint every N seconds.
-- [ ] Optional: schedule nightly cron (Supabase Edge) to run small watchlists.
+- [x] `/api/runs/continue` endpoint to sequentially trigger Stage 1 → 3 until batch limit / stop.
+- [x] Planner toggle for **Auto continue** that polls the endpoint every N seconds.
+- [x] Background scheduler + cron-friendly dispatcher to keep hourly watchlists running without the planner.
 
 ## 10. Retrieval Augmentation (Week 6–7)
-- [ ] `docs` uploader UI to add filings, transcripts, letters; chunk + embed into `doc_chunks`.
-- [ ] Retrieval helper RPC (e.g., `match_doc_chunks`) returning top-k snippets per query.
-- [ ] Integrate retrieved snippets into Stage 2 & 3 prompts with citation metadata.
+- [x] `docs` uploader UI to add filings, transcripts, letters; chunk + embed into `doc_chunks`.
+- [x] Retrieval helper RPC (e.g., `match_doc_chunks`) returning top-k snippets per query.
+- [x] Integrate retrieved snippets into Stage 2 & 3 prompts with citation metadata.
 
 ## 11. Member Experience & Auth (Week 7)
-- [ ] Gate analyst pages behind Supabase Auth; provide onboarding flow for new members.
-- [ ] Track per-user quotas (e.g., runs per day) using Supabase policies or server logic.
+- [x] Gate analyst pages behind Supabase Auth; provide onboarding flow for new members.
+- [x] Track per-user quotas (e.g., runs per day) using Supabase policies or server logic.
 - [ ] Post-run feedback widget so members can trigger manual follow-up questions (optional).
 
 ## 12. Observability & Safety (Week 8)
-- [ ] `/api/health` endpoint (DB + OpenAI status) for uptime monitors.
-- [ ] `error_logs` table + viewer UI capturing payloads, prompt ids, retry counts.
-- [ ] Automated regression tests for prompt output schemas and JSON validators.
+- [x] `/api/health` endpoint (DB + OpenAI status) for uptime monitors.
+- [x] `error_logs` table + viewer UI capturing payloads, prompt ids, retry counts.
+- [x] Automated regression tests for prompt output schemas and JSON validators.
 
 ## 13. Prompt & Model Registry (Week 8–9)
-- [ ] Store prompt templates as markdown files with interpolation tokens.
-- [ ] Central config (e.g., `config/models.json`) containing price per model, default temperature,
+- [x] Store prompt templates as markdown files with interpolation tokens.
+- [x] Central config (e.g., `config/models.json`) containing price per model, default temperature,
       cache policy, retry settings.
-- [ ] Loader utility to compose prompts per sector & stage and to map usage -> cost ledger.
+- [x] Loader utility to compose prompts per sector & stage and to map usage -> cost ledger.
 
 ## 14. Stretch Enhancements (Backlog)
 - [ ] Cached context via OpenAI Responses API to reuse deterministic summaries.
