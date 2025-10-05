@@ -15,6 +15,9 @@
       background: var(--page,#f8fafc);
       color: var(--text,#0f172a);
     }
+    body.modal-open {
+      overflow: hidden;
+    }
     .planner-wrap {
       max-width: 1040px;
       margin: 0 auto;
@@ -536,6 +539,112 @@
         width: 100%;
       }
     }
+    .sector-modal {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: clamp(20px, 4vw, 48px);
+      background: rgba(15,23,42,.55);
+      backdrop-filter: blur(6px);
+      transition: opacity .24s ease, visibility .24s ease;
+      opacity: 0;
+      visibility: hidden;
+      z-index: 999;
+    }
+    .sector-modal[hidden] {
+      display: none;
+    }
+    .sector-modal.is-visible {
+      opacity: 1;
+      visibility: visible;
+    }
+    .sector-modal__dialog {
+      position: relative;
+      width: min(960px, 96vw);
+      max-height: min(92vh, 960px);
+      background: var(--panel,#fff);
+      border-radius: 22px;
+      box-shadow: 0 24px 64px rgba(15,23,42,.22);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      border: 1px solid rgba(15,23,42,.12);
+    }
+    .sector-modal__header {
+      padding: 20px 24px;
+      border-bottom: 1px solid rgba(148,163,184,.3);
+      display: grid;
+      gap: 6px;
+    }
+    .sector-modal__header h2 {
+      margin: 0;
+      font-size: 1.2rem;
+      font-weight: 600;
+    }
+    .sector-modal__header p {
+      margin: 0;
+      font-size: .88rem;
+      color: var(--muted,#475569);
+    }
+    .sector-modal__body {
+      position: relative;
+      flex: 1;
+      min-height: 320px;
+      background: #fff;
+    }
+    .sector-modal__iframe {
+      width: 100%;
+      height: 100%;
+      border: 0;
+      background: #fff;
+    }
+    .sector-modal__loader {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      padding: 32px;
+      background: linear-gradient(180deg, rgba(248,250,252,.92), rgba(255,255,255,.96));
+      color: var(--muted,#475569);
+      font-size: .92rem;
+      font-weight: 500;
+    }
+    .sector-modal__close {
+      position: absolute;
+      top: 14px;
+      right: 14px;
+      border: none;
+      border-radius: 999px;
+      background: rgba(15,23,42,.08);
+      color: var(--text,#0f172a);
+      padding: 8px 14px;
+      font-size: .85rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background .2s ease, transform .2s ease;
+    }
+    .sector-modal__close:hover,
+    .sector-modal__close:focus {
+      background: rgba(37,99,235,.15);
+      outline: none;
+    }
+    .sector-modal__close:active {
+      transform: translateY(1px);
+    }
+    @media (max-width: 640px) {
+      .sector-modal__dialog {
+        border-radius: 18px;
+      }
+      .sector-modal__header {
+        padding: 18px 20px;
+      }
+      .sector-modal__close {
+        top: 10px;
+        right: 10px;
+      }
+    }
   </style>
 </head>
 <body>
@@ -978,6 +1087,33 @@
       </table>
     </section>
   </section>
+  <div
+    id="sectorModal"
+    class="sector-modal"
+    role="dialog"
+    aria-modal="true"
+    aria-hidden="true"
+    aria-labelledby="sectorModalTitle"
+    hidden
+  >
+    <div class="sector-modal__dialog">
+      <button type="button" class="sector-modal__close" data-sector-close aria-label="Close sector manager">Close</button>
+      <div class="sector-modal__header">
+        <h2 id="sectorModalTitle">Sector prompt library</h2>
+        <p>Maintain heuristics that guide Stage 2 scoring without leaving the planner.</p>
+      </div>
+      <div class="sector-modal__body">
+        <div class="sector-modal__loader" data-sector-loader>Loading sector console…</div>
+        <iframe
+          class="sector-modal__iframe"
+          title="Sector prompt manager"
+          data-sector-frame
+          data-src="/sectors.html"
+          allow="clipboard-read; clipboard-write"
+        ></iframe>
+      </div>
+    </div>
+  </div>
 </main>
 
 <footer class="site-footer">
@@ -1038,5 +1174,90 @@
 <script src="/assets/paywall.js" defer></script>
 <script type="module" src="/assets/auth.js"></script>
 <script type="module" src="/assets/planner.js"></script>
+<script type="module">
+  const manageLink = document.querySelector('.sector-notes__manage');
+  const modal = document.getElementById('sectorModal');
+  if (manageLink && modal) {
+    const closeButtons = modal.querySelectorAll('[data-sector-close]');
+    const frame = modal.querySelector('[data-sector-frame]');
+    const loader = modal.querySelector('[data-sector-loader]');
+    let isOpen = false;
+
+    const focusElement = (element) => {
+      if (!element || typeof element.focus !== 'function') return;
+      try {
+        element.focus({ preventScroll: true });
+      } catch (error) {
+        element.focus();
+      }
+    };
+
+    const setOpenState = (open) => {
+      if (open === isOpen) return;
+      isOpen = open;
+      if (open) {
+        modal.hidden = false;
+        requestAnimationFrame(() => {
+          modal.classList.add('is-visible');
+        });
+        modal.setAttribute('aria-hidden', 'false');
+        document.body.classList.add('modal-open');
+        if (frame && !frame.dataset.loaded && frame.dataset.src) {
+          frame.src = frame.dataset.src;
+          frame.dataset.loaded = 'true';
+        }
+        const focusTarget = modal.querySelector('[data-sector-close]');
+        if (focusTarget) {
+          requestAnimationFrame(() => focusElement(focusTarget));
+        }
+      } else {
+        modal.classList.remove('is-visible');
+        modal.setAttribute('aria-hidden', 'true');
+        document.body.classList.remove('modal-open');
+        const handleTransitionEnd = () => {
+          modal.hidden = true;
+        };
+        modal.addEventListener('transitionend', handleTransitionEnd, { once: true });
+        requestAnimationFrame(() => focusElement(manageLink));
+      }
+    };
+
+    const openModal = (event) => {
+      if (event) {
+        event.preventDefault();
+      }
+      setOpenState(true);
+    };
+
+    const closeModal = (event) => {
+      if (event) {
+        event.preventDefault();
+      }
+      setOpenState(false);
+    };
+
+    manageLink.addEventListener('click', openModal);
+    modal.addEventListener('click', (event) => {
+      if (event.target === modal) {
+        closeModal(event);
+      }
+    });
+    closeButtons.forEach((button) => button.addEventListener('click', closeModal));
+
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape' && isOpen) {
+        closeModal();
+      }
+    });
+
+    if (frame) {
+      frame.addEventListener('load', () => {
+        if (loader) {
+          loader.hidden = true;
+        }
+      });
+    }
+  }
+</script>
 </body>
 </html>
