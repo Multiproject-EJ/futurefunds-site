@@ -4,7 +4,8 @@ import {
   resolveModel,
   resolveCredential,
   computeUsageCost,
-  requestChatCompletion
+  requestChatCompletion,
+  requestEmbedding
 } from '../_shared/ai.ts';
 
 type JsonRecord = Record<string, unknown>;
@@ -15,6 +16,10 @@ type Stage3Result = {
   summary: string;
   updated_at: string;
   status: 'ok' | 'failed';
+  retrieval?: {
+    hits: number;
+    citations: RetrievedCitation[];
+  };
 };
 
 type Stage3Metrics = {
@@ -23,11 +28,6 @@ type Stage3Metrics = {
   completed: number;
   failed: number;
   spend?: number;
-};
-
-type DocChunk = {
-  source: string | null;
-  chunk: string | null;
 };
 
 type DimensionDefinition = {
@@ -67,6 +67,26 @@ type QuestionOutcome = {
   raw: JsonRecord;
 };
 
+type RetrievedSnippet = {
+  ref: string;
+  chunk: string;
+  source_type: string | null;
+  title: string | null;
+  published_at: string | null;
+  source_url: string | null;
+  similarity: number | null;
+  token_length: number;
+};
+
+type RetrievedCitation = {
+  ref: string;
+  title: string | null;
+  source_type: string | null;
+  published_at: string | null;
+  source_url: string | null;
+  similarity: number | null;
+};
+
 const DEFAULT_SCHEMA = {
   question: 'slug',
   verdict: 'bad|neutral|good',
@@ -89,6 +109,8 @@ const jsonHeaders = {
 };
 
 const DEFAULT_STAGE3_MODEL = 'openrouter/gpt-5-preview';
+const EMBEDDING_MODEL_SLUG = 'openai/text-embedding-3-small';
+const MAX_RETRIEVAL_SNIPPETS = 8;
 
 function jsonResponse(status: number, body: JsonRecord) {
   return new Response(JSON.stringify(body), { status, headers: jsonHeaders });
@@ -226,15 +248,15 @@ async function fetchStageAnswer(
   return (data?.answer_json ?? null) as JsonRecord | null;
 }
 
-async function fetchDocChunks(client: ReturnType<typeof createClient>, ticker: string, limit = 6) {
-  const { data, error } = await client
-    .from('doc_chunks')
-    .select('source, chunk')
-    .eq('ticker', ticker)
-    .order('id', { ascending: false })
-    .limit(limit);
-  if (error) throw error;
-  return (data ?? []) as DocChunk[];
+function snippetsToCitations(snippets: RetrievedSnippet[]): RetrievedCitation[] {
+  return snippets.map((snippet) => ({
+    ref: snippet.ref,
+    title: snippet.title,
+    source_type: snippet.source_type,
+    published_at: snippet.published_at,
+    source_url: snippet.source_url,
+    similarity: snippet.similarity
+  }));
 }
 
 function formatStage1Summary(answer: JsonRecord | null) {
@@ -271,13 +293,100 @@ function formatStage2Summary(answer: JsonRecord | null) {
   return lines.length ? lines.join('\n') : 'Stage 2 scores unavailable.';
 }
 
-function formatDocSnippets(chunks: DocChunk[]) {
-  if (!chunks.length) return 'No external excerpts supplied.';
-  return chunks
-    .map((chunk, index) => {
-      const source = chunk.source ? String(chunk.source) : 'Unknown source';
-      const text = (chunk.chunk ?? '').toString().slice(0, 800);
-      return `Snippet ${index + 1} — ${source}:\n${text}`;
+function buildRetrievalQuery(
+  ticker: string,
+  meta: Record<string, unknown>,
+  stage1: JsonRecord | null,
+  stage2: JsonRecord | null
+) {
+  const lines: string[] = [];
+  lines.push(`Ticker: ${ticker}`);
+  if (meta.name) lines.push(`Name: ${String(meta.name)}`);
+  if (meta.exchange) lines.push(`Exchange: ${String(meta.exchange)}`);
+  if (meta.country) lines.push(`Country: ${String(meta.country)}`);
+  if (meta.sector) lines.push(`Sector: ${String(meta.sector)}`);
+  if (meta.industry) lines.push(`Industry: ${String(meta.industry)}`);
+
+  if (stage1?.summary) lines.push(`Stage 1 summary: ${String(stage1.summary)}`);
+  const stage1Reasons = Array.isArray(stage1?.reasons)
+    ? (stage1?.reasons as unknown[]).slice(0, 4).map((reason) => String(reason))
+    : [];
+  if (stage1Reasons.length) lines.push(`Stage 1 reasons: ${stage1Reasons.join('; ')}`);
+
+  if (stage2?.verdict && typeof (stage2.verdict as JsonRecord)?.summary === 'string') {
+    lines.push(`Stage 2 verdict: ${String((stage2.verdict as JsonRecord).summary)}`);
+  }
+  if (Array.isArray(stage2?.next_steps) && stage2.next_steps.length) {
+    const nextSteps = (stage2.next_steps as unknown[]).slice(0, 3).map((step) => String(step));
+    lines.push(`Stage 2 next steps: ${nextSteps.join('; ')}`);
+  }
+
+  return lines.join('\n');
+}
+
+async function fetchRetrievedSnippets(
+  client: ReturnType<typeof createClient>,
+  ticker: string,
+  query: string,
+  options: {
+    model: Awaited<ReturnType<typeof resolveModel>> | null;
+    credential: Awaited<ReturnType<typeof resolveCredential>> | null;
+    limit?: number;
+  }
+): Promise<{ snippets: RetrievedSnippet[]; citations: RetrievedCitation[]; tokens: number }> {
+  if (!query || !query.trim() || !options.model || !options.credential) {
+    return { snippets: [], citations: [], tokens: 0 };
+  }
+
+  const embeddingResponse = await requestEmbedding(options.model, options.credential, query.slice(0, 6_000));
+  const vector = embeddingResponse?.data?.[0]?.embedding as number[] | undefined;
+  if (!vector) {
+    return { snippets: [], citations: [], tokens: 0 };
+  }
+
+  const { data, error } = await client.rpc('match_doc_chunks', {
+    query_embedding: vector,
+    query_ticker: ticker || null,
+    match_limit: Math.max(1, Math.min(options.limit ?? MAX_RETRIEVAL_SNIPPETS, 20))
+  });
+  if (error) throw error;
+
+  const rows = Array.isArray(data) ? data : [];
+  const snippets: RetrievedSnippet[] = rows.map((row: Record<string, unknown>, index: number) => {
+    const text = String(row.chunk ?? '').trim();
+    const truncated = text.length > 1200 ? `${text.slice(0, 1200)}…` : text;
+    return {
+      ref: `D${index + 1}`,
+      chunk: truncated,
+      source_type: (row.source_type ?? row.source ?? null) as string | null,
+      title: (row.title ?? null) as string | null,
+      published_at: (row.published_at ?? null) as string | null,
+      source_url: (row.source_url ?? null) as string | null,
+      similarity: row.similarity != null ? Number(row.similarity) : null,
+      token_length: Number(row.token_length ?? 0)
+    };
+  });
+
+  const usage = (embeddingResponse?.usage ?? {}) as Record<string, unknown>;
+  const tokens = Number(usage.total_tokens ?? usage.prompt_tokens ?? 0);
+
+  return {
+    snippets,
+    citations: snippetsToCitations(snippets),
+    tokens: Number.isFinite(tokens) ? tokens : 0
+  };
+}
+
+function formatDocSnippets(snippets: RetrievedSnippet[]) {
+  if (!snippets.length) return 'No external excerpts supplied.';
+  return snippets
+    .map((snippet) => {
+      const parts: string[] = [];
+      if (snippet.title) parts.push(snippet.title);
+      if (snippet.source_type) parts.push(snippet.source_type);
+      if (snippet.published_at) parts.push(new Date(snippet.published_at).toISOString().slice(0, 10));
+      const meta = parts.length ? parts.join(' · ') : 'Source metadata unavailable';
+      return `[${snippet.ref}] ${snippet.chunk}\nSource: ${meta}${snippet.source_url ? `\nURL: ${snippet.source_url}` : ''}`;
     })
     .join('\n---\n');
 }
@@ -405,7 +514,7 @@ function buildQuestionPrompt(
     'Stage 2 medium verdict:',
     context.stage2,
     '',
-    'Supporting excerpts:',
+    'Retrieved excerpts (cite as [D#]):',
     context.docs,
     '',
     'Dependency notes:',
@@ -421,7 +530,8 @@ function buildQuestionPrompt(
     user:
       `${header}\n\nDimension focus: ${question.dimension.name} (${question.dimension.slug})` +
       `\nObjective: ${question.prompt}${guidance}` +
-      `\n\nReturn JSON with this schema:\n${schema}`
+      `\n\nReturn JSON with this schema:\n${schema}` +
+      '\n\nAlways cite referenced evidence using the [D#] markers from the retrieved excerpts.'
   };
 }
 
@@ -532,7 +642,8 @@ function buildSummaryPrompt(
       'You are preparing an investment memo. Respond ONLY in JSON matching {"verdict": "bad|neutral|good", "confidence": int, "thesis": string, "watch_items": [string], "next_actions": [string], "scoreboard": array}.' +
       ' Confidence must be 0-100. Thesis <= 220 words. Watch_items and next_actions max 5 entries each.',
     user:
-      `Context:\n${JSON.stringify(payload, null, 2)}\n\nCompose final verdict, conviction, thesis, watch items, next actions, and echo the supplied scoreboard.`
+      `Context:\n${JSON.stringify(payload, null, 2)}\n\nCompose final verdict, conviction, thesis, watch items, next actions, and echo the supplied scoreboard.` +
+      '\n\nCite supporting evidence using the [D#] markers embedded in the retrieved excerpts.'
   };
 }
 
@@ -684,6 +795,29 @@ serve(async (req) => {
     });
   }
 
+  let embeddingModelRecord: Awaited<ReturnType<typeof resolveModel>> | null = null;
+  let embeddingCredentialRecord: Awaited<ReturnType<typeof resolveCredential>> | null = null;
+  try {
+    embeddingModelRecord = await resolveModel(supabaseAdmin, EMBEDDING_MODEL_SLUG, EMBEDDING_MODEL_SLUG);
+  } catch (error) {
+    console.warn('Stage 3 retrieval embedding model unavailable', error);
+  }
+
+  if (embeddingModelRecord) {
+    try {
+      embeddingCredentialRecord = await resolveCredential(supabaseAdmin, {
+        credentialId: null,
+        provider: embeddingModelRecord.provider,
+        preferScopes: ['automation', 'rag', 'editor'],
+        allowEnvFallback: true,
+        envKeys: ['OPENAI_API_KEY']
+      });
+    } catch (error) {
+      console.warn('Stage 3 retrieval embedding credential unavailable', error);
+      embeddingCredentialRecord = null;
+    }
+  }
+
   const runJsonPrompt = async (systemPrompt: string, userPrompt: string) => {
     const completion = await requestChatCompletion(modelRecord, credentialRecord, {
       temperature: 0.1,
@@ -742,25 +876,39 @@ serve(async (req) => {
   const results: Stage3Result[] = [];
   let processed = 0;
   let failures = 0;
+  let totalRetrievalHits = 0;
+  let totalEmbeddingTokens = 0;
 
   for (const item of items) {
     const ticker = item.ticker;
     const startedAt = new Date().toISOString();
 
     try {
-      const [meta, stage1Answer, stage2Answer, docChunks] = await Promise.all([
+      const [meta, stage1Answer, stage2Answer] = await Promise.all([
         fetchTickerMeta(supabaseAdmin, ticker),
         fetchStageAnswer(supabaseAdmin, runRow.id, ticker, 1),
-        fetchStageAnswer(supabaseAdmin, runRow.id, ticker, 2),
-        fetchDocChunks(supabaseAdmin, ticker)
+        fetchStageAnswer(supabaseAdmin, runRow.id, ticker, 2)
       ]);
+
+      const retrieval = await fetchRetrievedSnippets(
+        supabaseAdmin,
+        ticker,
+        buildRetrievalQuery(ticker, meta ?? {}, stage1Answer, stage2Answer),
+        {
+          model: embeddingModelRecord,
+          credential: embeddingCredentialRecord,
+          limit: MAX_RETRIEVAL_SNIPPETS
+        }
+      );
+      totalRetrievalHits += retrieval.snippets.length;
+      totalEmbeddingTokens += retrieval.tokens;
 
       const context = {
         ticker,
         meta,
         stage1: formatStage1Summary(stage1Answer),
         stage2: formatStage2Summary(stage2Answer),
-        docs: formatDocSnippets(docChunks)
+        docs: formatDocSnippets(retrieval.snippets)
       };
 
       const questionCache = new Map<string, QuestionOutcome>();
@@ -802,6 +950,11 @@ serve(async (req) => {
         );
         const color = pickColor(verdict, question.dimension);
 
+        const enrichedAnswer: JsonRecord = {
+          ...parsed,
+          context_citations: retrieval.citations
+        };
+
         const outcome: QuestionOutcome = {
           definition: question,
           verdict,
@@ -809,7 +962,7 @@ serve(async (req) => {
           summary,
           tags,
           color,
-          raw: parsed
+          raw: enrichedAnswer
         };
 
         outcomes.push(outcome);
@@ -830,7 +983,7 @@ serve(async (req) => {
               weight: question.weight,
               color,
               summary,
-              answer: parsed,
+              answer: enrichedAnswer,
               tags,
               dependencies: question.depends_on,
               created_at: startedAt,
@@ -844,7 +997,7 @@ serve(async (req) => {
           ticker,
           stage: 3,
           question_group: question.slug,
-          answer_json: parsed,
+          answer_json: enrichedAnswer,
           tokens_in: promptTokens,
           tokens_out: completionTokens,
           cost_usd: cost,
@@ -894,6 +1047,8 @@ serve(async (req) => {
         completionTokens: summaryCompletionTokens
       } = await runJsonPrompt(summaryPrompt.system, summaryPrompt.user);
       totalCost += summaryCost;
+
+      summaryJson.context_citations = retrieval.citations;
 
       if (!summaryJson.scoreboard) {
         summaryJson.scoreboard = dimensionSummaries.map((entry) => ({
@@ -954,7 +1109,11 @@ serve(async (req) => {
         verdict: typeof summaryJson.verdict === 'string' ? summaryJson.verdict : summaryJson.rating?.toString() ?? null,
         summary: thesisText ?? (typeof summaryJson.summary === 'string' ? summaryJson.summary : '—'),
         updated_at: startedAt,
-        status: 'ok'
+        status: 'ok',
+        retrieval: {
+          hits: retrieval.snippets.length,
+          citations: retrieval.citations
+        }
       });
       processed += 1;
     } catch (error) {
@@ -1003,6 +1162,10 @@ serve(async (req) => {
     model: modelRecord.slug,
     metrics: metricsWithSpend,
     results,
-    message
+    message,
+    retrieval: {
+      total_hits: totalRetrievalHits,
+      embedding_tokens: totalEmbeddingTokens
+    }
   });
 });

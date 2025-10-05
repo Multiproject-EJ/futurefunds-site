@@ -26,7 +26,11 @@ const elements = {
   stage2Scores: document.getElementById('stage2Scores'),
   stage2Verdict: document.getElementById('stage2Verdict'),
   stage2Next: document.getElementById('stage2Next'),
+  stage2Citations: document.getElementById('stage2Citations'),
+  stage2CitationList: document.getElementById('stage2CitationList'),
   stage3Summary: document.getElementById('stage3Summary'),
+  stage3Citations: document.getElementById('stage3Citations'),
+  stage3CitationList: document.getElementById('stage3CitationList'),
   stage3Scorecard: document.getElementById('stage3Scorecard'),
   stage3Questions: document.getElementById('stage3Questions')
 };
@@ -49,6 +53,13 @@ function formatDate(value) {
   return date.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
 }
 
+function formatDateOnly(value) {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  return date.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+}
+
 function titleCase(value) {
   if (!value) return '';
   return value
@@ -59,6 +70,123 @@ function titleCase(value) {
 }
 
 const questionMemory = (window.equityQuestionCache = window.equityQuestionCache || new Map());
+
+function extractHostname(url) {
+  if (!url) return '';
+  try {
+    const host = new URL(url).hostname;
+    return host.replace(/^www\./i, '');
+  } catch (error) {
+    console.warn('Failed to parse citation URL', error);
+    return '';
+  }
+}
+
+function normalizeCitations(value) {
+  if (!value) return [];
+  const array = Array.isArray(value) ? value : [];
+  const seen = new Set();
+  const results = [];
+  array.forEach((entry, index) => {
+    if (!entry || typeof entry !== 'object') return;
+    const record = entry;
+    let ref = record.ref ?? record.reference ?? `D${index + 1}`;
+    if (typeof ref !== 'string') ref = String(ref ?? `D${index + 1}`);
+    ref = ref.replace(/[\[\]]/g, '').trim().toUpperCase();
+    if (!ref) ref = `D${results.length + 1}`;
+    const title = record.title != null ? String(record.title) : null;
+    const sourceType = record.source_type != null ? String(record.source_type) : null;
+    const publishedAt = record.published_at != null ? String(record.published_at) : null;
+    const sourceUrl = record.source_url != null ? String(record.source_url) : null;
+    const similarity = record.similarity != null ? Number(record.similarity) : null;
+    const key = `${ref}|${sourceUrl || ''}|${title || ''}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    results.push({
+      ref,
+      title,
+      source_type: sourceType,
+      published_at: publishedAt,
+      source_url: sourceUrl,
+      similarity: Number.isFinite(similarity) ? similarity : null
+    });
+  });
+  return results;
+}
+
+function formatCitationMeta(citation) {
+  const parts = [];
+  if (citation.source_type) parts.push(citation.source_type);
+  const dateLabel = formatDateOnly(citation.published_at);
+  if (dateLabel) parts.push(dateLabel);
+  const host = extractHostname(citation.source_url);
+  if (host) parts.push(host);
+  if (typeof citation.similarity === 'number') {
+    const similarity = citation.similarity >= 0 && citation.similarity <= 1
+      ? citation.similarity.toFixed(2)
+      : citation.similarity.toString();
+    parts.push(`sim ${similarity}`);
+  }
+  return parts.join(' · ');
+}
+
+function createCitationItem(citation) {
+  const li = document.createElement('li');
+  li.className = 'citation-item';
+  li.dataset.ref = citation.ref;
+
+  const refSpan = document.createElement('span');
+  refSpan.className = 'citation-ref';
+  refSpan.textContent = `[${citation.ref}]`;
+  li.append(refSpan);
+
+  const body = document.createElement('div');
+  body.className = 'citation-body';
+
+  const titleLine = document.createElement('div');
+  titleLine.className = 'citation-title';
+  if (citation.source_url) {
+    const link = document.createElement('a');
+    link.href = citation.source_url;
+    link.target = '_blank';
+    link.rel = 'noreferrer noopener';
+    link.textContent = citation.title || citation.source_url;
+    titleLine.append(link);
+  } else {
+    titleLine.textContent = citation.title || 'Untitled source';
+  }
+  body.append(titleLine);
+
+  const meta = formatCitationMeta(citation);
+  if (meta) {
+    const metaLine = document.createElement('div');
+    metaLine.className = 'citation-meta';
+    metaLine.textContent = meta;
+    body.append(metaLine);
+  }
+
+  li.append(body);
+  return li;
+}
+
+function populateCitationList(listEl, citations) {
+  if (!listEl) return;
+  listEl.innerHTML = '';
+  citations.forEach((citation) => {
+    listEl.append(createCitationItem(citation));
+  });
+}
+
+function renderCitationSection(section, listEl, citations) {
+  if (!section || !listEl) return;
+  if (!citations.length) {
+    listEl.innerHTML = '';
+    section.hidden = true;
+    return;
+  }
+  section.hidden = false;
+  populateCitationList(listEl, citations);
+}
 
 function normalizeArray(value) {
   if (!value) return [];
@@ -207,8 +335,20 @@ function clearPanels() {
   elements.stage2Scores.textContent = '';
   elements.stage2Verdict.textContent = '';
   elements.stage2Next.textContent = '';
+  if (elements.stage2Citations) {
+    elements.stage2Citations.hidden = true;
+  }
+  if (elements.stage2CitationList) {
+    elements.stage2CitationList.innerHTML = '';
+  }
   elements.stage3Summary.classList.add('muted');
   elements.stage3Summary.textContent = 'Deep dive not yet available.';
+  if (elements.stage3Citations) {
+    elements.stage3Citations.hidden = true;
+  }
+  if (elements.stage3CitationList) {
+    elements.stage3CitationList.innerHTML = '';
+  }
   if (elements.stage3Scorecard) {
     elements.stage3Scorecard.hidden = true;
     elements.stage3Scorecard.innerHTML = '';
@@ -276,6 +416,7 @@ function renderStage2(stage2) {
 
   if (!stage2 || typeof stage2 !== 'object') {
     elements.stage2Scores.innerHTML = '<p class="muted">Stage 2 scoring has not run yet.</p>';
+    renderCitationSection(elements.stage2Citations, elements.stage2CitationList, []);
     return;
   }
 
@@ -340,10 +481,15 @@ function renderStage2(stage2) {
     });
     elements.stage2Next.append(list);
   }
+
+  const stage2Citations = normalizeCitations(
+    stage2.context_citations ?? stage2.verdict?.context_citations ?? []
+  );
+  renderCitationSection(elements.stage2Citations, elements.stage2CitationList, stage2Citations);
 }
 
 function renderStage3(detail) {
-  const summaryJson = detail?.stage3_summary ?? null;
+  const summaryJson = detail?.stage3_summary && typeof detail.stage3_summary === 'object' ? detail.stage3_summary : null;
   const summaryText = detail?.stage3_text ?? null;
   const summary = summaryText || summaryJson?.summary || summaryJson?.thesis || summaryJson?.narrative;
   if (summary) {
@@ -353,6 +499,9 @@ function renderStage3(detail) {
     elements.stage3Summary.classList.add('muted');
     elements.stage3Summary.textContent = 'Deep dive not yet available.';
   }
+
+  const summaryCitations = normalizeCitations(summaryJson?.context_citations ?? []);
+  renderCitationSection(elements.stage3Citations, elements.stage3CitationList, summaryCitations);
 
   const currentDimensions = Array.isArray(detail?.dimension_scores) ? detail.dimension_scores : [];
   const currentQuestions = Array.isArray(detail?.question_results) ? detail.question_results : [];
@@ -512,6 +661,20 @@ function renderQuestionGrid(results = []) {
       details.append(pre);
       rawBlock.append(details);
       card.append(rawBlock);
+    }
+
+    const questionCitations = normalizeCitations(entry?.answer?.context_citations ?? entry?.context_citations ?? []);
+    if (questionCitations.length) {
+      const citeBlock = document.createElement('div');
+      citeBlock.className = 'question-citations';
+      const heading = document.createElement('strong');
+      heading.textContent = 'Sources';
+      citeBlock.append(heading);
+      const list = document.createElement('ol');
+      list.className = 'citation-list citation-list--compact';
+      populateCitationList(list, questionCitations);
+      citeBlock.append(list);
+      card.append(citeBlock);
     }
 
     elements.stage3Questions.append(card);
