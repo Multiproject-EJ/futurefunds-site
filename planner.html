@@ -1857,9 +1857,9 @@
         <section class="credential-modal__content">
           <p class="credential-status muted" id="credentialStatus" role="status" aria-live="polite"></p>
           <div class="credential-locked" id="credentialLocked" hidden>
-            <h3>Admin access required</h3>
-            <p>Sign in with an administrator account to manage API credentials.</p>
-            <a class="btn small" href="/login.html">Go to login</a>
+            <h3 data-locked-title>Admin access required</h3>
+            <p data-locked-message>Sign in with an administrator account to manage API credentials.</p>
+            <a class="btn small" data-locked-login href="/login.html">Go to login</a>
           </div>
           <form id="credentialForm" class="credential-form" hidden novalidate>
             <input type="hidden" id="credentialId" />
