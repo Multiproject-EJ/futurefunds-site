@@ -1,0 +1,836 @@
+<!doctype html>
+<html lang="en" data-lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>FutureFunds — Run Planner & Cost Estimator</title>
+  <link rel="stylesheet" href="/assets/styles.css" />
+  <style>
+    :root {
+      color-scheme: light dark;
+    }
+    body {
+      font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      margin: 0;
+      background: var(--page,#f8fafc);
+      color: var(--text,#0f172a);
+    }
+    .planner-wrap {
+      max-width: 1040px;
+      margin: 0 auto;
+      padding: 32px 20px 80px;
+      display: grid;
+      gap: 28px;
+    }
+    .planner-headline {
+      display: grid;
+      gap: 8px;
+    }
+    .planner-headline h1 {
+      margin: 0;
+      font-size: clamp(1.8rem, 2.6vw, 2.4rem);
+      font-weight: 700;
+    }
+    .planner-headline p {
+      margin: 0;
+      max-width: 720px;
+      color: var(--muted,#475569);
+      font-size: 1rem;
+    }
+    .planner-grid {
+      display: grid;
+      gap: 18px;
+    }
+    @media (min-width: 940px) {
+      .planner-grid {
+        grid-template-columns: minmax(0, 0.62fr) minmax(0, 0.38fr);
+        align-items: start;
+      }
+    }
+    .panel {
+      border: 1px solid var(--border,#e2e8f0);
+      border-radius: 20px;
+      background: var(--panel,#fff);
+      box-shadow: 0 18px 36px rgba(15,23,42,.08);
+      padding: 22px;
+      display: grid;
+      gap: 20px;
+    }
+    .panel h2 {
+      margin: 0;
+      font-size: 1.35rem;
+      font-weight: 600;
+    }
+    .panel h3 {
+      margin: 0 0 6px;
+      font-size: 1.05rem;
+      font-weight: 600;
+    }
+    .panel p {
+      margin: 0;
+      color: var(--muted,#475569);
+      font-size: .92rem;
+    }
+    .planner-form {
+      display: grid;
+      gap: 20px;
+    }
+    .field {
+      display: grid;
+      gap: 8px;
+    }
+    .field label {
+      font-size: .9rem;
+      font-weight: 600;
+      color: var(--text,#0f172a);
+    }
+    .field input[type="number"],
+    .field input[type="text"],
+    .field select {
+      height: 42px;
+      padding: 0 12px;
+      border-radius: 12px;
+      border: 1px solid var(--border,#cbd5f5);
+      font: inherit;
+      background: rgba(255,255,255,.92);
+      transition: border-color .2s ease, box-shadow .2s ease;
+    }
+    .field input[type="number"]:focus,
+    .field input[type="text"]:focus,
+    .field select:focus {
+      outline: none;
+      border-color: var(--accent,#2563eb);
+      box-shadow: 0 0 0 3px rgba(37,99,235,.2);
+    }
+    .range-field {
+      display: grid;
+      gap: 6px;
+    }
+    .range-field label {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: .9rem;
+      font-weight: 600;
+    }
+    .range-field span {
+      color: var(--accent,#2563eb);
+      font-variant-numeric: tabular-nums;
+    }
+    input[type="range"] {
+      accent-color: var(--accent,#2563eb);
+    }
+    .stage-grid {
+      display: grid;
+      gap: 16px;
+    }
+    @media (min-width: 720px) {
+      .stage-grid {
+        grid-template-columns: repeat(3, minmax(0,1fr));
+      }
+    }
+    .stage-card {
+      border: 1px solid rgba(37,99,235,.25);
+      background: rgba(37,99,235,.05);
+      border-radius: 18px;
+      padding: 16px;
+      display: grid;
+      gap: 12px;
+    }
+    .stage-card header {
+      display: grid;
+      gap: 4px;
+    }
+    .stage-card header strong {
+      font-size: 1rem;
+      color: var(--accent,#2563eb);
+    }
+    .stage-card header span {
+      font-size: .8rem;
+      color: var(--muted,#475569);
+      letter-spacing: .02em;
+      text-transform: uppercase;
+    }
+    .stage-card .field {
+      gap: 6px;
+    }
+    .stage-card small {
+      color: var(--muted,#475569);
+      font-size: .78rem;
+    }
+    .planner-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: center;
+    }
+    .btn-primary {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      border: none;
+      border-radius: 999px;
+      padding: 12px 22px;
+      font-weight: 600;
+      font-size: .95rem;
+      cursor: pointer;
+      background: linear-gradient(120deg, #2563eb, #4338ca);
+      color: #fff;
+      transition: transform .18s ease, box-shadow .18s ease;
+    }
+    .btn-primary:active {
+      transform: translateY(1px);
+    }
+    .btn-secondary {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 999px;
+      padding: 10px 18px;
+      font-size: .9rem;
+      border: 1px solid var(--border,#cbd5f5);
+      background: rgba(241,245,249,.8);
+      color: var(--text,#0f172a);
+      cursor: pointer;
+    }
+    .btn-danger {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 999px;
+      padding: 10px 18px;
+      font-size: .9rem;
+      border: 1px solid rgba(220,38,38,.4);
+      background: rgba(248,113,113,.12);
+      color: #b91c1c;
+      cursor: pointer;
+    }
+    .btn-danger:disabled {
+      opacity: .55;
+      cursor: not-allowed;
+    }
+    .cost-output {
+      border: 1px solid rgba(15,23,42,.08);
+      border-radius: 18px;
+      padding: 18px;
+      background: rgba(15,23,42,.04);
+      display: grid;
+      gap: 12px;
+      font-size: .95rem;
+    }
+    .cost-output strong {
+      font-size: 1.1rem;
+    }
+    .cost-output ul {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      display: grid;
+      gap: 6px;
+    }
+    .cost-output li {
+      display: flex;
+      justify-content: space-between;
+      font-variant-numeric: tabular-nums;
+    }
+    .cost-output hr {
+      border: none;
+      border-top: 1px solid rgba(15,23,42,.1);
+      margin: 8px 0;
+    }
+    .status-log {
+      border: 1px solid var(--border,#e2e8f0);
+      border-radius: 14px;
+      padding: 16px;
+      background: rgba(255,255,255,.8);
+      display: grid;
+      gap: 10px;
+      font-size: .9rem;
+    }
+    .status-log pre {
+      margin: 0;
+      white-space: pre-wrap;
+      word-break: break-word;
+      font-family: "JetBrains Mono", "Fira Code", monospace;
+      background: rgba(15,23,42,.06);
+      padding: 12px;
+      border-radius: 12px;
+    }
+    a.inline-link {
+      color: var(--accent,#2563eb);
+      text-decoration: none;
+      font-weight: 600;
+    }
+
+    .controller-panel {
+      border: 1px solid rgba(15,23,42,.1);
+      border-radius: 22px;
+      background: var(--panel,#fff);
+      box-shadow: 0 18px 32px rgba(15,23,42,.08);
+      padding: 24px;
+      display: grid;
+      gap: 22px;
+    }
+
+    .controller-panel header h2 {
+      margin: 0;
+      font-size: 1.4rem;
+      font-weight: 700;
+    }
+
+    .controller-panel header p {
+      margin: 4px 0 0;
+      color: var(--muted,#475569);
+      font-size: .94rem;
+      max-width: 680px;
+    }
+
+    .field-inline {
+      display: grid;
+      gap: 8px;
+    }
+
+    .field-inline label {
+      font-size: .9rem;
+      font-weight: 600;
+      color: var(--text,#0f172a);
+    }
+
+    .field-inline__controls {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .field-inline__controls input[type="text"] {
+      flex: 1 1 280px;
+      min-width: 220px;
+      height: 42px;
+      padding: 0 12px;
+      border-radius: 12px;
+      border: 1px solid var(--border,#cbd5f5);
+      font: inherit;
+      background: rgba(255,255,255,.92);
+      transition: border-color .2s ease, box-shadow .2s ease;
+    }
+
+    .field-inline__controls input[type="text"]:focus {
+      outline: none;
+      border-color: var(--accent,#2563eb);
+      box-shadow: 0 0 0 3px rgba(37,99,235,.2);
+    }
+
+    .field-inline small {
+      font-size: .78rem;
+      color: var(--muted,#64748b);
+    }
+
+    .run-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+      align-items: center;
+      margin: 10px 0 6px;
+    }
+
+    .run-meta__stat {
+      display: grid;
+      gap: 2px;
+      min-width: 140px;
+      padding: 10px 14px;
+      border-radius: 12px;
+      background: rgba(37,99,235,.08);
+    }
+
+    .run-meta__stat span {
+      font-size: .75rem;
+      letter-spacing: .05em;
+      text-transform: uppercase;
+      color: var(--muted,#475569);
+    }
+
+    .run-meta__stat strong {
+      font-size: .95rem;
+      color: var(--text,#0f172a);
+    }
+
+    .run-meta__actions {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .run-meta__status {
+      color: var(--muted,#475569);
+      font-size: .8rem;
+    }
+
+    .run-meta__status strong {
+      color: var(--text,#0f172a);
+    }
+
+    .controller-metrics {
+      display: grid;
+      gap: 14px;
+      grid-template-columns: repeat(auto-fit,minmax(140px,1fr));
+    }
+
+    .controller-metrics__item {
+      border: 1px solid rgba(15,23,42,.08);
+      border-radius: 16px;
+      padding: 14px 16px;
+      background: rgba(37,99,235,.05);
+      display: grid;
+      gap: 4px;
+    }
+
+    .controller-metrics__item dt {
+      font-size: .8rem;
+      font-weight: 600;
+      color: var(--muted,#475569);
+      text-transform: uppercase;
+      letter-spacing: .05em;
+    }
+
+    .controller-metrics__item dd {
+      margin: 0;
+      font-size: 1.35rem;
+      font-weight: 700;
+      color: var(--text,#0f172a);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .controller-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .controller-actions span[role="status"] {
+      font-size: .85rem;
+      color: var(--muted,#475569);
+    }
+
+    .recent-results h3 {
+      margin: 0 0 8px;
+      font-size: 1.05rem;
+      font-weight: 600;
+    }
+
+    .recent-table {
+      width: 100%;
+      border-collapse: collapse;
+      border-radius: 14px;
+      overflow: hidden;
+      border: 1px solid rgba(15,23,42,.08);
+      font-size: .88rem;
+    }
+
+    .recent-table thead {
+      background: rgba(15,23,42,.06);
+    }
+
+    .recent-table th,
+    .recent-table td {
+      padding: 10px 12px;
+      text-align: left;
+    }
+
+    .recent-table tbody tr:nth-child(odd) {
+      background: rgba(15,23,42,.02);
+    }
+
+    .recent-table td[data-label] {
+      font-weight: 600;
+    }
+
+    .recent-empty {
+      text-align: center;
+      color: var(--muted,#64748b);
+      padding: 16px;
+    }
+
+    .run-id-display {
+      font-size: .8rem;
+      color: var(--muted,#475569);
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .run-id-display code {
+      padding: 2px 6px;
+      border-radius: 8px;
+      background: rgba(15,23,42,.08);
+      font-family: "JetBrains Mono", "Fira Code", monospace;
+      font-size: .78rem;
+    }
+
+    @media (max-width: 720px) {
+      .controller-actions {
+        flex-direction: column;
+        align-items: stretch;
+      }
+
+      .controller-actions .btn-primary,
+      .controller-actions .btn-secondary {
+        width: 100%;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header class="site-header">
+    <a class="brand" href="/">
+      <img src="/images/logo.webp" alt="FutureFunds.ai logo" class="logo" />
+      <span>FutureFunds.ai</span>
+    </a>
+
+    <button class="nav-toggle" id="navToggle" type="button" aria-expanded="false" aria-controls="siteNav">
+      <span class="sr-only">Menu</span>
+      <span class="nav-toggle__bar"></span>
+    </button>
+
+    <nav class="nav" id="siteNav" aria-label="Primary navigation">
+      <div class="nav-links">
+        <div class="nav-item nav-item--team">
+          <a href="/team.html" class="nav-link" data-i18n="nav.team">Experiment</a>
+        </div>
+        <div class="nav-item nav-item--has-panel nav-item--tools">
+          <a href="/tools.html" class="nav-link" data-i18n="nav.investmentTools">Investment Tools</a>
+          <div class="nav-panel nav-panel--tools" role="group" aria-label="Investment tools">
+            <div class="nav-panel__header">
+              <span class="nav-panel__title">Featured tools</span>
+              <a class="nav-panel__cta" href="/tools.html">Explore tools →</a>
+            </div>
+            <div class="nav-panel__content nav-panel__content--tools">
+              <a class="nav-tool" href="/tool.html?id=ff-pms">
+                <span class="chip membership">Member</span>
+                <h4>Portfolio OS</h4>
+                <p>Run strategies end-to-end with sheets + AI copilots.</p>
+              </a>
+              <a class="nav-tool" href="/tool.html?id=stockalpha-journal">
+                <span class="chip free">Free</span>
+                <h4>StockAlpha Journal</h4>
+                <p>Track theses, catalysts, and behavioral loops.</p>
+              </a>
+              <a class="nav-tool" href="/tool.html?id=valuebot">
+                <span class="chip paid">Paid</span>
+                <h4>ValueBot Valuation</h4>
+                <p>Get sourced, step-by-step valuations on demand.</p>
+              </a>
+            </div>
+          </div>
+        </div>
+        <div class="nav-item nav-item--has-panel nav-item--ai">
+          <a href="/ai-economy.html" class="nav-link" data-i18n="nav.aiEconomy">The AI Economy</a>
+          <div class="nav-panel nav-panel--ai" role="group" aria-label="AI economy preview">
+            <div class="nav-panel__header">
+              <span class="nav-panel__title">AI economy brief</span>
+              <a class="nav-panel__cta" href="/ai-economy.html">Dive in →</a>
+            </div>
+            <div class="nav-ai">
+              <p class="nav-ai__pitch">Weekly signals on how automation, capital, and policy collide. Built from filings, expert transcripts, and on-chain data.</p>
+              <form class="nav-ai__signup newsletter-form" action="/ai-economy.html#newsletter" method="get">
+                <label class="sr-only" for="nav-ai-email">Email address</label>
+                <input id="nav-ai-email" type="email" name="email" placeholder="you@example.com" autocomplete="email" />
+                <button type="submit" class="btn primary">Get the brief</button>
+                <p class="nav-ai__status newsletter-status muted" aria-live="polite"></p>
+              </form>
+            </div>
+          </div>
+        </div>
+        <div class="nav-item nav-item--has-panel nav-item--blog">
+          <a href="/blog.html" class="nav-link" data-i18n="nav.blog">Blog</a>
+          <div class="nav-panel nav-panel--blog" role="group" aria-label="Latest articles">
+            <div class="nav-panel__header">
+              <span class="nav-panel__title">Latest updates</span>
+              <a class="nav-panel__cta" href="/blog.html">See all posts →</a>
+            </div>
+            <div class="nav-panel__content nav-panel__content--blog">
+              <a class="nav-article" href="/ai-article.html">
+                <span class="chip free">Free</span>
+                <h4>Can AI run your investment process?</h4>
+                <p>Dispatches from the FutureFunds lab.</p>
+              </a>
+              <a class="nav-article" href="/ai-economy.html">
+                <span class="chip free">Free</span>
+                <h4>The AI economy brief</h4>
+                <p>Macro signals we’re tracking.</p>
+              </a>
+            </div>
+          </div>
+        </div>
+        <div class="nav-item nav-item--login">
+          <a href="/login.html" class="nav-link" data-i18n="nav.login">Member login</a>
+        </div>
+      </div>
+    </nav>
+  </header>
+
+  <main class="planner-wrap">
+    <header class="planner-headline">
+      <a class="inline-link" href="/equity_analyst.html">← Back to analyst blueprint</a>
+      <h1>Market Scan Planner & Cost Estimator</h1>
+      <p>Configure universe size, survival funnels, token budgets, and model choices before launching an automated run. Settings persist locally so you can iterate as you calibrate.</p>
+    </header>
+
+    <section class="planner-grid">
+      <article class="panel">
+        <div class="planner-form" id="plannerForm">
+          <div class="field">
+            <label for="universeInput">Universe size (tickers)</label>
+            <input type="number" id="universeInput" name="universe" min="1" value="40000" />
+          </div>
+
+          <div class="range-field">
+            <label for="stage2Slider">Survive to Stage 2 <span id="stage2Value">15%</span></label>
+            <input type="range" id="stage2Slider" min="0" max="100" value="15" />
+          </div>
+
+          <div class="range-field">
+            <label for="stage3Slider">Stage 3 share of Stage 2 <span id="stage3Value">12%</span></label>
+            <input type="range" id="stage3Slider" min="0" max="100" value="12" />
+          </div>
+
+          <div class="stage-grid">
+            <section class="stage-card" data-stage="1">
+              <header>
+                <span>Stage 1</span>
+                <strong>Triage</strong>
+              </header>
+              <div class="field">
+                <label for="modelStage1">Model</label>
+                <select id="modelStage1">
+                  <option value="4o-mini">GPT-4o-mini</option>
+                  <option value="5-mini">GPT-5 mini</option>
+                  <option value="5">GPT-5</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="stage1InputTokens">Tokens in (per stock)</label>
+                <input type="number" id="stage1InputTokens" min="0" step="100" value="3000" />
+              </div>
+              <div class="field">
+                <label for="stage1OutputTokens">Tokens out (per stock)</label>
+                <input type="number" id="stage1OutputTokens" min="0" step="100" value="600" />
+              </div>
+            </section>
+
+            <section class="stage-card" data-stage="2">
+              <header>
+                <span>Stage 2</span>
+                <strong>Medium depth</strong>
+              </header>
+              <div class="field">
+                <label for="modelStage2">Model</label>
+                <select id="modelStage2">
+                  <option value="5-mini" selected>GPT-5 mini</option>
+                  <option value="4o-mini">GPT-4o-mini</option>
+                  <option value="5">GPT-5</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="stage2InputTokens">Tokens in (per survivor)</label>
+                <input type="number" id="stage2InputTokens" min="0" step="100" value="30000" />
+              </div>
+              <div class="field">
+                <label for="stage2OutputTokens">Tokens out (per survivor)</label>
+                <input type="number" id="stage2OutputTokens" min="0" step="100" value="6000" />
+              </div>
+            </section>
+
+            <section class="stage-card" data-stage="3">
+              <header>
+                <span>Stage 3</span>
+                <strong>Deep dive</strong>
+              </header>
+              <div class="field">
+                <label for="modelStage3">Model</label>
+                <select id="modelStage3">
+                  <option value="5" selected>GPT-5</option>
+                  <option value="5-mini">GPT-5 mini</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="stage3InputTokens">Tokens in (per finalist)</label>
+                <input type="number" id="stage3InputTokens" min="0" step="100" value="100000" />
+              </div>
+              <div class="field">
+                <label for="stage3OutputTokens">Tokens out (per finalist)</label>
+                <input type="number" id="stage3OutputTokens" min="0" step="100" value="20000" />
+              </div>
+            </section>
+          </div>
+
+          <div class="planner-actions">
+            <button class="btn-primary" type="button" id="startRunBtn">Start automated run</button>
+            <button class="btn-secondary" type="button" id="resetDefaultsBtn">Reset defaults</button>
+            <span id="startRunStatus" role="status" aria-live="polite"></span>
+          </div>
+        </div>
+      </article>
+
+      <aside class="panel">
+        <div>
+          <h2>Estimated spend</h2>
+          <p>Numbers refresh automatically as you tweak the controls. Costs use the current public list prices per 1M tokens.</p>
+        </div>
+        <section class="cost-output" id="costOutput">
+          <ul>
+            <li><span>Stage 1</span><span>$0.00</span></li>
+            <li><span>Stage 2</span><span>$0.00</span></li>
+            <li><span>Stage 3</span><span>$0.00</span></li>
+          </ul>
+          <hr />
+          <div><strong>Total:</strong> <span id="totalCost">$0.00</span></div>
+          <p id="survivorSummary">—</p>
+        </section>
+        <section class="status-log">
+          <h3>Launch status</h3>
+          <pre id="statusLog">Ready when you are.</pre>
+        </section>
+      </aside>
+    </section>
+
+    <section class="panel controller-panel" id="stage1Panel">
+      <header>
+        <h2>Stage 1 — Triage processor</h2>
+        <p>Batch GPT-driven classifications to prune uninvestible names before spending on deeper research. Process small groups to stay within rate limits.</p>
+      </header>
+
+      <div class="field-inline">
+        <label for="runIdInput">Active run identifier</label>
+        <div class="field-inline__controls">
+          <input type="text" id="runIdInput" placeholder="Paste run UUID" autocomplete="off" />
+          <button type="button" class="btn-secondary" id="applyRunIdBtn">Apply</button>
+          <button type="button" class="btn-secondary" id="clearRunIdBtn">Clear</button>
+          <span class="run-id-display">Current:<code id="runIdDisplay">—</code></span>
+        </div>
+        <small>The latest run ID is stored automatically after you launch a new batch from this planner.</small>
+      </div>
+
+      <div class="run-meta" aria-live="polite">
+        <div class="run-meta__stat">
+          <span>Status</span>
+          <strong id="runStatusText">—</strong>
+        </div>
+        <div class="run-meta__stat">
+          <span>Stop requested</span>
+          <strong id="runStopText">—</strong>
+        </div>
+        <div class="run-meta__actions">
+          <button type="button" class="btn-danger" id="stopRunBtn">Request stop</button>
+          <button type="button" class="btn-secondary" id="resumeRunBtn">Resume run</button>
+        </div>
+      </div>
+      <div class="run-meta__status" id="runMetaStatus">Select a run to manage stop requests.</div>
+
+      <dl class="controller-metrics" aria-live="polite" aria-label="Stage one progress metrics">
+        <div class="controller-metrics__item">
+          <dt>Total queued</dt>
+          <dd id="stage1Total">—</dd>
+        </div>
+        <div class="controller-metrics__item">
+          <dt>Pending triage</dt>
+          <dd id="stage1Pending">—</dd>
+        </div>
+        <div class="controller-metrics__item">
+          <dt>Completed</dt>
+          <dd id="stage1Completed">—</dd>
+        </div>
+        <div class="controller-metrics__item">
+          <dt>Failed</dt>
+          <dd id="stage1Failed">—</dd>
+        </div>
+      </dl>
+
+      <div class="controller-actions">
+        <button class="btn-primary" type="button" id="processStage1Btn">Process Stage 1 batch</button>
+        <button class="btn-secondary" type="button" id="refreshStage1Btn">Refresh status</button>
+        <span id="stage1Status" role="status" aria-live="polite"></span>
+      </div>
+
+      <section class="recent-results" aria-live="polite">
+        <h3>Latest classifications</h3>
+        <table class="recent-table">
+          <thead>
+            <tr>
+              <th scope="col">Ticker</th>
+              <th scope="col">Label</th>
+              <th scope="col">Summary</th>
+              <th scope="col">Updated</th>
+            </tr>
+          </thead>
+          <tbody id="stage1RecentBody">
+            <tr>
+              <td colspan="4" class="recent-empty">No classifications yet.</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+    </section>
+    <section class="panel controller-panel" id="stage2Panel">
+      <header>
+        <h2>Stage 2 — Thematic scoring</h2>
+        <p>Score promising names with GPT-5 mini and decide whether to advance them to the deep-dive queue. Track go-deep approvals as you go.</p>
+      </header>
+
+      <dl class="controller-metrics" aria-live="polite" aria-label="Stage two progress metrics">
+        <div class="controller-metrics__item">
+          <dt>Total survivors</dt>
+          <dd id="stage2Total">—</dd>
+        </div>
+        <div class="controller-metrics__item">
+          <dt>Pending scoring</dt>
+          <dd id="stage2Pending">—</dd>
+        </div>
+        <div class="controller-metrics__item">
+          <dt>Completed</dt>
+          <dd id="stage2Completed">—</dd>
+        </div>
+        <div class="controller-metrics__item">
+          <dt>Go-deep approvals</dt>
+          <dd id="stage2GoDeep">—</dd>
+        </div>
+        <div class="controller-metrics__item">
+          <dt>Failed</dt>
+          <dd id="stage2Failed">—</dd>
+        </div>
+      </dl>
+
+      <div class="controller-actions">
+        <button class="btn-primary" type="button" id="processStage2Btn">Process Stage 2 batch</button>
+        <button class="btn-secondary" type="button" id="refreshStage2Btn">Refresh status</button>
+        <span id="stage2Status" role="status" aria-live="polite"></span>
+      </div>
+
+      <section class="recent-results" aria-live="polite">
+        <h3>Latest Stage 2 insights</h3>
+        <table class="recent-table">
+          <thead>
+            <tr>
+              <th scope="col">Ticker</th>
+              <th scope="col">Go deep?</th>
+              <th scope="col">Summary</th>
+              <th scope="col">Updated</th>
+            </tr>
+          </thead>
+          <tbody id="stage2RecentBody">
+            <tr>
+              <td colspan="4" class="recent-empty">No Stage 2 calls yet.</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+    </section>
+  </main>
+
+  <script type="module" src="/assets/planner.js"></script>
+  <script src="/assets/app.js" defer></script>
+</body>
+</html>
