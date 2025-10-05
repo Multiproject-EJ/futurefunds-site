@@ -665,7 +665,7 @@
       font-weight: 700;
       cursor: pointer;
       box-shadow: 0 24px 65px rgba(37,99,235,.32);
-      z-index: 1800;
+      z-index: 12000;
       transition: transform .18s ease, box-shadow .18s ease;
     }
     .guided-fab span {
@@ -688,7 +688,7 @@
       position: fixed;
       inset: 0;
       display: none;
-      z-index: 2000;
+      z-index: 13000;
     }
     .guided-overlay.active {
       display: block;
@@ -713,7 +713,7 @@
       padding: 22px;
       display: grid;
       gap: 14px;
-      z-index: 2200;
+      z-index: 13500;
     }
     .guided-close {
       position: absolute;
@@ -773,7 +773,7 @@
     }
     .guided-focus {
       position: relative;
-      z-index: 2100 !important;
+      z-index: 13400 !important;
       box-shadow: 0 0 0 4px rgba(37,99,235,.35), 0 18px 55px rgba(15,23,42,.24);
       border-radius: 18px;
       transition: box-shadow .2s ease;
@@ -783,6 +783,9 @@
       gap: 10px;
       font-size: .88rem;
       color: var(--muted,#475569);
+    }
+    .guided-summary[hidden] {
+      display: none !important;
     }
     .guided-summary label {
       display: flex;
@@ -817,6 +820,21 @@
     .guided-email-hint {
       font-size: .78rem;
       color: var(--muted,#475569);
+    }
+    .guided-switch {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      font-size: .85rem;
+      color: var(--muted,#475569);
+    }
+    .guided-switch a {
+      color: #2563eb;
+      font-weight: 600;
+      text-decoration: none;
+    }
+    .guided-switch a:hover {
+      text-decoration: underline;
     }
     @media (max-width: 640px) {
       .guided-fab {
@@ -1314,7 +1332,7 @@
     <h2 id="guidedTitle">Guided planner setup</h2>
     <div class="guided-body" id="guidedBody">We'll walk through calibrating the market scan planner before you launch the analyst.</div>
     <div class="guided-summary" id="guidedSummary" hidden>
-      <p><strong>Planner ready!</strong> Launch your next market scan, then open the <a href="/equity_analyst.html">equity analyst dashboard</a> to monitor progress.</p>
+      <p><strong>Planner ready!</strong> Launch your next market scan, then open the equity dashboard to monitor progress.</p>
       <label>
         <input type="checkbox" id="guidedUpdates" />
         Keep me updated with daily run reports via email.
@@ -1324,6 +1342,10 @@
         <button type="button" id="guidedEmailSave">Save</button>
       </div>
       <p class="guided-email-hint" id="guidedEmailHint">We only store this preference in your browser so you stay in control.</p>
+      <div class="guided-switch">
+        <span>Ready to track live telemetry?</span>
+        <a href="equity_analyst.html#guided-helper">Jump to the equity walkthrough</a>
+      </div>
     </div>
     <div class="guided-actions">
       <button type="button" id="guidedPrev">Back</button>
@@ -1465,13 +1487,29 @@
       }
     };
 
+    const hideSummary = () => {
+      summaryEl.hidden = true;
+      summaryEl.setAttribute('hidden', '');
+      if (emailRow) {
+        emailRow.hidden = true;
+      }
+    };
+
+    const showSummary = () => {
+      summaryEl.hidden = false;
+      summaryEl.removeAttribute('hidden');
+      if (updatesToggle?.checked) {
+        emailRow.hidden = false;
+      }
+    };
+
     const renderStep = () => {
       const total = steps.length;
       const step = steps[stepIndex];
       progressEl.textContent = `Step ${stepIndex + 1} of ${total}`;
       titleEl.textContent = step.title;
       bodyEl.innerHTML = step.body;
-      summaryEl.hidden = true;
+      hideSummary();
       nextBtn.textContent = stepIndex + 1 === total ? 'Finish' : 'Next';
       prevBtn.disabled = stepIndex === 0;
       focusTarget(step.target);
@@ -1481,7 +1519,7 @@
       progressEl.textContent = 'Complete';
       titleEl.textContent = 'Planner walkthrough complete';
       bodyEl.innerHTML = 'Great work! Launch your run from here and then keep the equity analyst dashboard open for telemetry updates.';
-      summaryEl.hidden = false;
+      showSummary();
       focusTarget(null);
       nextBtn.textContent = 'Close';
       prevBtn.disabled = false;
@@ -1501,6 +1539,7 @@
       overlay.setAttribute('aria-hidden', 'true');
       fab.classList.remove('hidden');
       body.classList.remove('guided-active');
+      hideSummary();
       focusTarget(null);
     };
 
@@ -1530,7 +1569,7 @@
 
     prevBtn?.addEventListener('click', () => {
       if (!summaryEl.hidden) {
-        summaryEl.hidden = true;
+        hideSummary();
         renderStep();
         return;
       }
@@ -1541,6 +1580,10 @@
     });
 
     updatesToggle?.addEventListener('change', () => {
+      if (summaryEl.hidden) {
+        updatesToggle.checked = false;
+        return;
+      }
       const enabled = updatesToggle.checked;
       emailRow.hidden = !enabled;
       if (enabled) {
@@ -1552,7 +1595,6 @@
     const savedEmail = window.localStorage?.getItem(EMAIL_KEY);
     if (savedEmail) {
       updatesToggle.checked = true;
-      emailRow.hidden = false;
       emailInput.value = savedEmail;
       emailHint.textContent = 'We\'ll send a reminder each morning. You can remove it anytime via this helper.';
     }
@@ -1577,6 +1619,12 @@
         : 'We only store this preference in your browser so you stay in control.';
       emailHint.style.color = 'var(--muted,#475569)';
     });
+    if (window.location.hash === '#guided-helper') {
+      setTimeout(() => {
+        openOverlay();
+        window.history.replaceState(null, '', window.location.pathname + window.location.search);
+      }, 100);
+    }
   })();
 </script>
 <script type="module">
