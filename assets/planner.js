@@ -90,6 +90,8 @@ const inputs = {
   stage2Completed: $('stage2Completed'),
   stage2Failed: $('stage2Failed'),
   stage2GoDeep: $('stage2GoDeep'),
+  stage2ContextHits: $('stage2ContextHits'),
+  stage2ContextTokens: $('stage2ContextTokens'),
   stage2RecentBody: $('stage2RecentBody'),
   stage3Btn: $('processStage3Btn'),
   stage3RefreshBtn: $('refreshStage3Btn'),
@@ -99,6 +101,8 @@ const inputs = {
   stage3Completed: $('stage3Completed'),
   stage3Spend: $('stage3Spend'),
   stage3Failed: $('stage3Failed'),
+  stage3ContextHits: $('stage3ContextHits'),
+  stage3ContextTokens: $('stage3ContextTokens'),
   stage3RecentBody: $('stage3RecentBody'),
   sectorNotesList: $('sectorNotesList'),
   sectorNotesEmpty: $('sectorNotesEmpty'),
@@ -1769,7 +1773,7 @@ function renderRecentClassifications(entries = []) {
   });
 }
 
-function updateStage2Metrics(metrics = null) {
+function updateStage2Metrics(metrics = null, retrieval = null) {
   const formatter = (value) => {
     if (value == null || Number.isNaN(value)) return '—';
     return Number(value).toLocaleString();
@@ -1780,6 +1784,14 @@ function updateStage2Metrics(metrics = null) {
   if (inputs.stage2Completed) inputs.stage2Completed.textContent = formatter(metrics?.completed);
   if (inputs.stage2Failed) inputs.stage2Failed.textContent = formatter(metrics?.failed);
   if (inputs.stage2GoDeep) inputs.stage2GoDeep.textContent = formatter(metrics?.goDeep);
+  if (inputs.stage2ContextHits) {
+    const hits = retrieval?.total_hits ?? retrieval?.hits ?? retrieval?.average_hits ?? null;
+    inputs.stage2ContextHits.textContent = formatter(hits);
+  }
+  if (inputs.stage2ContextTokens) {
+    const tokens = retrieval?.embedding_tokens ?? retrieval?.tokens ?? null;
+    inputs.stage2ContextTokens.textContent = formatter(tokens);
+  }
 }
 
 function renderStage2Insights(entries = []) {
@@ -1811,7 +1823,7 @@ function renderStage2Insights(entries = []) {
   });
 }
 
-function updateStage3Metrics(metrics = null) {
+function updateStage3Metrics(metrics = null, retrieval = null) {
   const formatter = (value) => {
     if (value == null || Number.isNaN(value)) return '—';
     return Number(value).toLocaleString();
@@ -1825,6 +1837,14 @@ function updateStage3Metrics(metrics = null) {
     inputs.stage3Spend.textContent = spend == null || Number.isNaN(spend) ? '—' : formatCurrency(Number(spend));
   }
   if (inputs.stage3Failed) inputs.stage3Failed.textContent = formatter(metrics?.failed);
+  if (inputs.stage3ContextHits) {
+    const hits = retrieval?.total_hits ?? retrieval?.hits ?? null;
+    inputs.stage3ContextHits.textContent = formatter(hits);
+  }
+  if (inputs.stage3ContextTokens) {
+    const tokens = retrieval?.embedding_tokens ?? retrieval?.tokens ?? null;
+    inputs.stage3ContextTokens.textContent = formatter(tokens);
+  }
 }
 
 function renderStage3Reports(entries = []) {
@@ -2338,13 +2358,16 @@ async function processStage2Batch() {
     }
 
     if (payload.metrics) {
-      updateStage2Metrics({
-        total: Number(payload.metrics.total_survivors ?? payload.metrics.total ?? 0),
-        pending: Number(payload.metrics.pending ?? 0),
-        completed: Number(payload.metrics.completed ?? 0),
-        failed: Number(payload.metrics.failed ?? 0),
-        goDeep: Number(payload.metrics.go_deep ?? payload.metrics.goDeep ?? 0)
-      });
+      updateStage2Metrics(
+        {
+          total: Number(payload.metrics.total_survivors ?? payload.metrics.total ?? 0),
+          pending: Number(payload.metrics.pending ?? 0),
+          completed: Number(payload.metrics.completed ?? 0),
+          failed: Number(payload.metrics.failed ?? 0),
+          goDeep: Number(payload.metrics.go_deep ?? payload.metrics.goDeep ?? 0)
+        },
+        payload.retrieval ?? null
+      );
     }
 
     const message = payload.message || `Processed ${results.length} ticker${results.length === 1 ? '' : 's'}.`;
@@ -2438,13 +2461,16 @@ async function processStage3Batch() {
     }
 
     if (payload.metrics) {
-      updateStage3Metrics({
-        finalists: Number(payload.metrics.total_finalists ?? payload.metrics.finalists ?? payload.metrics.total ?? 0),
-        pending: Number(payload.metrics.pending ?? 0),
-        completed: Number(payload.metrics.completed ?? 0),
-        failed: Number(payload.metrics.failed ?? 0),
-        spend: Number(payload.metrics.spend ?? payload.metrics.total_spend ?? 0)
-      });
+      updateStage3Metrics(
+        {
+          finalists: Number(payload.metrics.total_finalists ?? payload.metrics.finalists ?? payload.metrics.total ?? 0),
+          pending: Number(payload.metrics.pending ?? 0),
+          completed: Number(payload.metrics.completed ?? 0),
+          failed: Number(payload.metrics.failed ?? 0),
+          spend: Number(payload.metrics.spend ?? payload.metrics.total_spend ?? 0)
+        },
+        payload.retrieval ?? null
+      );
     }
 
     const message = payload.message || `Processed ${reports.length} finalist${reports.length === 1 ? '' : 's'}.`;

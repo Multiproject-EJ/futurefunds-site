@@ -12,6 +12,7 @@ Stage 10 introduces retrieval-augmented generation so Stage 2 and Stage 3 analys
 - **Embedding model config:** Extend the configuration object (or create `config/models.json` if Stage 13 arrives early) with the embedding model name, price, and max tokens. Ensure the Supabase service role key has permission to call the OpenAI embeddings API.
 - **RPC helper:** Implement a Postgres function `match_doc_chunks(query_text text, ticker text, match_limit int default 6)` that performs vector similarity search against the `doc_chunks.embedding` column (using `pgvector`). Return chunk text, doc metadata, similarity score, and token estimate.
 - **Edge function wrapper:** Expose the RPC via a Supabase Edge handler or direct client query so Stage 2/3 workers can request top-k snippets with a latency budget < 1s.
+- **Rate limiting:** Allow the embedding worker to honour a `DOC_EMBED_DELAY_MS` environment variable so deployments can slow down chunk processing when vendor quotas are tight.
 
 ## 3. Prompt integration and UI surfacing
 - **Stage 2 prompts:** Update `supabase/functions/stage2` to fetch relevant chunks for each ticker before calling the model. Inject snippets into the prompt template under a clearly marked `Retrieved context` section with citation IDs.

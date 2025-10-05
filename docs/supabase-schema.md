@@ -463,16 +463,58 @@ Composite primary key: `(run_id, ticker)`.
 | `cost_usd` | `numeric(12,4)` | USD spend at logging time. |
 | `created_at` | `timestamptz` | Timestamp of the ledger entry. |
 
+### `docs`
+
+*Primary key*: `id uuid` generated with `gen_random_uuid()`.
+
+| Column | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `ticker` | `text` | — | References `tickers(ticker)`; nullable for general-market research. |
+| `title` | `text` | — | Human-readable label shown in the uploader and citations. |
+| `source_type` | `text` | `null` | Free-form category (10-K, investor letter, transcript, etc.). |
+| `published_at` | `timestamptz` | `null` | Optional publication timestamp surfaced in the UI. |
+| `source_url` | `text` | `null` | Canonical URL for the underlying document. |
+| `storage_path` | `text` | — | Supabase Storage path (e.g., `raw/MSFT/2024-10-10-letter.pdf`). |
+| `uploaded_by` | `uuid` | `null` | References `auth.users(id)` for audit trails. |
+| `status` | `text` | `'pending'` | Processing lifecycle (`pending`, `processed`, `failed`). |
+| `chunk_count` | `int` | `0` | Populated by the chunking job. |
+| `token_count` | `int` | `0` | Sum of token estimates across stored chunks. |
+| `last_error` | `text` | `null` | Last processing failure captured by the edge worker. |
+| `processed_at` | `timestamptz` | `null` | Timestamp of the most recent successful chunk+embed run. |
+| `created_at` / `updated_at` | `timestamptz` | `now()` | Managed timestamps. |
+
+Uploads are saved to the Supabase Storage bucket `docs` under `raw/<ticker>/...` by the admin console at `/docs/index.html`.
+
 ### `doc_chunks`
 
 | Column | Type | Notes |
 | --- | --- | --- |
 | `id` | `bigserial` | Primary key. |
-| `ticker` | `text` | References `tickers`. |
-| `source` | `text` | Describes the document source (10-K 2024, investor letter, etc.). |
+| `doc_id` | `uuid` | References `docs(id)`; cascades on delete. |
+| `ticker` | `text` | Denormalised symbol for fast filtering. |
+| `source` | `text` | Optional legacy label retained for back-compat. |
+| `chunk_index` | `int` | Sequential index (0-based) assigned by the chunking worker. |
 | `chunk` | `text` | Plain-text snippet used for retrieval-augmented prompts. |
+| `token_length` | `int` | Approximate token count used for budgeting. |
+| `embedding` | `vector(1536)` | pgvector representation generated via `text-embedding-3-small`. |
 
-When enabling pgvector for semantic search, add an `embedding vector` column via a follow-up migration.
+An IVFFlat index on `embedding` accelerates similarity search for the retrieval helper.
+
+### `error_logs`
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | `bigserial` | Primary key. |
+| `context` | `text` | Logical component (e.g., `docs-process`). |
+| `message` | `text` | Short description of the failure. |
+| `payload` | `jsonb` | Structured blob (request params, stack traces). |
+| `created_at` | `timestamptz` | Defaults to `now()`. |
+
+Reuse this table for future worker instrumentation (Stages 12–13).
+
+The Postgres RPC `match_doc_chunks(query_embedding double precision[], query_ticker text, match_limit int)` converts an array
+of floats into a `vector(1536)` and returns the top-k snippets ordered by cosine distance alongside document metadata. Workers
+invoke it after computing embeddings so they can inject `[D1]`-style citations into prompts.
 
 ### `analysis_dimensions`
 
