@@ -1,5 +1,11 @@
 import { serve } from 'https://deno.land/std@0.210.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
+import {
+  resolveModel,
+  resolveCredential,
+  computeUsageCost,
+  requestChatCompletion
+} from '../_shared/ai.ts';
 
 type JsonRecord = Record<string, unknown>;
 
@@ -36,17 +42,7 @@ const jsonHeaders = {
   'Cache-Control': 'no-store'
 };
 
-const MODEL_ALIASES: Record<string, string> = {
-  '4o-mini': 'gpt-4o-mini',
-  '5-mini': 'gpt-5-mini',
-  '5': 'gpt-5-preview'
-};
-
-const PRICE_LOOKUP: Record<string, { in: number; out: number }> = {
-  '4o-mini': { in: 0.15, out: 0.6 },
-  '5-mini': { in: 0.25, out: 2.0 },
-  '5': { in: 1.25, out: 10.0 }
-};
+const DEFAULT_STAGE3_MODEL = 'openrouter/gpt-5-preview';
 
 function jsonResponse(status: number, body: JsonRecord) {
   return new Response(JSON.stringify(body), { status, headers: jsonHeaders });
@@ -129,6 +125,31 @@ async function computeMetrics(client: ReturnType<typeof createClient>, runId: st
     pending: Number(data?.pending ?? 0),
     completed: Number(data?.completed ?? 0),
     failed: Number(data?.failed ?? 0)
+  };
+}
+
+function parsePlannerNotes(raw: unknown): JsonRecord {
+  if (!raw) return {};
+  if (typeof raw === 'string') {
+    try {
+      return JSON.parse(raw) as JsonRecord;
+    } catch (error) {
+      console.warn('Failed to parse planner notes JSON', error);
+      return {};
+    }
+  }
+  if (typeof raw === 'object') {
+    return (raw as JsonRecord) ?? {};
+  }
+  return {};
+}
+
+function extractStageConfig(notes: JsonRecord, stageKey: string) {
+  const planner = (notes?.planner ?? {}) as JsonRecord;
+  const stage = (planner?.[stageKey] ?? {}) as JsonRecord;
+  return {
+    model: typeof stage?.model === 'string' ? stage.model : null,
+    credentialId: typeof stage?.credentialId === 'string' ? stage.credentialId : null
   };
 }
 
@@ -287,59 +308,6 @@ function buildSummaryPrompt(
   };
 }
 
-async function callOpenAIJson(
-  apiKey: string,
-  model: string,
-  systemPrompt: string,
-  userPrompt: string
-): Promise<{ parsed: JsonRecord; usage: { prompt_tokens?: number; completion_tokens?: number } }> {
-  const response = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({
-      model,
-      temperature: 0.1,
-      response_format: { type: 'json_object' },
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt }
-      ]
-    })
-  });
-
-  if (!response.ok) {
-    const text = await response.text();
-    throw new Error(`OpenAI error ${response.status}: ${text}`);
-  }
-
-  const payload = await response.json();
-  const message = payload?.choices?.[0]?.message?.content ?? '{}';
-  let parsed: JsonRecord;
-  try {
-    parsed = JSON.parse(message);
-  } catch (error) {
-    throw new Error(`Failed to parse OpenAI JSON: ${error instanceof Error ? error.message : String(error)}`);
-  }
-
-  return { parsed, usage: payload?.usage ?? { prompt_tokens: 0, completion_tokens: 0 } };
-}
-
-function computeCost(modelKey: string, usage: { prompt_tokens?: number; completion_tokens?: number }) {
-  const price = PRICE_LOOKUP[modelKey] ?? PRICE_LOOKUP['5'];
-  const promptTokens = usage.prompt_tokens ?? 0;
-  const completionTokens = usage.completion_tokens ?? 0;
-  const inCost = (promptTokens / 1_000_000) * price.in;
-  const outCost = (completionTokens / 1_000_000) * price.out;
-  return {
-    cost: inCost + outCost,
-    promptTokens,
-    completionTokens
-  };
-}
-
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
@@ -351,9 +319,8 @@ serve(async (req) => {
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL');
   const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-  const openaiKey = Deno.env.get('OPENAI_API_KEY');
 
-  if (!supabaseUrl || !serviceRoleKey || !openaiKey) {
+  if (!supabaseUrl || !serviceRoleKey) {
     console.error('Missing required environment configuration for stage3-consume');
     return jsonResponse(500, { error: 'Server misconfigured' });
   }
@@ -433,17 +400,63 @@ serve(async (req) => {
     });
   }
 
-  const modelKeyRaw = ((): string => {
-    try {
-      const notes = typeof runRow.notes === 'string' ? JSON.parse(runRow.notes) : runRow.notes;
-      return notes?.planner?.stage3?.model ?? '5';
-    } catch {
-      return '5';
-    }
-  })();
+  const plannerNotes = parsePlannerNotes(runRow.notes ?? null);
+  const stageConfig = extractStageConfig(plannerNotes, 'stage3');
 
-  const modelKey = PRICE_LOOKUP[modelKeyRaw] ? modelKeyRaw : '5';
-  const openaiModel = MODEL_ALIASES[modelKey] ?? MODEL_ALIASES['5'];
+  let modelRecord;
+  try {
+    modelRecord = await resolveModel(supabaseAdmin, stageConfig.model ?? '', DEFAULT_STAGE3_MODEL);
+  } catch (error) {
+    console.error('Stage 3 model configuration error', error);
+    return jsonResponse(500, {
+      error: 'Stage 3 model not configured',
+      details: error instanceof Error ? error.message : String(error)
+    });
+  }
+
+  let credentialRecord;
+  try {
+    const provider = modelRecord.provider ?? 'openai';
+    const envKeys = provider.toLowerCase() === 'openrouter'
+      ? ['OPENROUTER_API_KEY', 'OPENAI_API_KEY']
+      : ['OPENAI_API_KEY'];
+    credentialRecord = await resolveCredential(supabaseAdmin, {
+      credentialId: stageConfig.credentialId,
+      provider,
+      preferScopes: ['automation', 'editor'],
+      allowEnvFallback: true,
+      envKeys
+    });
+  } catch (error) {
+    console.error('Stage 3 credential configuration error', error);
+    return jsonResponse(500, {
+      error: 'Stage 3 credential not configured',
+      details: error instanceof Error ? error.message : String(error)
+    });
+  }
+
+  const runJsonPrompt = async (systemPrompt: string, userPrompt: string) => {
+    const completion = await requestChatCompletion(modelRecord, credentialRecord, {
+      temperature: 0.1,
+      response_format: { type: 'json_object' },
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt }
+      ]
+    });
+
+    const rawMessage = completion?.choices?.[0]?.message?.content ?? '{}';
+    let parsed: JsonRecord;
+    try {
+      parsed = JSON.parse(rawMessage);
+    } catch (error) {
+      throw new Error(`Failed to parse model response JSON: ${error instanceof Error ? error.message : String(error)}`);
+    }
+
+    const usage = completion?.usage ?? {};
+    const { cost, promptTokens, completionTokens } = computeUsageCost(modelRecord, usage);
+    return { parsed, cost, promptTokens, completionTokens };
+  };
 
   const { data: pending, error: pendingError } = await supabaseAdmin
     .from('run_items')
@@ -470,7 +483,7 @@ serve(async (req) => {
       run_id: runRow.id,
       processed: 0,
       failed: 0,
-      model: modelKey,
+      model: modelRecord.slug,
       metrics,
       results: [],
       message
@@ -506,8 +519,7 @@ serve(async (req) => {
       let totalCost = 0;
 
       for (const prompt of prompts) {
-        const { parsed, usage } = await callOpenAIJson(openaiKey, openaiModel, prompt.system, prompt.user);
-        const { cost, promptTokens, completionTokens } = computeCost(modelKey, usage);
+        const { parsed, cost, promptTokens, completionTokens } = await runJsonPrompt(prompt.system, prompt.user);
         totalCost += cost;
 
         await supabaseAdmin.from('answers').insert({
@@ -525,7 +537,7 @@ serve(async (req) => {
         await supabaseAdmin.from('cost_ledger').insert({
           run_id: runRow.id,
           stage: 3,
-          model: modelKey,
+          model: modelRecord.slug,
           tokens_in: promptTokens,
           tokens_out: completionTokens,
           cost_usd: cost,
@@ -536,16 +548,12 @@ serve(async (req) => {
       }
 
       const summaryPrompt = buildSummaryPrompt(context, groupOutputs);
-      const { parsed: summaryJson, usage: summaryUsage } = await callOpenAIJson(
-        openaiKey,
-        openaiModel,
-        summaryPrompt.system,
-        summaryPrompt.user
-      );
-      const { cost: summaryCost, promptTokens: summaryPromptTokens, completionTokens: summaryCompletionTokens } = computeCost(
-        modelKey,
-        summaryUsage
-      );
+      const {
+        parsed: summaryJson,
+        cost: summaryCost,
+        promptTokens: summaryPromptTokens,
+        completionTokens: summaryCompletionTokens
+      } = await runJsonPrompt(summaryPrompt.system, summaryPrompt.user);
       totalCost += summaryCost;
 
       const thesisText =
@@ -571,7 +579,7 @@ serve(async (req) => {
       await supabaseAdmin.from('cost_ledger').insert({
         run_id: runRow.id,
         stage: 3,
-        model: modelKey,
+        model: modelRecord.slug,
         tokens_in: summaryPromptTokens,
         tokens_out: summaryCompletionTokens,
         cost_usd: summaryCost,
@@ -640,7 +648,7 @@ serve(async (req) => {
     run_id: runRow.id,
     processed,
     failed: failures,
-    model: modelKey,
+    model: modelRecord.slug,
     metrics: metricsWithSpend,
     results,
     message

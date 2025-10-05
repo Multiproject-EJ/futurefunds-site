@@ -1,19 +1,28 @@
 import { supabase, ensureProfile, hasAdminRole, isMembershipActive, SUPABASE_URL } from './supabase.js';
+import {
+  fetchActiveModels,
+  fetchActiveCredentials,
+  buildModelMap,
+  buildPriceMap,
+  formatModelOption,
+  formatCredentialOption
+} from './ai-registry.js';
 
-const STORAGE_KEY = 'ff-planner-settings-v1';
-const PRICES = {
-  '5': { in: 1.25, out: 10.0 },
-  '5-mini': { in: 0.25, out: 2.0 },
-  '4o-mini': { in: 0.15, out: 0.60 }
+const STORAGE_KEY = 'ff-planner-settings-v2';
+
+const DEFAULT_STAGE_MODELS = {
+  stage1: 'openrouter/gpt-4o-mini',
+  stage2: 'openrouter/gpt-5-mini',
+  stage3: 'openrouter/gpt-5-preview'
 };
 
 const defaults = {
   universe: 40000,
   surviveStage2: 15,
   surviveStage3: 12,
-  stage1: { model: '4o-mini', inTokens: 3000, outTokens: 600 },
-  stage2: { model: '5-mini', inTokens: 30000, outTokens: 6000 },
-  stage3: { model: '5', inTokens: 100000, outTokens: 20000 }
+  stage1: { model: DEFAULT_STAGE_MODELS.stage1, credentialId: null, inTokens: 3000, outTokens: 600 },
+  stage2: { model: DEFAULT_STAGE_MODELS.stage2, credentialId: null, inTokens: 30000, outTokens: 6000 },
+  stage3: { model: DEFAULT_STAGE_MODELS.stage3, credentialId: null, inTokens: 100000, outTokens: 20000 }
 };
 
 const $ = (id) => document.getElementById(id);
@@ -25,6 +34,9 @@ const inputs = {
   stage1Model: $('modelStage1'),
   stage2Model: $('modelStage2'),
   stage3Model: $('modelStage3'),
+  stage1Credential: $('credentialStage1'),
+  stage2Credential: $('credentialStage2'),
+  stage3Credential: $('credentialStage3'),
   stage1In: $('stage1InputTokens'),
   stage1Out: $('stage1OutputTokens'),
   stage2In: $('stage2InputTokens'),
@@ -76,7 +88,8 @@ const inputs = {
   stage3Failed: $('stage3Failed'),
   stage3RecentBody: $('stage3RecentBody'),
   sectorNotesList: $('sectorNotesList'),
-  sectorNotesEmpty: $('sectorNotesEmpty')
+  sectorNotesEmpty: $('sectorNotesEmpty'),
+  refreshRegistryBtn: $('refreshRegistryBtn')
 };
 
 const FUNCTIONS_BASE = SUPABASE_URL.replace(/\.supabase\.co$/, '.functions.supabase.co');
@@ -104,6 +117,11 @@ let stage2RefreshTimer = null;
 let stage3RefreshTimer = null;
 let sectorNotesChannel = null;
 let sectorNotesReady = false;
+let modelOptions = [];
+let modelMap = new Map();
+let priceMap = new Map();
+let credentialOptions = [];
+let credentialMap = new Map();
 
 function loadSettings() {
   try {
@@ -123,27 +141,193 @@ function loadSettings() {
   }
 }
 
+function ensureModelSlug(stageKey, slug) {
+  const requested = typeof slug === 'string' ? slug.trim() : '';
+  if (modelMap.size === 0) {
+    return requested || DEFAULT_STAGE_MODELS[stageKey] || '';
+  }
+  if (requested && modelMap.has(requested)) {
+    return requested;
+  }
+  const fallback = DEFAULT_STAGE_MODELS[stageKey] || '';
+  if (fallback && modelMap.has(fallback)) {
+    return fallback;
+  }
+  const firstOption = modelOptions.length ? modelOptions[0].slug : '';
+  if (firstOption && modelMap.has(firstOption)) {
+    return firstOption;
+  }
+  return requested || fallback || '';
+}
+
+function normalizeCredentialId(value) {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  return trimmed ? trimmed : null;
+}
+
+function populateModelSelect(select, stageKey) {
+  if (!select) return;
+  const previousValue = select.value;
+  select.innerHTML = '';
+
+  if (!modelOptions.length) {
+    const option = document.createElement('option');
+    option.value = '';
+    option.textContent = 'No models available';
+    select.appendChild(option);
+    select.disabled = true;
+    return;
+  }
+
+  select.disabled = false;
+  const providers = new Map();
+  modelOptions.forEach((model) => {
+    const provider = model.provider || 'other';
+    if (!providers.has(provider)) providers.set(provider, []);
+    providers.get(provider).push(model);
+  });
+
+  if (providers.size > 1) {
+    Array.from(providers.keys())
+      .sort((a, b) => a.localeCompare(b))
+      .forEach((provider) => {
+        const group = document.createElement('optgroup');
+        group.label = provider.toUpperCase();
+        providers.get(provider)
+          .slice()
+          .sort((a, b) => a.label.localeCompare(b.label))
+          .forEach((model) => {
+            const option = document.createElement('option');
+            option.value = model.slug;
+            option.textContent = formatModelOption(model);
+            option.dataset.provider = model.provider;
+            group.appendChild(option);
+          });
+        select.appendChild(group);
+      });
+  } else {
+    modelOptions
+      .slice()
+      .sort((a, b) => a.label.localeCompare(b.label))
+      .forEach((model) => {
+        const option = document.createElement('option');
+        option.value = model.slug;
+        option.textContent = formatModelOption(model);
+        option.dataset.provider = model.provider;
+        select.appendChild(option);
+      });
+  }
+
+  const desired = ensureModelSlug(stageKey, previousValue);
+  if (desired && modelMap.has(desired)) {
+    select.value = desired;
+  } else {
+    select.selectedIndex = 0;
+  }
+}
+
+function populateCredentialSelect(select) {
+  if (!select) return;
+  const previousValue = select.value;
+  select.innerHTML = '';
+
+  const placeholder = document.createElement('option');
+  placeholder.value = '';
+  placeholder.textContent = 'Auto-select for provider';
+  select.appendChild(placeholder);
+
+  if (!credentialOptions.length) {
+    select.disabled = true;
+    return;
+  }
+
+  select.disabled = false;
+  credentialOptions.forEach((credential) => {
+    const option = document.createElement('option');
+    option.value = credential.id;
+    option.textContent = formatCredentialOption(credential);
+    option.dataset.provider = credential.provider ?? '';
+    select.appendChild(option);
+  });
+
+  if (previousValue && credentialMap.has(previousValue)) {
+    select.value = previousValue;
+  } else {
+    select.value = '';
+  }
+}
+
+function populateModelControls() {
+  populateModelSelect(inputs.stage1Model, 'stage1');
+  populateModelSelect(inputs.stage2Model, 'stage2');
+  populateModelSelect(inputs.stage3Model, 'stage3');
+}
+
+function populateCredentialControls() {
+  populateCredentialSelect(inputs.stage1Credential);
+  populateCredentialSelect(inputs.stage2Credential);
+  populateCredentialSelect(inputs.stage3Credential);
+}
+
+async function loadCatalogs({ silent = false } = {}) {
+  try {
+    modelOptions = await fetchActiveModels({});
+    modelMap = buildModelMap(modelOptions);
+    priceMap = buildPriceMap(modelOptions);
+    populateModelControls();
+  } catch (error) {
+    console.error('Failed to load AI models', error);
+    if (!silent) logStatus(`Model registry error: ${error.message}`);
+  }
+
+  try {
+    credentialOptions = await fetchActiveCredentials({ scope: 'automation' });
+    if (!credentialOptions.length) {
+      credentialOptions = await fetchActiveCredentials({ scope: null });
+    }
+    credentialMap = new Map();
+    credentialOptions.forEach((credential) => {
+      credentialMap.set(credential.id, credential);
+    });
+    populateCredentialControls();
+  } catch (error) {
+    console.error('Failed to load API credentials', error);
+    if (!silent) logStatus(`Credential registry error: ${error.message}`);
+  }
+}
+
 function persistSettings(settings) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
 }
 
 function getSettingsFromInputs() {
+  const stage1Model = ensureModelSlug('stage1', inputs.stage1Model?.value || defaults.stage1.model);
+  const stage2Model = ensureModelSlug('stage2', inputs.stage2Model?.value || defaults.stage2.model);
+  const stage3Model = ensureModelSlug('stage3', inputs.stage3Model?.value || defaults.stage3.model);
+  const stage1Credential = normalizeCredentialId(inputs.stage1Credential?.value ?? null);
+  const stage2Credential = normalizeCredentialId(inputs.stage2Credential?.value ?? null);
+  const stage3Credential = normalizeCredentialId(inputs.stage3Credential?.value ?? null);
+
   return {
     universe: Number(inputs.universe?.value) || 0,
     surviveStage2: Number(inputs.stage2Slider?.value) || 0,
     surviveStage3: Number(inputs.stage3Slider?.value) || 0,
     stage1: {
-      model: inputs.stage1Model?.value || defaults.stage1.model,
+      model: stage1Model,
+      credentialId: stage1Credential,
       inTokens: Number(inputs.stage1In?.value) || 0,
       outTokens: Number(inputs.stage1Out?.value) || 0
     },
     stage2: {
-      model: inputs.stage2Model?.value || defaults.stage2.model,
+      model: stage2Model,
+      credentialId: stage2Credential,
       inTokens: Number(inputs.stage2In?.value) || 0,
       outTokens: Number(inputs.stage2Out?.value) || 0
     },
     stage3: {
-      model: inputs.stage3Model?.value || defaults.stage3.model,
+      model: stage3Model,
+      credentialId: stage3Credential,
       inTokens: Number(inputs.stage3In?.value) || 0,
       outTokens: Number(inputs.stage3Out?.value) || 0
     }
@@ -152,20 +336,52 @@ function getSettingsFromInputs() {
 
 function applySettings(settings) {
   if (!inputs.startBtn) return;
+  const stage1Model = ensureModelSlug('stage1', settings.stage1?.model ?? defaults.stage1.model);
+  const stage2Model = ensureModelSlug('stage2', settings.stage2?.model ?? defaults.stage2.model);
+  const stage3Model = ensureModelSlug('stage3', settings.stage3?.model ?? defaults.stage3.model);
+  const stage1Credential = normalizeCredentialId(settings.stage1?.credentialId ?? null);
+  const stage2Credential = normalizeCredentialId(settings.stage2?.credentialId ?? null);
+  const stage3Credential = normalizeCredentialId(settings.stage3?.credentialId ?? null);
+
+  settings.stage1 = {
+    ...settings.stage1,
+    model: stage1Model,
+    credentialId: stage1Credential && credentialMap.has(stage1Credential) ? stage1Credential : null
+  };
+  settings.stage2 = {
+    ...settings.stage2,
+    model: stage2Model,
+    credentialId: stage2Credential && credentialMap.has(stage2Credential) ? stage2Credential : null
+  };
+  settings.stage3 = {
+    ...settings.stage3,
+    model: stage3Model,
+    credentialId: stage3Credential && credentialMap.has(stage3Credential) ? stage3Credential : null
+  };
+
   inputs.universe.value = settings.universe;
   inputs.stage2Slider.value = settings.surviveStage2;
   inputs.stage3Slider.value = settings.surviveStage3;
   inputs.stage2Value.textContent = `${settings.surviveStage2}%`;
   inputs.stage3Value.textContent = `${settings.surviveStage3}%`;
-  inputs.stage1Model.value = settings.stage1.model;
+  if (inputs.stage1Model) inputs.stage1Model.value = settings.stage1.model;
   inputs.stage1In.value = settings.stage1.inTokens;
   inputs.stage1Out.value = settings.stage1.outTokens;
-  inputs.stage2Model.value = settings.stage2.model;
+  if (inputs.stage2Model) inputs.stage2Model.value = settings.stage2.model;
   inputs.stage2In.value = settings.stage2.inTokens;
   inputs.stage2Out.value = settings.stage2.outTokens;
-  inputs.stage3Model.value = settings.stage3.model;
+  if (inputs.stage3Model) inputs.stage3Model.value = settings.stage3.model;
   inputs.stage3In.value = settings.stage3.inTokens;
   inputs.stage3Out.value = settings.stage3.outTokens;
+  if (inputs.stage1Credential) {
+    inputs.stage1Credential.value = settings.stage1.credentialId ?? '';
+  }
+  if (inputs.stage2Credential) {
+    inputs.stage2Credential.value = settings.stage2.credentialId ?? '';
+  }
+  if (inputs.stage3Credential) {
+    inputs.stage3Credential.value = settings.stage3.credentialId ?? '';
+  }
 }
 
 function isValidUuid(value) {
@@ -1158,11 +1374,12 @@ async function processStage3Batch() {
   }
 }
 
-function stageCost(n, inTok, outTok, modelKey) {
-  const model = PRICES[modelKey];
-  if (!model || !n) return { total: 0, inCost: 0, outCost: 0 };
-  const inCost = (n * inTok / 1_000_000) * model.in;
-  const outCost = (n * outTok / 1_000_000) * model.out;
+function stageCost(n, inTok, outTok, modelSlug) {
+  if (!n) return { total: 0, inCost: 0, outCost: 0 };
+  const price = priceMap.get(modelSlug);
+  if (!price) return { total: 0, inCost: 0, outCost: 0 };
+  const inCost = (n * inTok / 1_000_000) * price.in;
+  const outCost = (n * outTok / 1_000_000) * price.out;
   return { total: inCost + outCost, inCost, outCost };
 }
 
@@ -1521,13 +1738,10 @@ function resetDefaults() {
 }
 
 function bindEvents() {
-  const watchedInputs = [
+  const inputElements = [
     inputs.universe,
     inputs.stage2Slider,
     inputs.stage3Slider,
-    inputs.stage1Model,
-    inputs.stage2Model,
-    inputs.stage3Model,
     inputs.stage1In,
     inputs.stage1Out,
     inputs.stage2In,
@@ -1536,7 +1750,16 @@ function bindEvents() {
     inputs.stage3Out
   ].filter(Boolean);
 
-  watchedInputs.forEach((element) => {
+  const selectElements = [
+    inputs.stage1Model,
+    inputs.stage2Model,
+    inputs.stage3Model,
+    inputs.stage1Credential,
+    inputs.stage2Credential,
+    inputs.stage3Credential
+  ].filter(Boolean);
+
+  inputElements.forEach((element) => {
     element.addEventListener('input', () => {
       if (element === inputs.stage2Slider) {
         inputs.stage2Value.textContent = `${element.value}%`;
@@ -1544,6 +1767,12 @@ function bindEvents() {
       if (element === inputs.stage3Slider) {
         inputs.stage3Value.textContent = `${element.value}%`;
       }
+      updateCostOutput();
+    });
+  });
+
+  selectElements.forEach((element) => {
+    element.addEventListener('change', () => {
       updateCostOutput();
     });
   });
@@ -1572,6 +1801,16 @@ function bindEvents() {
       setActiveRunId(inputs.runIdInput.value, { announce: true });
     }
   });
+
+  inputs.refreshRegistryBtn?.addEventListener('click', async () => {
+    const before = getSettingsFromInputs();
+    inputs.status.textContent = 'Refreshing model & credential registry…';
+    await loadCatalogs({ silent: false });
+    applySettings(before);
+    updateCostOutput();
+    logStatus('Registry refreshed.');
+    inputs.status.textContent = 'Registry updated';
+  });
 }
 
 async function bootstrap() {
@@ -1580,10 +1819,12 @@ async function bootstrap() {
     return;
   }
 
+  inputs.status.textContent = 'Loading model registry…';
+  await loadCatalogs({ silent: true });
   const initialSettings = loadSettings();
   applySettings(initialSettings);
-  bindEvents();
   updateCostOutput();
+  bindEvents();
   logStatus('Planner ready. Configure and launch when models are wired.');
   inputs.status.textContent = 'Checking access…';
 

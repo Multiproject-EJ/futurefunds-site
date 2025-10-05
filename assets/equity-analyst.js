@@ -7,6 +7,7 @@ import {
   getProfile,
   getMembership
 } from './supabase.js';
+import { fetchActiveModels, buildModelMap } from './ai-registry.js';
 
 const RUN_STORAGE_KEY = 'ff-analyst-active-run';
 const REFRESH_INTERVAL_MS = 30000;
@@ -74,9 +75,20 @@ const state = {
   }
 };
 
+let modelCatalog = new Map();
+
 function formatNumber(value) {
   if (value == null || Number.isNaN(value)) return '—';
   return new Intl.NumberFormat('en-US').format(value);
+}
+
+async function loadModelCatalog() {
+  try {
+    const models = await fetchActiveModels({});
+    modelCatalog = buildModelMap(models);
+  } catch (error) {
+    console.error('Failed to load model catalog', error);
+  }
 }
 
 function formatCompactNumber(value) {
@@ -365,10 +377,13 @@ function renderCostBreakdown(rows = []) {
   rows.forEach((row) => {
     const li = document.createElement('li');
     const stage = stageLabel(row.stage);
-    const model = row.model ?? 'unknown model';
+    const modelSlug = row.model ?? '';
+    const modelInfo = modelCatalog.get(modelSlug);
+    const modelLabel = modelInfo?.label ?? (modelSlug || 'Unknown model');
+    const providerSuffix = modelInfo?.provider ? ` (${modelInfo.provider})` : '';
     const cost = formatCurrency(row.cost_usd ?? 0);
     const tokens = formatTokens(row.tokens_in ?? 0, row.tokens_out ?? 0);
-    li.innerHTML = `<strong>${stage}</strong> · ${model} — ${cost} (${tokens})`;
+    li.innerHTML = `<strong>${stage}</strong> · ${modelLabel}${providerSuffix} — ${cost} (${tokens})`;
     list.appendChild(li);
   });
 }
@@ -605,20 +620,18 @@ function attachListeners() {
   }
 
   if (selectors.refreshRunsBtn) {
-    selectors.refreshRunsBtn.addEventListener('click', () => {
-      loadRuns()
-        .then(() => {
-          if (state.activeRunId && state.runs.some((run) => run.id === state.activeRunId)) {
-            loadRunDashboard(state.activeRunId, { silent: true }).catch((error) => {
-              console.error('Dashboard refresh failed', error);
-            });
-          } else {
-            applySavedRun();
-          }
-        })
-        .catch((error) => {
-          console.error('Run refresh failed', error);
-        });
+    selectors.refreshRunsBtn.addEventListener('click', async () => {
+      try {
+        await loadModelCatalog();
+        await loadRuns();
+        if (state.activeRunId && state.runs.some((run) => run.id === state.activeRunId)) {
+          await loadRunDashboard(state.activeRunId, { silent: true });
+        } else {
+          applySavedRun();
+        }
+      } catch (error) {
+        console.error('Run refresh failed', error);
+      }
     });
   }
 
@@ -691,6 +704,7 @@ async function init() {
   if (!state.auth.admin) {
     return;
   }
+  await loadModelCatalog();
   await loadRuns();
   if (state.runs.length) {
     applySavedRun();

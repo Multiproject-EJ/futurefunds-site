@@ -661,10 +661,17 @@
               <div class="field">
                 <label for="modelStage1">Model</label>
                 <select id="modelStage1">
-                  <option value="4o-mini">GPT-4o-mini</option>
-                  <option value="5-mini">GPT-5 mini</option>
-                  <option value="5">GPT-5</option>
+                  <option value="openrouter/gpt-4o-mini">GPT-4o mini (OpenRouter)</option>
+                  <option value="openrouter/gpt-5-mini">GPT-5 mini (OpenRouter)</option>
+                  <option value="openrouter/gpt-5-preview">GPT-5 preview (OpenRouter)</option>
                 </select>
+              </div>
+              <div class="field">
+                <label for="credentialStage1">API credential</label>
+                <select id="credentialStage1">
+                  <option value="">Auto-select for provider</option>
+                </select>
+                <small>Pick which stored key powers Stage 1 triage. Leave blank to auto choose.</small>
               </div>
               <div class="field">
                 <label for="stage1InputTokens">Tokens in (per stock)</label>
@@ -684,10 +691,17 @@
               <div class="field">
                 <label for="modelStage2">Model</label>
                 <select id="modelStage2">
-                  <option value="5-mini" selected>GPT-5 mini</option>
-                  <option value="4o-mini">GPT-4o-mini</option>
-                  <option value="5">GPT-5</option>
+                  <option value="openrouter/gpt-5-mini" selected>GPT-5 mini (OpenRouter)</option>
+                  <option value="openrouter/gpt-4o-mini">GPT-4o mini (OpenRouter)</option>
+                  <option value="openrouter/gpt-5-preview">GPT-5 preview (OpenRouter)</option>
                 </select>
+              </div>
+              <div class="field">
+                <label for="credentialStage2">API credential</label>
+                <select id="credentialStage2">
+                  <option value="">Auto-select for provider</option>
+                </select>
+                <small>Stage 2 uses higher quality reasoning. Select the appropriate key if you keep separate tiers.</small>
               </div>
               <div class="field">
                 <label for="stage2InputTokens">Tokens in (per survivor)</label>
@@ -707,9 +721,17 @@
               <div class="field">
                 <label for="modelStage3">Model</label>
                 <select id="modelStage3">
-                  <option value="5" selected>GPT-5</option>
-                  <option value="5-mini">GPT-5 mini</option>
+                  <option value="openrouter/gpt-5-preview" selected>GPT-5 preview (OpenRouter)</option>
+                  <option value="openrouter/gpt-5-mini">GPT-5 mini (OpenRouter)</option>
+                  <option value="openrouter/gpt-4o">GPT-4o (OpenRouter)</option>
                 </select>
+              </div>
+              <div class="field">
+                <label for="credentialStage3">API credential</label>
+                <select id="credentialStage3">
+                  <option value="">Auto-select for provider</option>
+                </select>
+                <small>Deep dives can use a premium key (e.g., GPT-5). Leave blank to let the system pick automatically.</small>
               </div>
               <div class="field">
                 <label for="stage3InputTokens">Tokens in (per finalist)</label>
@@ -725,6 +747,7 @@
           <div class="planner-actions">
             <button class="btn-primary" type="button" id="startRunBtn">Start automated run</button>
             <button class="btn-secondary" type="button" id="resetDefaultsBtn">Reset defaults</button>
+            <button class="btn ghost" type="button" id="refreshRegistryBtn">Refresh models &amp; keys</button>
             <span id="startRunStatus" role="status" aria-live="polite"></span>
           </div>
         </div>

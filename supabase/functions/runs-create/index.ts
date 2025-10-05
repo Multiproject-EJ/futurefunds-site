@@ -1,7 +1,14 @@
 import { serve } from 'https://deno.land/std@0.210.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
+import { resolveModel } from '../_shared/ai.ts';
 
 type JsonRecord = Record<string, unknown>;
+
+const DEFAULT_STAGE_MODELS = {
+  stage1: 'openrouter/gpt-4o-mini',
+  stage2: 'openrouter/gpt-5-mini',
+  stage3: 'openrouter/gpt-5-preview'
+};
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -25,6 +32,12 @@ function normalizeTicker(value: unknown): string | null {
   if (!trimmed) return null;
   if (!/^[A-Z0-9\-\.]+$/.test(trimmed)) return null;
   return trimmed;
+}
+
+function normalizeCredentialId(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  return trimmed ? trimmed : null;
 }
 
 function clamp(value: number, min: number, max: number) {
@@ -90,9 +103,14 @@ function isAdminContext(context: { user: JsonRecord | null; profile: JsonRecord 
   return false;
 }
 
-function sanitizeStage(input: any, fallback: { model: string; inTokens: number; outTokens: number }) {
+function sanitizeStage(
+  input: any,
+  fallback: { model: string; credentialId?: string | null; inTokens: number; outTokens: number }
+) {
   return {
-    model: typeof input?.model === 'string' ? input.model : fallback.model,
+    model: typeof input?.model === 'string' && input.model.trim() ? input.model.trim() : fallback.model,
+    credentialId:
+      normalizeCredentialId(input?.credentialId ?? null) ?? normalizeCredentialId(fallback?.credentialId ?? null),
     inTokens: clamp(asNumber(input?.inTokens, fallback.inTokens), 0, 1_000_000),
     outTokens: clamp(asNumber(input?.outTokens, fallback.outTokens), 0, 1_000_000)
   };
@@ -103,9 +121,9 @@ function sanitizePlanner(input: any) {
     universe: 40000,
     surviveStage2: 15,
     surviveStage3: 12,
-    stage1: { model: '4o-mini', inTokens: 3000, outTokens: 600 },
-    stage2: { model: '5-mini', inTokens: 30000, outTokens: 6000 },
-    stage3: { model: '5', inTokens: 100000, outTokens: 20000 }
+    stage1: { model: DEFAULT_STAGE_MODELS.stage1, credentialId: null, inTokens: 3000, outTokens: 600 },
+    stage2: { model: DEFAULT_STAGE_MODELS.stage2, credentialId: null, inTokens: 30000, outTokens: 6000 },
+    stage3: { model: DEFAULT_STAGE_MODELS.stage3, credentialId: null, inTokens: 100000, outTokens: 20000 }
   };
 
   const universe = clamp(asNumber(input?.universe, defaults.universe), 0, 60000);
@@ -122,33 +140,44 @@ function sanitizePlanner(input: any) {
   };
 }
 
-function estimateCost(planner: ReturnType<typeof sanitizePlanner>) {
+function estimateCost(
+  planner: ReturnType<typeof sanitizePlanner>,
+  stageModels: {
+    stage1: { price_in?: number | null; price_out?: number | null };
+    stage2: { price_in?: number | null; price_out?: number | null };
+    stage3: { price_in?: number | null; price_out?: number | null };
+  }
+) {
   const survivorsStage2 = Math.round(planner.universe * (planner.surviveStage2 / 100));
   const survivorsStage3 = Math.round(survivorsStage2 * (planner.surviveStage3 / 100));
 
-  const costs = {
-    '5': { in: 1.25, out: 10.0 },
-    '5-mini': { in: 0.25, out: 2.0 },
-    '4o-mini': { in: 0.15, out: 0.60 }
-  } as Record<string, { in: number; out: number }>;
-
-  const stageCost = (count: number, tokensIn: number, tokensOut: number, model: string) => {
-    const price = costs[model];
-    if (!price || !count) return 0;
-    const inCost = (count * tokensIn / 1_000_000) * price.in;
-    const outCost = (count * tokensOut / 1_000_000) * price.out;
+  const stageCost = (
+    count: number,
+    tokensIn: number,
+    tokensOut: number,
+    model: { price_in?: number | null; price_out?: number | null }
+  ) => {
+    if (!count) return 0;
+    const priceIn = Number(model?.price_in ?? 0);
+    const priceOut = Number(model?.price_out ?? 0);
+    const inCost = (count * tokensIn / 1_000_000) * priceIn;
+    const outCost = (count * tokensOut / 1_000_000) * priceOut;
     return inCost + outCost;
   };
 
-  const stage1 = stageCost(planner.universe, planner.stage1.inTokens, planner.stage1.outTokens, planner.stage1.model);
-  const stage2 = stageCost(survivorsStage2, planner.stage2.inTokens, planner.stage2.outTokens, planner.stage2.model);
-  const stage3 = stageCost(survivorsStage3, planner.stage3.inTokens, planner.stage3.outTokens, planner.stage3.model);
+  const stage1 = stageCost(planner.universe, planner.stage1.inTokens, planner.stage1.outTokens, stageModels.stage1);
+  const stage2 = stageCost(survivorsStage2, planner.stage2.inTokens, planner.stage2.outTokens, stageModels.stage2);
+  const stage3 = stageCost(survivorsStage3, planner.stage3.inTokens, planner.stage3.outTokens, stageModels.stage3);
 
   return {
     stage1,
     stage2,
     stage3,
-    total: stage1 + stage2 + stage3
+    total: stage1 + stage2 + stage3,
+    survivors: {
+      stage2: survivorsStage2,
+      stage3: survivorsStage3
+    }
   };
 }
 
@@ -230,6 +259,25 @@ serve(async (req) => {
     return jsonResponse(403, { error: 'Admin access required' });
   }
 
+  let stageModels: { stage1: any; stage2: any; stage3: any };
+  try {
+    stageModels = {
+      stage1: await resolveModel(supabaseAdmin, planner.stage1.model ?? '', DEFAULT_STAGE_MODELS.stage1),
+      stage2: await resolveModel(supabaseAdmin, planner.stage2.model ?? '', DEFAULT_STAGE_MODELS.stage2),
+      stage3: await resolveModel(supabaseAdmin, planner.stage3.model ?? '', DEFAULT_STAGE_MODELS.stage3)
+    };
+  } catch (error) {
+    console.error('Failed to resolve stage models', error);
+    return jsonResponse(500, {
+      error: 'Model configuration error',
+      details: error instanceof Error ? error.message : String(error)
+    });
+  }
+
+  planner.stage1.model = stageModels.stage1.slug;
+  planner.stage2.model = stageModels.stage2.slug;
+  planner.stage3.model = stageModels.stage3.slug;
+
   let tickers = normalizedTickers;
   if (tickers.length === 0) {
     const { data, error } = await supabaseAdmin
@@ -255,9 +303,34 @@ serve(async (req) => {
     return jsonResponse(404, { error: 'No tickers available to enqueue' });
   }
 
+  const estimatedCost = estimateCost(planner, stageModels);
+
   const runSummary = {
     planner,
-    estimated_cost: estimateCost(planner),
+    estimated_cost: estimatedCost,
+    resolved_models: {
+      stage1: {
+        slug: stageModels.stage1.slug,
+        label: stageModels.stage1.label ?? null,
+        provider: stageModels.stage1.provider,
+        price_in: stageModels.stage1.price_in ?? 0,
+        price_out: stageModels.stage1.price_out ?? 0
+      },
+      stage2: {
+        slug: stageModels.stage2.slug,
+        label: stageModels.stage2.label ?? null,
+        provider: stageModels.stage2.provider,
+        price_in: stageModels.stage2.price_in ?? 0,
+        price_out: stageModels.stage2.price_out ?? 0
+      },
+      stage3: {
+        slug: stageModels.stage3.slug,
+        label: stageModels.stage3.label ?? null,
+        provider: stageModels.stage3.provider,
+        price_in: stageModels.stage3.price_in ?? 0,
+        price_out: stageModels.stage3.price_out ?? 0
+      }
+    },
     requested_tickers: normalizedTickers.length,
     resolved_tickers: tickers.length,
     created_at: new Date().toISOString(),
@@ -300,6 +373,7 @@ serve(async (req) => {
     run_id: runId,
     total_items: runItems.length,
     planner,
-    estimated_cost: runSummary.estimated_cost
+    estimated_cost: runSummary.estimated_cost,
+    resolved_models: runSummary.resolved_models
   });
 });
