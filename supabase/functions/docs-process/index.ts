@@ -5,6 +5,7 @@ import {
   resolveCredential,
   requestEmbedding
 } from '../_shared/ai.ts';
+import { recordErrorLog } from '../_shared/observability.ts';
 
 type PdfJsModule = typeof import('https://esm.sh/pdfjs-dist@3.11.174/legacy/build/pdf.js');
 
@@ -101,9 +102,21 @@ function isAdminContext(context: { user: JsonRecord | null; profile: JsonRecord 
   return false;
 }
 
-async function logError(client: ReturnType<typeof createClient>, context: string, message: string, payload: JsonRecord) {
+async function logError(
+  client: ReturnType<typeof createClient>,
+  context: string,
+  message: string,
+  payload: JsonRecord
+) {
   try {
-    await client.from('error_logs').insert({ context, message, payload });
+    await recordErrorLog(client, {
+      context,
+      message,
+      stage: null,
+      promptId: context,
+      payload,
+      metadata: payload
+    });
   } catch (error) {
     console.error('Failed to log error', error);
   }

@@ -5,8 +5,17 @@ import {
   resolveCredential,
   computeUsageCost,
   requestChatCompletion,
-  requestEmbedding
+  requestEmbedding,
+  withRetry
 } from '../_shared/ai.ts';
+import { validateStage2Response, explainValidation } from '../_shared/prompt-validators.ts';
+import { recordErrorLog } from '../_shared/observability.ts';
+import {
+  applyRequestSettings,
+  getStageConfig,
+  unpackRetrySettings
+} from '../_shared/model-config.ts';
+import { loadPromptTemplate, renderTemplate } from '../_shared/prompt-loader.ts';
 
 type JsonRecord = Record<string, unknown>;
 
@@ -62,18 +71,20 @@ const jsonHeaders = {
   'Cache-Control': 'no-store'
 };
 
-const DEFAULT_STAGE2_MODEL = 'openrouter/gpt-5-mini';
+const stageDefaults = getStageConfig('stage2');
+const DEFAULT_STAGE2_MODEL = stageDefaults?.default_model ?? 'openrouter/gpt-5-mini';
+const FALLBACK_STAGE2_MODEL = stageDefaults?.fallback_model ?? 'openai/gpt-4o-mini';
+const EMBEDDING_MODEL_SLUG = stageDefaults?.embedding_model ?? 'openai/text-embedding-3-small';
+const stageRequestSettings = stageDefaults?.request ?? null;
+const stageRetry = unpackRetrySettings(stageDefaults?.retry);
+const systemPromptTemplate = loadPromptTemplate('stage2/system');
+const userPromptTemplate = loadPromptTemplate('stage2/user');
+const MAX_RETRIEVAL_SNIPPETS = 6;
 
 const EMBEDDING_MODEL_SLUG = 'openai/text-embedding-3-small';
 const MAX_RETRIEVAL_SNIPPETS = 6;
 
 const SURVIVOR_LABELS = new Set(['consider', 'borderline']);
-
-const SYSTEM_PROMPT =
-  `You are a buy-side equity analyst performing a thematic scoring pass. ` +
-  `Return strict JSON with the shape {"scores": {"profitability": {"score": int, "rationale": string}, "reinvestment": {"score": int, "rationale": string}, "leverage": {"score": int, "rationale": string}, "moat": {"score": int, "rationale": string}, "timing": {"score": int, "rationale": string}}, ` +
-  `"verdict": {"go_deep": boolean, "summary": string, "risks": [string], "opportunities": [string]}, "next_steps": [string]}. ` +
-  `Scores must be integers from 0-10. Keep rationales under 160 characters and ground all commentary in the provided facts.`;
 
 function jsonResponse(status: number, body: JsonRecord) {
   return new Response(JSON.stringify(body), { status, headers: jsonHeaders });
@@ -321,28 +332,14 @@ async function fetchRetrievedSnippets(
   };
 }
 
-function buildUserPrompt(
-  ticker: string,
-  meta: Record<string, unknown>,
-  stage1: JsonRecord | null,
-  sectorNotes: string | null,
-  retrieved: RetrievedSnippet[]
-) {
+function formatStage1Block(stage1: JsonRecord | null) {
   const lines: string[] = [];
-  lines.push(`Ticker: ${ticker}`);
-  lines.push(`Name: ${meta.name ?? 'Unknown'}`);
-  lines.push(`Exchange: ${meta.exchange ?? 'n/a'}`);
-  lines.push(`Country: ${meta.country ?? 'n/a'}`);
-  lines.push(`Sector: ${meta.sector ?? 'n/a'}`);
-  lines.push(`Industry: ${meta.industry ?? 'n/a'}`);
-  lines.push('');
-
   const stage1Label = stage1?.label ?? stage1?.classification ?? null;
   if (stage1Label) {
     lines.push(`Stage 1 classification: ${stage1Label}`);
   }
-  const reasons = Array.isArray(stage1?.reasons) ? stage1?.reasons : [];
-  if (reasons && reasons.length) {
+  const reasons = Array.isArray(stage1?.reasons) ? stage1.reasons : [];
+  if (reasons.length) {
     lines.push('Stage 1 reasons:');
     reasons.slice(0, 4).forEach((reason: unknown, index: number) => {
       lines.push(`  ${index + 1}. ${String(reason)}`);
@@ -358,41 +355,69 @@ function buildUserPrompt(
       flagEntries.slice(0, 4).forEach((flag) => lines.push(`  - ${flag}`));
     }
   }
-
   if (typeof stage1?.summary === 'string' && stage1.summary.trim()) {
     lines.push('Stage 1 summary:');
     lines.push(stage1.summary.trim());
   }
-
-  if (sectorNotes) {
-    lines.push('');
-    lines.push('Sector heuristics to consider:');
-    lines.push(sectorNotes);
+  if (!lines.length) {
+    lines.push('Stage 1 context unavailable.');
   }
-
-  lines.push('');
-  if (retrieved.length) {
-    lines.push('Retrieved context (cite facts using [D1], [D2], etc.):');
-    retrieved.forEach((snippet) => {
-      lines.push(`[${snippet.ref}] ${snippet.chunk}`);
-      const parts: string[] = [];
-      if (snippet.title) parts.push(snippet.title);
-      if (snippet.source_type) parts.push(snippet.source_type);
-      if (snippet.published_at) parts.push(new Date(snippet.published_at).toISOString().slice(0, 10));
-      const sourceLine = parts.length ? parts.join(' · ') : 'Source metadata unavailable';
-      lines.push(`Source: ${sourceLine}`);
-      if (snippet.source_url) {
-        lines.push(`URL: ${snippet.source_url}`);
-      }
-      lines.push('');
-    });
-  } else {
-    lines.push('No retrieval snippets available for this ticker. Cite fundamental context only.');
-  }
-
-  lines.push('');
-  lines.push('Deliver mid-depth scoring with crisp rationales tied to these facts and cite supporting snippets as [D#].');
   return lines.join('\n');
+}
+
+function formatSectorNotesBlock(sectorNotes: string | null) {
+  if (typeof sectorNotes === 'string' && sectorNotes.trim()) {
+    return `Sector heuristics to consider:\n${sectorNotes.trim()}`;
+  }
+  return 'Sector heuristics unavailable.';
+}
+
+function formatRetrievalBlock(retrieved: RetrievedSnippet[]) {
+  if (!retrieved.length) {
+    return 'No retrieval snippets available for this ticker. Cite fundamental context only.';
+  }
+  const lines: string[] = ['Retrieved context (cite facts using [D1], [D2], etc.):'];
+  retrieved.forEach((snippet) => {
+    lines.push(`[${snippet.ref}] ${snippet.chunk}`);
+    const parts: string[] = [];
+    if (snippet.title) parts.push(snippet.title);
+    if (snippet.source_type) parts.push(snippet.source_type);
+    if (snippet.published_at) {
+      try {
+        parts.push(new Date(snippet.published_at).toISOString().slice(0, 10));
+      } catch (_error) {
+        // ignore invalid date formats
+      }
+    }
+    const sourceLine = parts.length ? parts.join(' · ') : 'Source metadata unavailable';
+    lines.push(`Source: ${sourceLine}`);
+    if (snippet.source_url) {
+      lines.push(`URL: ${snippet.source_url}`);
+    }
+    lines.push('');
+  });
+  return lines.join('\n');
+}
+
+async function buildUserPrompt(
+  ticker: string,
+  meta: Record<string, unknown>,
+  stage1: JsonRecord | null,
+  sectorNotes: string | null,
+  retrieved: RetrievedSnippet[]
+) {
+  const template = await userPromptTemplate;
+  return renderTemplate(template, {
+    ticker,
+    name: String(meta.name ?? 'Unknown'),
+    exchange: String(meta.exchange ?? 'n/a'),
+    country: String(meta.country ?? 'n/a'),
+    sector: String(meta.sector ?? 'n/a'),
+    industry: String(meta.industry ?? 'n/a'),
+    stage1_block: formatStage1Block(stage1),
+    sector_notes_block: formatSectorNotesBlock(sectorNotes),
+    retrieval_block: formatRetrievalBlock(retrieved)
+  });
 }
 
 function extractSummary(answer: JsonRecord) {
@@ -528,8 +553,9 @@ serve(async (req) => {
   const stageConfig = extractStageConfig(plannerNotes, 'stage2');
 
   let modelRecord;
+  const desiredModel = stageConfig.model?.trim() || DEFAULT_STAGE2_MODEL;
   try {
-    modelRecord = await resolveModel(supabaseAdmin, stageConfig.model ?? '', DEFAULT_STAGE2_MODEL);
+    modelRecord = await resolveModel(supabaseAdmin, desiredModel, FALLBACK_STAGE2_MODEL);
   } catch (error) {
     console.error('Stage 2 model configuration error', error);
     return jsonResponse(500, {
@@ -623,6 +649,9 @@ serve(async (req) => {
   for (const item of items) {
     const ticker = item.ticker as string;
     const startedAt = new Date().toISOString();
+    let rawMessage = '{}';
+    let parsed: JsonRecord = {};
+    let retrievalMeta: JsonRecord | null = null;
 
     try {
       const meta = await fetchTickerMeta(supabaseAdmin, ticker);
@@ -638,6 +667,11 @@ serve(async (req) => {
       });
       totalRetrievalHits += retrieval.snippets.length;
       totalEmbeddingTokens += retrieval.tokens;
+      retrievalMeta = {
+        hits: retrieval.snippets.length,
+        tokens: retrieval.tokens,
+        citations: retrieval.citations
+      };
 
       if (!SURVIVOR_LABELS.has(normalizeLabel(item.label))) {
         results.push({
@@ -656,24 +690,53 @@ serve(async (req) => {
         continue;
       }
 
-      const completion = await requestChatCompletion(modelRecord, credentialRecord, {
-        temperature: 0.2,
-        response_format: { type: 'json_object' },
-        messages: [
-          { role: 'system', content: SYSTEM_PROMPT },
-          {
-            role: 'user',
-            content: buildUserPrompt(ticker, meta, stage1Answer, sectorNotes, retrieval.snippets)
-          }
-        ]
-      });
+      const [systemPrompt, userPrompt] = await Promise.all([
+        systemPromptTemplate,
+        buildUserPrompt(ticker, meta, stage1Answer, sectorNotes, retrieval.snippets)
+      ]);
+      const requestBody = applyRequestSettings(
+        {
+          response_format: { type: 'json_object' },
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userPrompt }
+          ]
+        },
+        stageRequestSettings
+      );
+      const completion = await withRetry(
+        stageRetry.attempts,
+        stageRetry.backoffMs,
+        () => requestChatCompletion(modelRecord, credentialRecord, requestBody),
+        { jitter: stageRetry.jitter }
+      );
 
-      const rawMessage = completion?.choices?.[0]?.message?.content ?? '{}';
-      let parsed: JsonRecord;
+      rawMessage = completion?.choices?.[0]?.message?.content ?? '{}';
       try {
         parsed = JSON.parse(rawMessage);
       } catch (error) {
-        throw new Error(`Failed to parse model response JSON: ${error instanceof Error ? error.message : String(error)}`);
+        const parseMessage = error instanceof Error ? error.message : String(error);
+        const parseError = new Error(`Failed to parse model response JSON: ${parseMessage}`);
+        (parseError as Error & { logPayload?: JsonRecord }).logPayload = {
+          raw_response: rawMessage,
+          parse_error: parseMessage,
+          retrieval: retrievalMeta
+        };
+        throw parseError;
+      }
+
+      const validation = validateStage2Response(parsed);
+      if (!validation.valid) {
+        const validationError = new Error(
+          `Stage 2 schema validation failed: ${explainValidation(validation)}`
+        );
+        (validationError as Error & { logPayload?: JsonRecord }).logPayload = {
+          raw_response: rawMessage,
+          validation_errors: validation.errors,
+          parsed,
+          retrieval: retrievalMeta
+        };
+        throw validationError;
       }
 
       const usage = completion?.usage ?? {};
@@ -736,6 +799,41 @@ serve(async (req) => {
       console.error(`Stage 2 processing failed for ${ticker}`, error);
       failures += 1;
       const message = error instanceof Error ? error.message : String(error);
+
+      const basePayload: JsonRecord =
+        error && typeof (error as { logPayload?: JsonRecord }).logPayload === 'object'
+          ? { ...(error as { logPayload?: JsonRecord }).logPayload }
+          : {};
+      if (!basePayload.raw_response) {
+        basePayload.raw_response = rawMessage;
+      }
+      if (!basePayload.retrieval && retrievalMeta) {
+        basePayload.retrieval = retrievalMeta;
+      }
+      basePayload.error_message = message;
+      basePayload.ticker = ticker;
+
+      await recordErrorLog(supabaseAdmin, {
+        context: 'stage2-consume',
+        message,
+        runId: runRow.id,
+        ticker,
+        stage: 2,
+        promptId: 'stage2-medium',
+        payload: {
+          ...basePayload,
+          run_item: {
+            status: item.status,
+            stage: item.stage,
+            label: item.label,
+            spend_est_usd: item.spend_est_usd
+          }
+        },
+        metadata: {
+          planner_model: stageConfig.model,
+          planner_credential: stageConfig.credentialId
+        }
+      });
 
       await supabaseAdmin
         .from('run_items')

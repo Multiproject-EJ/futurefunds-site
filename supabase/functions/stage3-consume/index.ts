@@ -5,8 +5,21 @@ import {
   resolveCredential,
   computeUsageCost,
   requestChatCompletion,
-  requestEmbedding
+  requestEmbedding,
+  withRetry
 } from '../_shared/ai.ts';
+import {
+  validateStage3QuestionResponse,
+  validateStage3SummaryResponse,
+  explainValidation
+} from '../_shared/prompt-validators.ts';
+import { recordErrorLog } from '../_shared/observability.ts';
+import {
+  applyRequestSettings,
+  getStageConfig,
+  unpackRetrySettings
+} from '../_shared/model-config.ts';
+import { loadPromptTemplate, renderTemplate } from '../_shared/prompt-loader.ts';
 
 type JsonRecord = Record<string, unknown>;
 
@@ -108,8 +121,16 @@ const jsonHeaders = {
   'Cache-Control': 'no-store'
 };
 
-const DEFAULT_STAGE3_MODEL = 'openrouter/gpt-5-preview';
-const EMBEDDING_MODEL_SLUG = 'openai/text-embedding-3-small';
+const stageDefaults = getStageConfig('stage3');
+const DEFAULT_STAGE3_MODEL = stageDefaults?.default_model ?? 'openrouter/gpt-5-preview';
+const FALLBACK_STAGE3_MODEL = stageDefaults?.fallback_model ?? 'openrouter/gpt-5-mini';
+const EMBEDDING_MODEL_SLUG = stageDefaults?.embedding_model ?? 'openai/text-embedding-3-small';
+const stageRequestSettings = stageDefaults?.request ?? null;
+const stageRetry = unpackRetrySettings(stageDefaults?.retry);
+const questionSystemTemplate = loadPromptTemplate('stage3/question-system');
+const questionUserTemplate = loadPromptTemplate('stage3/question-user');
+const summarySystemTemplate = loadPromptTemplate('stage3/summary-system');
+const summaryUserTemplate = loadPromptTemplate('stage3/summary-user');
 const MAX_RETRIEVAL_SNIPPETS = 8;
 
 function jsonResponse(status: number, body: JsonRecord) {
@@ -495,43 +516,33 @@ function digestDependencies(question: QuestionDefinition, cache: Map<string, Que
   return lines.join('\n');
 }
 
-function buildQuestionPrompt(
+async function buildQuestionPrompt(
   context: { ticker: string; meta: Record<string, unknown>; stage1: string; stage2: string; docs: string },
   question: QuestionDefinition,
   dependencyDigest: string
 ) {
-  const header = [
-    `Ticker: ${context.ticker}`,
-    `Name: ${context.meta.name ?? 'Unknown'}`,
-    `Exchange: ${context.meta.exchange ?? 'n/a'}`,
-    `Country: ${context.meta.country ?? 'n/a'}`,
-    `Sector: ${context.meta.sector ?? 'n/a'}`,
-    `Industry: ${context.meta.industry ?? 'n/a'}`,
-    '',
-    'Stage 1 triage:',
-    context.stage1,
-    '',
-    'Stage 2 medium verdict:',
-    context.stage2,
-    '',
-    'Retrieved excerpts (cite as [D#]):',
-    context.docs,
-    '',
-    'Dependency notes:',
-    dependencyDigest
-  ].join('\n');
-
+  const [systemTemplate, userTemplate] = await Promise.all([questionSystemTemplate, questionUserTemplate]);
   const schema = JSON.stringify(question.answer_schema ?? DEFAULT_SCHEMA, null, 2);
-  const guidance = question.guidance ? `\nGuidance: ${question.guidance}` : '';
-
+  const guidanceBlock = question.guidance ? `Guidance: ${question.guidance}` : '';
   return {
-    system:
-      'You are a senior equity researcher. Respond ONLY with strict JSON following the provided schema. Do not add prose outside JSON.',
-    user:
-      `${header}\n\nDimension focus: ${question.dimension.name} (${question.dimension.slug})` +
-      `\nObjective: ${question.prompt}${guidance}` +
-      `\n\nReturn JSON with this schema:\n${schema}` +
-      '\n\nAlways cite referenced evidence using the [D#] markers from the retrieved excerpts.'
+    system: systemTemplate,
+    user: renderTemplate(userTemplate, {
+      ticker: context.ticker,
+      name: String(context.meta.name ?? 'Unknown'),
+      exchange: String(context.meta.exchange ?? 'n/a'),
+      country: String(context.meta.country ?? 'n/a'),
+      sector: String(context.meta.sector ?? 'n/a'),
+      industry: String(context.meta.industry ?? 'n/a'),
+      stage1: context.stage1,
+      stage2: context.stage2,
+      docs: context.docs,
+      dependencies: dependencyDigest,
+      dimension_name: question.dimension.name,
+      dimension_slug: question.dimension.slug,
+      objective: question.prompt,
+      guidance_block: guidanceBlock,
+      schema
+    })
   };
 }
 
@@ -614,7 +625,7 @@ function computeDimensionSummaries(outcomes: QuestionOutcome[]) {
   });
 }
 
-function buildSummaryPrompt(
+async function buildSummaryPrompt(
   context: { ticker: string; meta: Record<string, unknown>; stage1: string; stage2: string; docs: string },
   dimensionSummaries: ReturnType<typeof computeDimensionSummaries>
 ) {
@@ -637,13 +648,12 @@ function buildSummaryPrompt(
     scoreboard
   };
 
+  const [systemTemplate, userTemplate] = await Promise.all([summarySystemTemplate, summaryUserTemplate]);
   return {
-    system:
-      'You are preparing an investment memo. Respond ONLY in JSON matching {"verdict": "bad|neutral|good", "confidence": int, "thesis": string, "watch_items": [string], "next_actions": [string], "scoreboard": array}.' +
-      ' Confidence must be 0-100. Thesis <= 220 words. Watch_items and next_actions max 5 entries each.',
-    user:
-      `Context:\n${JSON.stringify(payload, null, 2)}\n\nCompose final verdict, conviction, thesis, watch items, next actions, and echo the supplied scoreboard.` +
-      '\n\nCite supporting evidence using the [D#] markers embedded in the retrieved excerpts.'
+    system: systemTemplate,
+    user: renderTemplate(userTemplate, {
+      context_json: JSON.stringify(payload, null, 2)
+    })
   };
 }
 
@@ -743,8 +753,9 @@ serve(async (req) => {
   const stageConfig = extractStageConfig(plannerNotes, 'stage3');
 
   let modelRecord;
+  const desiredModel = stageConfig.model?.trim() || DEFAULT_STAGE3_MODEL;
   try {
-    modelRecord = await resolveModel(supabaseAdmin, stageConfig.model ?? '', DEFAULT_STAGE3_MODEL);
+    modelRecord = await resolveModel(supabaseAdmin, desiredModel, FALLBACK_STAGE3_MODEL);
   } catch (error) {
     console.error('Stage 3 model configuration error', error);
     return jsonResponse(500, {
@@ -818,27 +829,120 @@ serve(async (req) => {
     }
   }
 
-  const runJsonPrompt = async (systemPrompt: string, userPrompt: string) => {
-    const completion = await requestChatCompletion(modelRecord, credentialRecord, {
-      temperature: 0.1,
-      response_format: { type: 'json_object' },
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt }
-      ]
-    });
-
-    const rawMessage = completion?.choices?.[0]?.message?.content ?? '{}';
-    let parsed: JsonRecord;
-    try {
-      parsed = JSON.parse(rawMessage);
-    } catch (error) {
-      throw new Error(`Failed to parse model response JSON: ${error instanceof Error ? error.message : String(error)}`);
+  const runJsonPrompt = async (
+    systemPrompt: string,
+    userPrompt: string,
+    {
+      promptId,
+      ticker,
+      validator,
+      metadata
+    }: {
+      promptId: string;
+      ticker: string;
+      validator?: (payload: JsonRecord) => { valid: boolean; errors: string[] };
+      metadata?: JsonRecord | null;
     }
+  ) => {
+    let rawMessage = '{}';
+    try {
+      const requestBody = applyRequestSettings(
+        {
+          response_format: { type: 'json_object' },
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userPrompt }
+          ]
+        },
+        stageRequestSettings
+      );
+      const completion = await withRetry(
+        stageRetry.attempts,
+        stageRetry.backoffMs,
+        () => requestChatCompletion(modelRecord, credentialRecord, requestBody),
+        { jitter: stageRetry.jitter }
+      );
 
-    const usage = completion?.usage ?? {};
-    const { cost, promptTokens, completionTokens } = computeUsageCost(modelRecord, usage);
-    return { parsed, cost, promptTokens, completionTokens };
+      rawMessage = completion?.choices?.[0]?.message?.content ?? '{}';
+      let parsed: JsonRecord;
+      try {
+        parsed = JSON.parse(rawMessage);
+      } catch (error) {
+        const parseMessage = error instanceof Error ? error.message : String(error);
+        const logPayload: JsonRecord = { raw_response: rawMessage, parse_error: parseMessage, metadata };
+        await recordErrorLog(supabaseAdmin, {
+          context: 'stage3-consume',
+          message: `Failed to parse model response JSON: ${parseMessage}`,
+          runId: runRow.id,
+          ticker,
+          stage: 3,
+          promptId,
+          payload: logPayload
+        });
+        const parseError = new Error(`Failed to parse model response JSON: ${parseMessage}`);
+        (parseError as Error & { logPayload?: JsonRecord; logged?: boolean }).logPayload = logPayload;
+        (parseError as Error & { logged?: boolean }).logged = true;
+        throw parseError;
+      }
+
+      if (validator) {
+        const validation = validator(parsed);
+        if (!validation.valid) {
+          const details = explainValidation(validation);
+          const logPayload: JsonRecord = {
+            raw_response: rawMessage,
+            validation_errors: validation.errors,
+            parsed,
+            metadata
+          };
+          await recordErrorLog(supabaseAdmin, {
+            context: 'stage3-consume',
+            message: `Stage 3 schema validation failed: ${details}`,
+            runId: runRow.id,
+            ticker,
+            stage: 3,
+            promptId,
+            payload: logPayload
+          });
+          const validationError = new Error(`Stage 3 schema validation failed: ${details}`);
+          (validationError as Error & { logPayload?: JsonRecord; logged?: boolean }).logPayload = logPayload;
+          (validationError as Error & { logged?: boolean }).logged = true;
+          throw validationError;
+        }
+      }
+
+      const usage = completion?.usage ?? {};
+      const { cost, promptTokens, completionTokens } = computeUsageCost(modelRecord, usage);
+      return { parsed, cost, promptTokens, completionTokens };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      const basePayload: JsonRecord =
+        error && typeof (error as { logPayload?: JsonRecord }).logPayload === 'object'
+          ? { ...(error as { logPayload?: JsonRecord }).logPayload }
+          : {};
+      if (!basePayload.raw_response) {
+        basePayload.raw_response = rawMessage;
+      }
+      if (metadata && !basePayload.metadata) {
+        basePayload.metadata = metadata;
+      }
+
+      if (!(error as { logged?: boolean }).logged) {
+        await recordErrorLog(supabaseAdmin, {
+          context: 'stage3-consume',
+          message,
+          runId: runRow.id,
+          ticker,
+          stage: 3,
+          promptId,
+          payload: basePayload
+        });
+        (error as { logged?: boolean }).logged = true;
+      }
+
+      (error as { logPayload?: JsonRecord }).logPayload = basePayload;
+      throw error;
+    }
   };
 
   const { data: pending, error: pendingError } = await supabaseAdmin
@@ -917,8 +1021,21 @@ serve(async (req) => {
 
       for (const question of questionDefinitions) {
         const dependencyNotes = digestDependencies(question, questionCache);
-        const prompt = buildQuestionPrompt(context, question, dependencyNotes);
-        const { parsed, cost, promptTokens, completionTokens } = await runJsonPrompt(prompt.system, prompt.user);
+        const prompt = await buildQuestionPrompt(context, question, dependencyNotes);
+        const { parsed, cost, promptTokens, completionTokens } = await runJsonPrompt(
+          prompt.system,
+          prompt.user,
+          {
+            promptId: question.slug,
+            ticker,
+            validator: validateStage3QuestionResponse,
+            metadata: {
+              question: question.slug,
+              dimension: question.dimension.slug,
+              depends_on: question.depends_on
+            }
+          }
+        );
         totalCost += cost;
 
         const verdict = normalizeVerdictValue(
@@ -1039,13 +1156,21 @@ serve(async (req) => {
           );
       }
 
-      const summaryPrompt = buildSummaryPrompt(context, dimensionSummaries);
+      const summaryPrompt = await buildSummaryPrompt(context, dimensionSummaries);
       const {
         parsed: summaryJson,
         cost: summaryCost,
         promptTokens: summaryPromptTokens,
         completionTokens: summaryCompletionTokens
-      } = await runJsonPrompt(summaryPrompt.system, summaryPrompt.user);
+      } = await runJsonPrompt(summaryPrompt.system, summaryPrompt.user, {
+        promptId: 'stage3-summary',
+        ticker,
+        validator: validateStage3SummaryResponse,
+        metadata: {
+          ticker,
+          question_count: questionDefinitions.length
+        }
+      });
       totalCost += summaryCost;
 
       summaryJson.context_citations = retrieval.citations;
@@ -1120,6 +1245,33 @@ serve(async (req) => {
       console.error(`Stage 3 processing failed for ${ticker}`, error);
       failures += 1;
       const message = error instanceof Error ? error.message : String(error);
+
+      const basePayload: JsonRecord =
+        error && typeof (error as { logPayload?: JsonRecord }).logPayload === 'object'
+          ? { ...(error as { logPayload?: JsonRecord }).logPayload }
+          : {};
+      if (!(error as { logged?: boolean }).logged) {
+        if (!basePayload.ticker) basePayload.ticker = ticker;
+        basePayload.run_item = {
+          status: item.status,
+          stage: item.stage,
+          spend_est_usd: item.spend_est_usd
+        };
+        await recordErrorLog(supabaseAdmin, {
+          context: 'stage3-consume',
+          message,
+          runId: runRow.id,
+          ticker,
+          stage: 3,
+          promptId: 'stage3-run',
+          payload: basePayload,
+          metadata: {
+            planner_model: stageConfig.model,
+            planner_credential: stageConfig.credentialId
+          }
+        });
+        (error as { logged?: boolean }).logged = true;
+      }
 
       await supabaseAdmin
         .from('run_items')

@@ -1,4 +1,5 @@
 import type { SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
+import { getStaticModel } from './model-config.ts';
 
 export type AIModel = {
   slug: string;
@@ -120,9 +121,37 @@ export async function resolveModel(
 ): Promise<AIModel> {
   const primary = await fetchModel(client, slug);
   if (primary) return primary;
+  const staticPrimary = getStaticModel(slug);
+  if (staticPrimary) {
+    return normalizeModel({
+      slug: staticPrimary.slug ?? slug,
+      label: staticPrimary.label,
+      provider: staticPrimary.provider,
+      model_name: staticPrimary.model_name,
+      base_url: (staticPrimary.metadata as Record<string, unknown> | undefined)?.base_url,
+      tier: (staticPrimary.metadata as Record<string, unknown> | undefined)?.tier,
+      price_in: staticPrimary.price_in,
+      price_out: staticPrimary.price_out,
+      metadata: staticPrimary.metadata
+    });
+  }
   if (fallbackSlug) {
     const fallback = await fetchModel(client, fallbackSlug);
     if (fallback) return fallback;
+    const staticFallback = getStaticModel(fallbackSlug);
+    if (staticFallback) {
+      return normalizeModel({
+        slug: staticFallback.slug ?? fallbackSlug,
+        label: staticFallback.label,
+        provider: staticFallback.provider,
+        model_name: staticFallback.model_name,
+        base_url: (staticFallback.metadata as Record<string, unknown> | undefined)?.base_url,
+        tier: (staticFallback.metadata as Record<string, unknown> | undefined)?.tier,
+        price_in: staticFallback.price_in,
+        price_out: staticFallback.price_out,
+        metadata: staticFallback.metadata
+      });
+    }
   }
   throw new Error(`Model "${slug || fallbackSlug || 'unknown'}" is not configured`);
 }
@@ -323,4 +352,53 @@ export async function requestEmbedding(
     throw new Error(`Embedding request failed (${response.status}): ${text}`);
   }
   return await response.json();
+}
+
+function defaultRetryClassifier(error: unknown) {
+  if (!error) return false;
+  const message = error instanceof Error ? error.message : String(error);
+  const normalized = message.toLowerCase();
+  return /429|rate limit|timeout|econnreset|etimedout|503|502|504|overloaded/.test(normalized);
+}
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+export async function withRetry<T>(
+  attempts: number,
+  backoffMs: number,
+  task: (attempt: number) => Promise<T>,
+  options: {
+    jitter?: number;
+    shouldRetry?: (error: unknown) => boolean;
+    onRetry?: (error: unknown, attempt: number) => void;
+  } = {}
+): Promise<T> {
+  const maxAttempts = Math.max(1, Math.floor(attempts));
+  const baseBackoff = Math.max(0, backoffMs);
+  const jitter = Math.max(0, options.jitter ?? 0);
+  const shouldRetry = options.shouldRetry ?? defaultRetryClassifier;
+
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      return await task(attempt);
+    } catch (error) {
+      lastError = error;
+      if (attempt >= maxAttempts || !shouldRetry(error)) {
+        throw error;
+      }
+      try {
+        options.onRetry?.(error, attempt);
+      } catch (_err) {
+        // Swallow onRetry errors to avoid masking the original failure
+      }
+      const backoff = baseBackoff * attempt + (jitter ? Math.random() * jitter : 0);
+      if (backoff > 0) {
+        await sleep(backoff);
+      }
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error(String(lastError ?? 'retry failed'));
 }

@@ -39,6 +39,15 @@ multi-stage model runs and reporting:
 The analyst dashboard queries a handful of helper functions to avoid shipping large
 payloads to the browser:
 
+## Prompt templates & model registry
+
+- Markdown prompt templates now live under `/prompts`, grouped by stage. Each template supports
+  mustache-style interpolation tokens (e.g., `{{ticker}}`, `{{stage1_block}}`) rendered at runtime by
+  `supabase/functions/_shared/prompt-loader.ts`.
+- Static model metadata and stage-level request policies live in `config/models.json`. Edge functions
+  call `shared/model-config.js` to resolve default and fallback models, preferred cache settings, and
+  retry policies when Supabase lookups are unavailable.
+
 | Function | Purpose |
 | --- | --- |
 | `run_stage_status_counts(run_id uuid)` | Aggregates `run_items` into stage/status buckets for progress bars and totals. |
@@ -514,9 +523,16 @@ An IVFFlat index on `embedding` accelerates similarity search for the retrieval 
 | `context` | `text` | Logical component (e.g., `docs-process`). |
 | `message` | `text` | Short description of the failure. |
 | `payload` | `jsonb` | Structured blob (request params, stack traces). |
+| `run_id` | `uuid` | Optional pointer to the affected run. |
+| `ticker` | `text` | Optional ticker reference for per-run issues. |
+| `stage` | `int` | Stage that generated the failure (`null` for ingestion or misc). |
+| `prompt_id` | `text` | Prompt or function identifier captured by the worker. |
+| `retry_count` | `int` | Number of attempts recorded when the worker retried. |
+| `status_code` | `int` | HTTP status returned by the worker (if applicable). |
+| `metadata` | `jsonb` | Supplemental structured context (e.g., doc ID, embeddings). |
 | `created_at` | `timestamptz` | Defaults to `now()`. |
 
-Reuse this table for future worker instrumentation (Stages 12–13).
+Reuse this table for worker instrumentation (Stages 12–13) by logging run/ticker context, prompt identifiers, and structured payloads for observability dashboards.
 
 The Postgres RPC `match_doc_chunks(query_embedding double precision[], query_ticker text, match_limit int)` converts an array
 of floats into a `vector(1536)` and returns the top-k snippets ordered by cosine distance alongside document metadata. Workers

@@ -106,7 +106,19 @@ const inputs = {
   stage3RecentBody: $('stage3RecentBody'),
   sectorNotesList: $('sectorNotesList'),
   sectorNotesEmpty: $('sectorNotesEmpty'),
-  refreshRegistryBtn: $('refreshRegistryBtn')
+  refreshRegistryBtn: $('refreshRegistryBtn'),
+  observabilityPanel: $('observabilityPanel'),
+  refreshHealthBtn: $('refreshHealthBtn'),
+  refreshErrorsBtn: $('refreshErrorsBtn'),
+  healthDatabaseCard: $('healthDatabaseCard'),
+  healthDatabaseStatus: $('healthDatabaseStatus'),
+  healthDatabaseDetail: $('healthDatabaseDetail'),
+  healthOpenAICard: $('healthOpenAICard'),
+  healthOpenAIStatus: $('healthOpenAIStatus'),
+  healthOpenAIDetail: $('healthOpenAIDetail'),
+  healthCheckedAt: $('healthCheckedAt'),
+  errorLogStatus: $('errorLogStatus'),
+  errorLogBody: $('errorLogBody')
 };
 
 const notices = {
@@ -121,6 +133,7 @@ const STAGE2_CONSUME_ENDPOINT = `${FUNCTIONS_BASE}/stage2-consume`;
 const STAGE3_CONSUME_ENDPOINT = `${FUNCTIONS_BASE}/stage3-consume`;
 const RUNS_STOP_ENDPOINT = `${FUNCTIONS_BASE}/runs-stop`;
 const RUNS_CONTINUE_ENDPOINT = `${FUNCTIONS_BASE}/runs-continue`;
+const HEALTH_ENDPOINT = `${FUNCTIONS_BASE}/health`;
 const RUN_STORAGE_KEY = 'ff-active-run-id';
 
 let authContext = {
@@ -156,6 +169,9 @@ const AUTO_CONTINUE_DEFAULT_SECONDS = 30;
 let autoContinueTimer = null;
 let autoContinueActive = false;
 let autoContinueInFlight = false;
+let healthLoading = false;
+let errorLogLoading = false;
+let errorLogRows = [];
 
 function loadSettings() {
   try {
@@ -2670,6 +2686,18 @@ function applyAccessState({ preserveStatus = false } = {}) {
 
   updateAutoContinueAvailability();
 
+  if (inputs.observabilityPanel) {
+    const shouldShow = state === 'admin-ok';
+    inputs.observabilityPanel.hidden = !shouldShow;
+    if (shouldShow && previousState !== 'admin-ok') {
+      refreshHealthStatus({ silent: true });
+      refreshErrorLogs({ silent: true });
+    }
+    if (!shouldShow) {
+      setErrorLogStatus('');
+    }
+  }
+
   if (state === 'admin-ok' && previousState !== 'admin-ok') {
     subscribeSectorNotes();
     refreshSectorNotes({ silent: true });
@@ -2895,6 +2923,181 @@ function resetDefaults() {
   if (inputs.status) inputs.status.textContent = 'Defaults restored';
 }
 
+function formatRelativeTimestamp(value) {
+  if (!value) return 'Just now';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'Just now';
+  const delta = Date.now() - date.getTime();
+  if (delta < 60_000) return 'Just now';
+  if (delta < 3_600_000) {
+    const minutes = Math.floor(delta / 60_000);
+    return `${minutes} min${minutes === 1 ? '' : 's'} ago`;
+  }
+  if (delta < 86_400_000) {
+    const hours = Math.floor(delta / 3_600_000);
+    return `${hours} hour${hours === 1 ? '' : 's'} ago`;
+  }
+  return date.toLocaleString();
+}
+
+function updateHealthCard(card, statusEl, detailEl, check) {
+  if (!card || !statusEl || !detailEl) return;
+  const status = check?.status || 'unknown';
+  card.dataset.status = status;
+  let label = 'Unknown';
+  if (status === 'ok') label = 'Operational';
+  else if (status === 'degraded') label = 'Degraded';
+  else if (status === 'error') label = 'Offline';
+  statusEl.textContent = label;
+  const latency = typeof check?.latency_ms === 'number' ? ` · ${check.latency_ms} ms` : '';
+  detailEl.textContent = check?.message ? `${check.message}${latency}` : `Awaiting check${latency}`;
+}
+
+async function refreshHealthStatus({ silent = false } = {}) {
+  if (!authContext.isAdmin || !authContext.token) return;
+  if (healthLoading) return;
+  healthLoading = true;
+  if (!silent && inputs.healthCheckedAt) {
+    inputs.healthCheckedAt.textContent = 'Checking worker health…';
+  }
+  try {
+    const response = await fetch(HEALTH_ENDPOINT, {
+      headers: {
+        Authorization: `Bearer ${authContext.token}`
+      }
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(data?.error || `Health check failed (${response.status})`);
+    }
+    updateHealthCard(
+      inputs.healthDatabaseCard,
+      inputs.healthDatabaseStatus,
+      inputs.healthDatabaseDetail,
+      data?.checks?.database
+    );
+    updateHealthCard(
+      inputs.healthOpenAICard,
+      inputs.healthOpenAIStatus,
+      inputs.healthOpenAIDetail,
+      data?.checks?.openai
+    );
+    if (inputs.healthCheckedAt) {
+      inputs.healthCheckedAt.textContent = `Last checked ${formatRelativeTimestamp(data?.timestamp)}`;
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    updateHealthCard(
+      inputs.healthDatabaseCard,
+      inputs.healthDatabaseStatus,
+      inputs.healthDatabaseDetail,
+      { status: 'error', message }
+    );
+    updateHealthCard(
+      inputs.healthOpenAICard,
+      inputs.healthOpenAIStatus,
+      inputs.healthOpenAIDetail,
+      { status: 'error', message }
+    );
+    if (inputs.healthCheckedAt) {
+      inputs.healthCheckedAt.textContent = `Health check failed: ${message}`;
+    }
+  } finally {
+    healthLoading = false;
+  }
+}
+
+function setErrorLogStatus(message) {
+  if (inputs.errorLogStatus) {
+    inputs.errorLogStatus.textContent = message || '';
+  }
+}
+
+function renderErrorLogs(rows) {
+  const tbody = inputs.errorLogBody;
+  if (!tbody) return;
+  tbody.innerHTML = '';
+  if (!rows.length) {
+    const emptyRow = document.createElement('tr');
+    emptyRow.className = 'error-log__empty';
+    const cell = document.createElement('td');
+    cell.colSpan = 6;
+    cell.textContent = 'No failures recorded in the last 50 entries.';
+    emptyRow.append(cell);
+    tbody.append(emptyRow);
+    return;
+  }
+
+  rows.forEach((row) => {
+    const tr = document.createElement('tr');
+
+    const whenCell = document.createElement('td');
+    const created = row.created_at ? new Date(row.created_at) : null;
+    whenCell.textContent = created ? created.toLocaleString() : '—';
+    tr.append(whenCell);
+
+    const stageCell = document.createElement('td');
+    stageCell.textContent = Number.isFinite(row.stage) ? `Stage ${row.stage}` : row.context || '—';
+    tr.append(stageCell);
+
+    const tickerCell = document.createElement('td');
+    tickerCell.textContent = row.ticker || '—';
+    tr.append(tickerCell);
+
+    const promptCell = document.createElement('td');
+    promptCell.textContent = row.prompt_id || row.context || '—';
+    tr.append(promptCell);
+
+    const messageCell = document.createElement('td');
+    const summary = document.createElement('div');
+    summary.className = 'error-log__message';
+    summary.textContent = row.message || '—';
+    messageCell.append(summary);
+    if (row.payload || row.metadata) {
+      const details = document.createElement('details');
+      details.className = 'error-log__details';
+      const summaryEl = document.createElement('summary');
+      summaryEl.textContent = 'Payload';
+      details.append(summaryEl);
+      const pre = document.createElement('pre');
+      pre.textContent = JSON.stringify({ payload: row.payload, metadata: row.metadata }, null, 2);
+      details.append(pre);
+      messageCell.append(details);
+    }
+    tr.append(messageCell);
+
+    const retryCell = document.createElement('td');
+    retryCell.textContent = Number.isFinite(row.retry_count) ? String(row.retry_count) : '0';
+    tr.append(retryCell);
+
+    tbody.append(tr);
+  });
+}
+
+async function refreshErrorLogs({ silent = false } = {}) {
+  if (!authContext.isAdmin) return;
+  if (errorLogLoading) return;
+  errorLogLoading = true;
+  if (!silent) setErrorLogStatus('Loading error history…');
+  try {
+    const { data, error } = await supabase
+      .from('error_logs')
+      .select('id, created_at, stage, ticker, prompt_id, message, retry_count, context, payload, metadata')
+      .order('created_at', { ascending: false })
+      .limit(50);
+    if (error) throw error;
+    errorLogRows = data || [];
+    renderErrorLogs(errorLogRows);
+    setErrorLogStatus(`Updated ${formatRelativeTimestamp(new Date().toISOString())}`);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    setErrorLogStatus(`Failed to load error logs: ${message}`);
+    renderErrorLogs([]);
+  } finally {
+    errorLogLoading = false;
+  }
+}
+
 function bindEvents() {
   const inputElements = [
     inputs.universe,
@@ -2970,6 +3173,8 @@ function bindEvents() {
     logStatus('Registry refreshed.');
     inputs.status.textContent = 'Registry updated';
   });
+  inputs.refreshHealthBtn?.addEventListener('click', () => refreshHealthStatus());
+  inputs.refreshErrorsBtn?.addEventListener('click', () => refreshErrorLogs());
   inputs.autoContinueToggle?.addEventListener('change', handleAutoContinueToggle);
   inputs.autoContinueInterval?.addEventListener('change', () => {
     if (!autoContinueActive) return;
