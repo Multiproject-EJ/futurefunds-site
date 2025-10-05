@@ -1,4 +1,4 @@
-import { supabase, getUser, getProfile, getMembership, hasAdminRole } from './supabase.js';
+import { supabase, getUser, getProfile, getMembership, hasAdminRole, isMembershipActive } from './supabase.js';
 
 const params = new URLSearchParams(window.location.search);
 const state = {
@@ -10,6 +10,7 @@ const state = {
 
 const elements = {
   gate: document.getElementById('tickerGate'),
+  gateMessage: document.getElementById('tickerGateMessage'),
   content: document.getElementById('tickerContent'),
   title: document.getElementById('tickerTitle'),
   subtitle: document.getElementById('tickerSubtitle'),
@@ -224,20 +225,30 @@ function recallQuestionGraph() {
   return questionMemory.get(cacheKey()) ?? { dimension_scores: [], question_results: [] };
 }
 
+function setGate(message) {
+  if (elements.gateMessage) {
+    elements.gateMessage.textContent = message;
+  }
+  elements.gate.hidden = false;
+  elements.content.hidden = true;
+}
+
 async function ensureAccess() {
   const user = await getUser();
   if (!user) {
-    elements.gate.hidden = false;
-    elements.content.hidden = true;
+    setGate('Sign in with your FutureFunds.ai membership to open the full Stage 1–3 dossier.');
     return false;
   }
+
   const [profile, membership] = await Promise.all([getProfile(), getMembership()]);
-  if (!hasAdminRole({ user, profile, membership })) {
-    elements.gate.hidden = false;
-    elements.gate.querySelector('p').textContent = 'Only analyst operators and admins can view raw stage outputs. Contact the FutureFunds team to request access.';
-    elements.content.hidden = true;
+  const admin = hasAdminRole({ user, profile, membership });
+  const memberActive = isMembershipActive(membership, { profile, user });
+
+  if (!admin && !memberActive) {
+    setGate('An active FutureFunds.ai membership unlocks raw analyst dossiers and citations.');
     return false;
   }
+
   elements.gate.hidden = true;
   elements.content.hidden = false;
   return true;

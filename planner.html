@@ -1475,7 +1475,7 @@
     </nav>
   </header>
 
-  <main class="planner-shell planner-wrap">
+  <main class="planner-shell planner-wrap" data-gated="member">
     <header class="planner-headline">
       <a class="inline-link" href="/equity_analyst.html">← Back to analyst blueprint</a>
       <h1>Market Scan Planner & Cost Estimator</h1>
@@ -2021,7 +2021,20 @@
       </div>
     </div>
   </div>
-</main>
+
+    <div class="gate-cta">
+      <div class="gate-cta__inner">
+        <div>
+          <strong>Members only</strong>
+          <p>Join FutureFunds.ai or sign in to run automated analyst sweeps.</p>
+        </div>
+        <div class="gate-cta__actions">
+          <button class="btn primary" type="button" data-open-auth="signup">Join membership</button>
+          <button class="btn" type="button" data-open-auth="signin">Sign in</button>
+        </div>
+      </div>
+    </div>
+  </main>
 
 <button type="button" class="guided-fab" id="guidedFab" aria-label="Start guided walkthrough">
   <strong>Need a tour?</strong>

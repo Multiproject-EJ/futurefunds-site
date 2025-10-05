@@ -1244,6 +1244,27 @@ body.theme-light table.grid pre{
   border-top: 1px solid var(--border, #e6e9ee);
   backdrop-filter: blur(3px);
 }
+.gate-cta__inner{
+  width: min(520px, 100%);
+  display: grid;
+  gap: 12px;
+  justify-items: center;
+  text-align: center;
+}
+.gate-cta__inner strong{
+  font-size: 1rem;
+}
+.gate-cta__inner p{
+  margin: 0;
+  font-size: .9rem;
+  color: var(--muted, #475569);
+}
+.gate-cta__actions{
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: center;
+}
 .theme-dark .gate-cta{ background: rgba(15,23,42,.6); }
 
 /* ===== Auth modal ===== */

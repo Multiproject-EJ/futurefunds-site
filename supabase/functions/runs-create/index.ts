@@ -10,6 +10,14 @@ const DEFAULT_STAGE_MODELS = {
   stage3: 'openrouter/gpt-5-preview'
 };
 
+const DAILY_RUN_LIMIT = (() => {
+  const raw = Number(Deno.env.get('RUNS_DAILY_LIMIT') ?? '5');
+  if (!Number.isFinite(raw)) return 5;
+  const normalized = Math.floor(raw);
+  if (normalized < 0) return 0;
+  return normalized;
+})();
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -101,6 +109,19 @@ function isAdminContext(context: { user: JsonRecord | null; profile: JsonRecord 
     }
   }
   return false;
+}
+
+function isMembershipActiveRecord(record: JsonRecord | null | undefined) {
+  if (!record) return false;
+  const status = String(record.status ?? '').toLowerCase();
+  if (status && status !== 'active') {
+    return false;
+  }
+  const periodEnd = record.current_period_end ? new Date(String(record.current_period_end)).getTime() : NaN;
+  if (!Number.isNaN(periodEnd) && periodEnd < Date.now()) {
+    return false;
+  }
+  return true;
 }
 
 function sanitizeStage(
@@ -231,6 +252,7 @@ serve(async (req) => {
 
   const user = userData.user as JsonRecord;
   const userId = user?.id as string;
+  const userEmail = typeof user?.email === 'string' ? String(user.email) : null;
 
   const [profileResult, membershipResult] = await Promise.all([
     supabaseAdmin
@@ -255,8 +277,32 @@ serve(async (req) => {
   const profile = profileResult.data as JsonRecord | null;
   const membership = membershipResult.data as JsonRecord | null;
 
-  if (!isAdminContext({ user, profile, membership })) {
+  const isAdmin = isAdminContext({ user, profile, membership });
+  const membershipActive = isMembershipActiveRecord(membership);
+
+  if (!isAdmin) {
     return jsonResponse(403, { error: 'Admin access required' });
+  }
+
+  if (DAILY_RUN_LIMIT > 0) {
+    const since = new Date(Date.now() - 86_400_000).toISOString();
+    const { count: recentCount, error: recentError } = await supabaseAdmin
+      .from('runs')
+      .select('id', { count: 'exact', head: true })
+      .eq('created_by', userId)
+      .gte('created_at', since);
+    if (recentError) {
+      console.error('Failed to evaluate run quota', recentError);
+      return jsonResponse(500, { error: 'Failed to evaluate quota', details: recentError.message });
+    }
+    if ((recentCount ?? 0) >= DAILY_RUN_LIMIT) {
+      return jsonResponse(429, {
+        error: 'Daily run quota reached',
+        limit: DAILY_RUN_LIMIT,
+        runs_created: recentCount ?? 0,
+        window_hours: 24
+      });
+    }
   }
 
   let stageModels: { stage1: any; stage2: any; stage3: any };
@@ -335,12 +381,21 @@ serve(async (req) => {
     resolved_tickers: tickers.length,
     created_at: new Date().toISOString(),
     created_by: userId,
-    client_meta: payload?.client_meta ?? null
+    client_meta: payload?.client_meta ?? null,
+    membership_active: membershipActive,
+    quota_limit: DAILY_RUN_LIMIT,
+    quota_window_hours: 24,
+    created_by_email: userEmail
   };
 
   const { data: runRow, error: runError } = await supabaseAdmin
     .from('runs')
-    .insert({ status: 'running', notes: JSON.stringify(runSummary) })
+    .insert({
+      status: 'running',
+      notes: JSON.stringify(runSummary),
+      created_by: userId,
+      created_by_email: userEmail
+    })
     .select('id')
     .single();
 

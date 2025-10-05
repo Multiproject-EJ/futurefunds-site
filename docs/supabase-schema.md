@@ -418,6 +418,12 @@ Seed the table with `/sql/002_seed.sql` for local development when you need samp
 | `status` | `text` | `'queued'` | Allowed values: `queued`, `running`, `done`, `failed`. |
 | `notes` | `text` | `null` | Optional metadata (e.g., user, budget). |
 | `stop_requested` | `boolean` | `false` | Workers should check this before processing the next batch. |
+| `created_by` | `uuid` | `null` | Populated by the `runs-create` edge function to record who launched the batch for quota enforcement.【F:supabase/functions/runs-create/index.ts†L232-L330】 |
+| `created_by_email` | `text` | `null` | Snapshot of the operator’s email for audit trails.【F:supabase/functions/runs-create/index.ts†L232-L330】 |
+
+Indexes on `created_by` and `created_at` support daily quota checks (`sql/009_member_access.sql`).【F:sql/009_member_access.sql†L1-L6】
+
+Set `RUNS_DAILY_LIMIT` (default `5`) in the edge runtime to cap how many batches a user can initiate within a rolling 24‑hour window; exceeding the quota triggers a `429` from `runs-create`.【F:supabase/functions/runs-create/index.ts†L104-L194】
 
 ### `run_items`
 

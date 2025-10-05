@@ -2662,7 +2662,9 @@ function applyAccessState({ preserveStatus = false } = {}) {
     ? 'signed-out'
     : authContext.isAdmin
       ? 'admin-ok'
-      : 'no-admin';
+      : authContext.membershipActive
+        ? 'member'
+        : 'no-membership';
 
   const haltRequested = (currentRunMeta?.stop_requested ?? false) || (currentRunMeta?.budget_exhausted ?? false);
 
@@ -2725,6 +2727,8 @@ function applyAccessState({ preserveStatus = false } = {}) {
     if (!preserveStatus) {
       if (state === 'admin-ok') inputs.status.textContent = 'Ready';
       else if (state === 'signed-out') inputs.status.textContent = 'Sign in required';
+      else if (state === 'member') inputs.status.textContent = 'Read-only member access';
+      else if (state === 'no-membership') inputs.status.textContent = 'Membership required';
       else inputs.status.textContent = 'Admin access required';
     }
 
@@ -2732,7 +2736,11 @@ function applyAccessState({ preserveStatus = false } = {}) {
       ? 'Authenticated as admin. Automation ready to launch.'
       : state === 'signed-out'
         ? 'Sign in to launch automated runs.'
-        : 'Current user lacks admin privileges. Contact an administrator to continue.';
+        : state === 'member'
+          ? 'Read-only mode: membership active. Contact an administrator to run the automation.'
+          : state === 'no-membership'
+            ? 'Launch blocked: activate a FutureFunds.ai membership to access automation.'
+            : 'Current user lacks admin privileges. Contact an administrator to continue.';
     logStatus(logMessage);
     lastAccessState = state;
   }
