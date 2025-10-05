@@ -94,11 +94,11 @@ create index if not exists analysis_dimension_scores_run_idx
 -- Seed canonical dimensions (safe upsert)
 insert into public.analysis_dimensions (slug, name, description, stage, order_index, weight, metadata)
 values
-  ('financial_resilience', 'Financial Resilience', 'Liquidity, leverage, and capital discipline including debt servicing and capital allocation flex.', 3, 10, 1.2, jsonb_build_object('signals', ['leverage', 'cash_flow', 'credit'])),
-  ('market_positioning', 'Market Positioning', 'Competitive moat, segment leadership, and hyperscale or cannibal dynamics vs. direct peers.', 3, 20, 1.1, jsonb_build_object('signals', ['moat', 'share', 'hyperscale'])),
-  ('leadership_competency', 'Leadership & Governance', 'Quality of leadership, board oversight, capital deployment judgement, and track record.', 3, 30, 1.0, jsonb_build_object('signals', ['track_record', 'governance', 'execution'])),
-  ('product_relevance', 'Product & Innovation Fitness', 'Product velocity, customer love, roadmap relevance, and alignment to secular demand shifts.', 3, 40, 1.0, jsonb_build_object('signals', ['innovation', 'differentiation'])),
-  ('resilience_risk', 'Resilience & Macro Readiness', 'Operational resilience, supply chain, macro sensitivity, and situational awareness (pandemics, shocks).', 3, 50, 0.9, jsonb_build_object('signals', ['macro', 'supply_chain', 'scenario']))
+  ('financial_resilience', 'Financial Resilience', 'Liquidity, leverage, and capital discipline including debt servicing and capital allocation flex.', 3, 10, 1.2, jsonb_build_object('signals', jsonb_build_array('leverage', 'cash_flow', 'credit'))),
+  ('market_positioning', 'Market Positioning', 'Competitive moat, segment leadership, and hyperscale or cannibal dynamics vs. direct peers.', 3, 20, 1.1, jsonb_build_object('signals', jsonb_build_array('moat', 'share', 'hyperscale'))),
+  ('leadership_competency', 'Leadership & Governance', 'Quality of leadership, board oversight, capital deployment judgement, and track record.', 3, 30, 1.0, jsonb_build_object('signals', jsonb_build_array('track_record', 'governance', 'execution'))),
+  ('product_relevance', 'Product & Innovation Fitness', 'Product velocity, customer love, roadmap relevance, and alignment to secular demand shifts.', 3, 40, 1.0, jsonb_build_object('signals', jsonb_build_array('innovation', 'differentiation'))),
+  ('resilience_risk', 'Resilience & Macro Readiness', 'Operational resilience, supply chain, macro sensitivity, and situational awareness (pandemics, shocks).', 3, 50, 0.9, jsonb_build_object('signals', jsonb_build_array('macro', 'supply_chain', 'scenario')))
 on conflict (slug) do update
   set name = excluded.name,
       description = excluded.description,
