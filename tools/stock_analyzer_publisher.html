@@ -22,11 +22,16 @@
     .nav{max-width:1200px; margin:0 auto; display:flex; justify-content:space-between;
          align-items:center; padding:12px 16px}
     .brand{font-weight:800; font-size:20px}
-    .nav-tabs{display:flex; gap:6px; flex-wrap:wrap}
+    .nav-tabs{display:flex; gap:6px; flex-wrap:wrap; align-items:center}
     .nav-tab{padding:8px 16px; border-radius:8px; background:transparent; border:1px solid transparent;
              cursor:pointer; transition:all .15s ease}
     .nav-tab.active{background:var(--accent); color:#fff; border-color:var(--accent)}
     .nav-tab:not(.active):hover{background:#f1f5f9; border-color:var(--border)}
+    .guided-launch{padding:8px 14px; border-radius:999px; border:1px solid var(--accent);
+                   background:rgba(26,115,232,.08); color:var(--accent); cursor:pointer;
+                   font-weight:600; display:flex; align-items:center; gap:6px;
+                   transition:all .15s ease}
+    .guided-launch:hover{background:rgba(26,115,232,.12); box-shadow:var(--shadow)}
     main{max-width:1200px; margin:0 auto; padding:20px 16px}
     .page{display:none}
     .page.active{display:block}
@@ -65,6 +70,42 @@
     .status.ok{color:var(--ok)} .status.ok .dot{background:var(--ok)}
     .status.error{color:var(--err)} .status.error .dot{background:var(--err)}
     @keyframes pulse{0%,100%{opacity:1} 50%{opacity:.35}}
+
+    .guided-overlay{position:fixed; inset:0; display:none; pointer-events:auto; z-index:2000}
+    .guided-overlay.active{display:block}
+    .guided-overlay::before{content:''; position:fixed; inset:0; background:rgba(15,23,42,.55);
+                             pointer-events:none; backdrop-filter:blur(2px)}
+    .guided-panel{position:fixed; right:24px; bottom:24px; max-width:360px; width:calc(100% - 48px);
+                  background:var(--panel); border-radius:20px; border:1px solid var(--border);
+                  box-shadow:0 24px 80px rgba(15,23,42,.22); padding:20px; pointer-events:auto;
+                  display:flex; flex-direction:column; gap:14px; z-index:2200}
+    .guided-progress{font-size:12px; font-weight:600; text-transform:uppercase; letter-spacing:.08em;
+                     color:var(--muted)}
+    .guided-panel h2{margin:0; font-size:20px}
+    .guided-body{font-size:14px; color:var(--muted); line-height:1.5}
+    .guided-actions{display:flex; justify-content:space-between; gap:12px}
+    .guided-actions button{flex:1}
+    .guided-actions button.secondary{background:transparent; border:1px solid var(--border);
+                                     color:var(--muted)}
+    .guided-actions button.secondary:hover{background:#f8fafc}
+    .guided-actions button.primary{background:var(--accent); border-color:var(--accent); color:#fff}
+    .guided-actions button.primary:disabled{opacity:.6; cursor:not-allowed}
+    .guided-close{position:absolute; top:12px; right:12px; border:none; background:transparent;
+                  color:var(--muted); cursor:pointer; font-size:18px; line-height:1}
+    .guided-focus{position:relative; z-index:2100 !important;
+                  box-shadow:0 0 0 4px rgba(26,115,232,.4), 0 18px 55px rgba(15,23,42,.28);
+                  border-radius:14px; transition:box-shadow .2s ease}
+    .guided-focus:focus-visible{outline:none}
+    body.guided-active{overflow:hidden}
+    .guided-summary{display:flex; flex-direction:column; gap:10px}
+    .guided-summary label{font-size:14px; display:flex; align-items:center; gap:8px; font-weight:500; color:var(--text)}
+    .guided-email-row{display:flex; gap:8px}
+    .guided-email-row input{flex:1}
+    .guided-email-row button{white-space:nowrap}
+    .guided-hint{font-size:12px; color:var(--muted)}
+    @media (max-width:768px){
+      .guided-panel{left:24px; right:24px; bottom:24px; width:auto}
+    }
   </style>
 </head>
 <body>
@@ -75,6 +116,7 @@
         <button class="nav-tab active" data-page="api">API Setup</button>
         <button class="nav-tab" data-page="analyzer">Stock Analyzer</button>
         <button class="nav-tab" data-page="playground">Playground</button>
+        <button class="guided-launch" id="guided-start" title="Launch guided flow">▶ Guided setup</button>
       </div>
     </div>
   </header>
@@ -247,6 +289,28 @@
       </div>
     </section>
   </main>
+
+  <div id="guided-overlay" class="guided-overlay" aria-hidden="true">
+    <div class="guided-panel" role="dialog" aria-modal="true" aria-labelledby="guided-title">
+      <button class="guided-close" id="guided-close" aria-label="Close guided setup">×</button>
+      <div class="guided-progress" id="guided-progress">Step 1 of 1</div>
+      <h2 id="guided-title">Guided setup</h2>
+      <div class="guided-body" id="guided-body">Follow the prompts to configure your analyst workspace.</div>
+      <div class="guided-summary" id="guided-summary" style="display:none">
+        <p><strong>You're ready to go!</strong> <span id="guided-summary-text">FutureFunds will remember your preferences for the next session.</span></p>
+        <label><input type="checkbox" id="guided-updates" /> Keep me updated with daily run reports via email.</label>
+        <div class="guided-email-row" id="guided-email-row" style="display:none">
+          <input type="email" id="guided-email" placeholder="you@example.com" />
+          <button class="btn primary" id="guided-email-save">Save</button>
+        </div>
+        <div class="guided-hint" id="guided-email-hint">We only store this preference locally so you control your notifications.</div>
+      </div>
+      <div class="guided-actions">
+        <button class="secondary" id="guided-prev">Back</button>
+        <button class="primary" id="guided-next">Next</button>
+      </div>
+    </div>
+  </div>
 
   <script>
     // ------------ helpers ------------
@@ -561,6 +625,166 @@ ${n ? "\n**Analyst notes to incorporate:**\n"+n+"\n" : ""}
       });
     }
 
+    // ------------ Guided flow ------------
+    function initGuidedFlow(api){
+      const overlay=$('#guided-overlay');
+      const startBtn=$('#guided-start');
+      if(!overlay||!startBtn) return;
+
+      const progressEl=$('#guided-progress');
+      const titleEl=$('#guided-title');
+      const bodyEl=$('#guided-body');
+      const summaryEl=$('#guided-summary');
+      const summaryText=$('#guided-summary-text');
+      const prevBtn=$('#guided-prev');
+      const nextBtn=$('#guided-next');
+      const closeBtn=$('#guided-close');
+      const updatesChk=$('#guided-updates');
+      const emailRow=$('#guided-email-row');
+      const emailInput=$('#guided-email');
+      const emailSave=$('#guided-email-save');
+      const emailHint=$('#guided-email-hint');
+      const defaultHint=emailHint?.textContent||'';
+
+      const steps=[
+        {title:'Choose your provider', body:'Select which API provider powers your analyst. OpenRouter offers community models with free tiers when available.', selector:'#provider'},
+        {title:'Add your API key', body:'Paste your API key and press Save. Keys are only stored in this browser so you retain full control.', selector:'#api-key', canProceed:()=>{
+          const providerKey=api?.providers?.[api?.currentProvider||'']?.keyStorage;
+          const typed=$('#api-key')?.value.trim();
+          return !!typed || (providerKey && localStorage.getItem(providerKey));
+        }},
+        {title:'Pick a model', body:'Choose the model that will write your notes. Refresh the catalog, filter to free options, or star favourites for one-click reuse.', selector:'#model-select', canProceed:()=>{
+          return !!(api?.model && api.model());
+        }},
+        {title:'Describe the company', body:'Enter the ticker, company name, and exchange so we can craft a tailored analyst brief.', selector:'#sa-ticker', focus:true, canProceed:()=>{
+          const t=$('#sa-ticker')?.value.trim();
+          const c=$('#sa-company')?.value.trim();
+          return !!t && !!c;
+        }},
+        {title:'Build the prompt', body:'Click Build Prompt to assemble the Markdown instructions. Review or edit them before sending to the model.', selector:'#sa-build-prompt'},
+        {title:'Generate the writeup', body:'When ready, hit Generate. We will call the model, populate the raw Markdown, and show a live preview beside it.', selector:'#sa-generate'},
+        {title:'Publish or dry-run', body:'Connect your GitHub repo to publish instantly, or run a Dry-run to confirm the file path before committing.', selector:'#publish-btn'},
+        {title:'You’re ready to roll', body:'You can now generate analyst briefs end-to-end. Enable email updates below if you want daily run summaries.', selector:null, summary:true}
+      ];
+
+      const actionableSteps=steps.filter(s=>!s.summary);
+      let index=0;
+      let active=false;
+      let highlightEl=null;
+
+      function removeHighlight(){
+        if(highlightEl){ highlightEl.classList.remove('guided-focus'); highlightEl=null; }
+      }
+
+      function ensureVisible(el){
+        if(!el) return;
+        const rect=el.getBoundingClientRect();
+        if(rect.top<72 || rect.bottom>window.innerHeight-72){
+          el.scrollIntoView({behavior:'smooth', block:'center'});
+        }
+      }
+
+      function applyStep(){
+        const step=steps[index];
+        const actionIndex=steps.slice(0,index+1).filter(s=>!s.summary).length;
+        if(step.summary){
+          progressEl.textContent='Complete';
+        }else{
+          progressEl.textContent=`Step ${actionIndex} of ${actionableSteps.length}`;
+        }
+        titleEl.textContent=step.title;
+        bodyEl.textContent=step.body;
+        summaryEl.style.display=step.summary?'flex':'none';
+        if(step.summary && summaryText){ summaryText.textContent=step.body; }
+        bodyEl.style.display=step.summary?'none':'block';
+        nextBtn.textContent=step.summary?'Finish':'Next';
+        prevBtn.style.visibility=index===0?'hidden':'visible';
+
+        removeHighlight();
+        if(step.selector){
+          const target=document.querySelector(step.selector);
+          if(target){
+            highlightEl=target;
+            target.classList.add('guided-focus');
+            if(step.focus && typeof target.focus==='function'){ target.focus({preventScroll:true}); }
+            ensureVisible(target);
+          }
+        }
+        updateControls();
+      }
+
+      function open(){
+        active=true; index=0; overlay.classList.add('active'); overlay.setAttribute('aria-hidden','false');
+        document.body.classList.add('guided-active');
+        if(pref.enabled){
+          emailHint.textContent=`Daily reports will go to ${pref.email||'your saved address'}.`;
+        }else{
+          emailHint.textContent=defaultHint;
+        }
+        applyStep();
+      }
+
+      function close(){
+        active=false; overlay.classList.remove('active'); overlay.setAttribute('aria-hidden','true');
+        document.body.classList.remove('guided-active'); removeHighlight();
+      }
+
+      function updateControls(){
+        if(!active) return;
+        const step=steps[index];
+        const canProceed = step.summary ? true : (typeof step.canProceed==='function' ? step.canProceed() : true);
+        nextBtn.disabled=!canProceed;
+      }
+
+      startBtn.addEventListener('click',open);
+      closeBtn.addEventListener('click',close);
+      overlay.addEventListener('click',e=>{ if(e.target===overlay) close(); });
+      prevBtn.addEventListener('click',()=>{ if(index>0){ index--; applyStep(); }});
+      nextBtn.addEventListener('click',()=>{
+        const step=steps[index];
+        if(step.summary){ close(); return; }
+        if(index<steps.length-1){ index++; applyStep(); }
+      });
+      document.addEventListener('keydown',e=>{ if(active && e.key==='Escape'){ close(); }});
+      document.addEventListener('input',()=>updateControls(), true);
+      document.addEventListener('change',()=>updateControls(), true);
+
+      const prefRaw=localStorage.getItem('ff-guided-updates');
+      let pref={enabled:false,email:''};
+      try{ if(prefRaw) pref=JSON.parse(prefRaw); }catch{}
+      if(pref.enabled){
+        updatesChk.checked=true;
+        emailRow.style.display='flex';
+        emailInput.value=pref.email||'';
+      }
+
+      function savePref(newPref){
+        pref={...pref,...newPref};
+        localStorage.setItem('ff-guided-updates', JSON.stringify(pref));
+      }
+
+      updatesChk.addEventListener('change',()=>{
+        if(updatesChk.checked){
+          emailRow.style.display='flex';
+          setTimeout(()=>emailInput.focus(),150);
+          emailHint.textContent='Enter the address that should receive your automated reports.';
+        }else{
+          emailRow.style.display='none';
+          savePref({enabled:false,email:''});
+          emailHint.textContent='Opt-out saved. You can enable updates again anytime.';
+        }
+      });
+
+      emailSave.addEventListener('click',()=>{
+        const email=emailInput.value.trim();
+        if(!email){ emailHint.textContent='Add an email address to receive reports.'; return; }
+        const valid=/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+        if(!valid){ emailHint.textContent='Please use a valid email address.'; return; }
+        savePref({enabled:true,email});
+        emailHint.textContent=`Saved! We will send a digest to ${email}.`;
+      });
+    }
+
     // ------------ Boot ------------
     let apiManager;
     document.addEventListener('DOMContentLoaded', ()=>{
@@ -569,6 +793,7 @@ ${n ? "\n**Analyst notes to incorporate:**\n"+n+"\n" : ""}
       initAnalyzer(apiManager);
       initPublisher(apiManager);
       initPlayground(apiManager);
+      initGuidedFlow(apiManager);
 
       // Convenience: after saving key, jump to Analyzer
       document.getElementById('save-key').addEventListener('click', ()=>{

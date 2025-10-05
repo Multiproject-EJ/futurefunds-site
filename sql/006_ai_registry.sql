@@ -68,8 +68,7 @@ values
   ('openai/gpt-4o-mini', 'GPT-4o mini (OpenAI)', 'openai', 'gpt-4o-mini', 'https://api.openai.com/v1', 'standard', 0.1500, 0.6000, 'Direct OpenAI endpoint.'),
   ('openai/gpt-4o', 'GPT-4o (OpenAI)', 'openai', 'gpt-4o', 'https://api.openai.com/v1', 'premium', 2.5000, 10.0000, 'Direct OpenAI endpoint.'),
   ('openai/gpt-5-mini', 'GPT-5 mini (OpenAI)', 'openai', 'gpt-5-mini', 'https://api.openai.com/v1', 'premium', 0.2500, 2.0000, 'Direct OpenAI endpoint.'),
-  ('openai/gpt-5-preview', 'GPT-5 preview (OpenAI)', 'openai', 'gpt-5-preview', 'https://api.openai.com/v1', 'premium', 1.2500, 10.0000, 'Direct OpenAI endpoint. For highest quality deep dives.');
-
+  ('openai/gpt-5-preview', 'GPT-5 preview (OpenAI)', 'openai', 'gpt-5-preview', 'https://api.openai.com/v1', 'premium', 1.2500, 10.0000, 'Direct OpenAI endpoint. For highest quality deep dives.')
 on conflict (slug) do update
 set label = excluded.label,
     provider = excluded.provider,
