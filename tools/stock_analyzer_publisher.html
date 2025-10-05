@@ -32,6 +32,14 @@
                    font-weight:600; display:flex; align-items:center; gap:6px;
                    transition:all .15s ease}
     .guided-launch:hover{background:rgba(26,115,232,.12); box-shadow:var(--shadow)}
+    .guided-fab{position:fixed; right:24px; bottom:24px; display:flex; align-items:center; gap:10px;
+                padding:14px 18px; border:none; border-radius:999px; background:var(--accent);
+                color:#fff; font-weight:700; cursor:pointer; box-shadow:0 20px 55px rgba(26,115,232,.35);
+                z-index:1800; transition:transform .18s ease, box-shadow .18s ease}
+    .guided-fab span{font-size:13px; font-weight:500; opacity:.85}
+    .guided-fab:hover{transform:translateY(-1px); box-shadow:0 28px 70px rgba(26,115,232,.38)}
+    .guided-fab:focus-visible{outline:2px solid rgba(255,255,255,.75); outline-offset:3px}
+    .guided-fab.hidden{display:none}
     main{max-width:1200px; margin:0 auto; padding:20px 16px}
     .page{display:none}
     .page.active{display:block}
@@ -106,6 +114,10 @@
     @media (max-width:768px){
       .guided-panel{left:24px; right:24px; bottom:24px; width:auto}
     }
+    @media (max-width:640px){
+      .guided-fab{left:16px; right:16px; width:calc(100% - 32px); justify-content:center}
+      .guided-fab strong{font-size:14px}
+    }
   </style>
 </head>
 <body>
@@ -116,7 +128,7 @@
         <button class="nav-tab active" data-page="api">API Setup</button>
         <button class="nav-tab" data-page="analyzer">Stock Analyzer</button>
         <button class="nav-tab" data-page="playground">Playground</button>
-        <button class="guided-launch" id="guided-start" title="Launch guided flow">▶ Guided setup</button>
+        <button class="guided-launch" id="guided-start" data-guided-launch title="Launch guided flow">▶ Guided setup</button>
       </div>
     </div>
   </header>
@@ -129,6 +141,11 @@
           <div class="title">API Configuration</div>
           <span class="muted">Set up keys & choose a model</span>
         </div>
+
+        <p class="muted" style="display:flex; align-items:center; gap:8px; margin-top:-4px; margin-bottom:14px">
+          <span aria-hidden="true">💡</span>
+          <span>Prefer a walkthrough? Tap the <strong>Guided setup</strong> button above or the "Need a tour?" bubble to follow the step-by-step helper.</span>
+        </p>
 
         <div class="form-row">
           <div class="form-group">
@@ -289,6 +306,11 @@
       </div>
     </section>
   </main>
+
+  <button class="guided-fab" id="guided-floating" data-guided-launch type="button" aria-label="Start guided setup">
+    <strong>Need a tour?</strong>
+    <span>Start guided setup</span>
+  </button>
 
   <div id="guided-overlay" class="guided-overlay" aria-hidden="true">
     <div class="guided-panel" role="dialog" aria-modal="true" aria-labelledby="guided-title">
@@ -628,8 +650,9 @@ ${n ? "\n**Analyst notes to incorporate:**\n"+n+"\n" : ""}
     // ------------ Guided flow ------------
     function initGuidedFlow(api){
       const overlay=$('#guided-overlay');
-      const startBtn=$('#guided-start');
-      if(!overlay||!startBtn) return;
+      const floating=$('#guided-floating');
+      const launchers=document.querySelectorAll('[data-guided-launch]');
+      if(!overlay||!launchers.length) return;
 
       const progressEl=$('#guided-progress');
       const titleEl=$('#guided-title');
@@ -722,11 +745,13 @@ ${n ? "\n**Analyst notes to incorporate:**\n"+n+"\n" : ""}
           emailHint.textContent=defaultHint;
         }
         applyStep();
+        syncFab();
       }
 
       function close(){
         active=false; overlay.classList.remove('active'); overlay.setAttribute('aria-hidden','true');
         document.body.classList.remove('guided-active'); removeHighlight();
+        syncFab();
       }
 
       function updateControls(){
@@ -736,7 +761,7 @@ ${n ? "\n**Analyst notes to incorporate:**\n"+n+"\n" : ""}
         nextBtn.disabled=!canProceed;
       }
 
-      startBtn.addEventListener('click',open);
+      launchers.forEach(btn=>btn.addEventListener('click',open));
       closeBtn.addEventListener('click',close);
       overlay.addEventListener('click',e=>{ if(e.target===overlay) close(); });
       prevBtn.addEventListener('click',()=>{ if(index>0){ index--; applyStep(); }});
@@ -783,6 +808,13 @@ ${n ? "\n**Analyst notes to incorporate:**\n"+n+"\n" : ""}
         savePref({enabled:true,email});
         emailHint.textContent=`Saved! We will send a digest to ${email}.`;
       });
+
+      function syncFab(){
+        if(!floating) return;
+        floating.classList.toggle('hidden', active || overlay.classList.contains('active'));
+      }
+
+      syncFab();
     }
 
     // ------------ Boot ------------
