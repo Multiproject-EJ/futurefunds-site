@@ -7,14 +7,9 @@ import {
   formatModelOption,
   formatCredentialOption
 } from './ai-registry.js';
+import { DEFAULT_STAGE_MODELS, getPlannerFallbackModels } from './model-defaults.js';
 
 const STORAGE_KEY = 'ff-planner-settings-v2';
-
-const DEFAULT_STAGE_MODELS = {
-  stage1: 'openrouter/gpt-4o-mini',
-  stage2: 'openrouter/gpt-5-mini',
-  stage3: 'openrouter/gpt-5-preview'
-};
 
 const defaults = {
   universe: 40000,
@@ -271,15 +266,24 @@ function populateCredentialControls() {
 }
 
 async function loadCatalogs({ silent = false } = {}) {
+  let fetchedModels = [];
   try {
-    modelOptions = await fetchActiveModels({});
-    modelMap = buildModelMap(modelOptions);
-    priceMap = buildPriceMap(modelOptions);
-    populateModelControls();
+    fetchedModels = await fetchActiveModels({});
   } catch (error) {
     console.error('Failed to load AI models', error);
     if (!silent) logStatus(`Model registry error: ${error.message}`);
   }
+
+  if (!fetchedModels.length) {
+    if (!silent) logStatus('Using default AI model catalogue.');
+    modelOptions = getPlannerFallbackModels();
+  } else {
+    modelOptions = fetchedModels;
+  }
+
+  modelMap = buildModelMap(modelOptions);
+  priceMap = buildPriceMap(modelOptions);
+  populateModelControls();
 
   try {
     credentialOptions = await fetchActiveCredentials({ scope: 'automation' });
