@@ -78,6 +78,29 @@
       display: grid;
       gap: 20px;
     }
+    .planner-alert {
+      border-radius: 16px;
+      border: 1px solid rgba(37,99,235,.25);
+      background: rgba(37,99,235,.08);
+      padding: 14px 18px;
+      font-size: .9rem;
+      line-height: 1.5;
+      color: var(--text,#0f172a);
+    }
+    .planner-alert strong {
+      display: block;
+      font-size: .92rem;
+      margin-bottom: 4px;
+    }
+    .planner-alert a {
+      color: var(--accent,#2563eb);
+      text-decoration: none;
+      font-weight: 600;
+    }
+    .planner-alert a:hover,
+    .planner-alert a:focus {
+      text-decoration: underline;
+    }
     .field {
       display: grid;
       gap: 8px;
@@ -966,6 +989,14 @@
     <section class="planner-grid">
       <article class="panel" id="plannerConfigPanel">
         <div class="planner-form" id="plannerForm">
+          <div class="planner-alert" id="modelFallbackNotice" hidden>
+            <strong>Default model catalogue loaded</strong>
+            <span>Live registry is unavailable right now, so the planner is using the built-in model list. Use <a href="/tools.html">Tools → API Registry</a> to verify the providers you have access to.</span>
+          </div>
+          <div class="planner-alert" id="credentialEmptyNotice" hidden>
+            <strong>No API credentials detected</strong>
+            <span>Add keys from your providers in <a href="/tools.html">Tools → API Registry</a> and then refresh the planner to assign them to each stage.</span>
+          </div>
           <div class="field">
             <label for="universeInput">Universe size (tickers)</label>
             <input type="number" id="universeInput" name="universe" min="1" value="40000" />

@@ -87,6 +87,11 @@ const inputs = {
   refreshRegistryBtn: $('refreshRegistryBtn')
 };
 
+const notices = {
+  modelFallback: $('modelFallbackNotice'),
+  credentialEmpty: $('credentialEmptyNotice')
+};
+
 const FUNCTIONS_BASE = SUPABASE_URL.replace(/\.supabase\.co$/, '.functions.supabase.co');
 const RUNS_CREATE_ENDPOINT = `${FUNCTIONS_BASE}/runs-create`;
 const STAGE1_CONSUME_ENDPOINT = `${FUNCTIONS_BASE}/stage1-consume`;
@@ -117,6 +122,7 @@ let modelMap = new Map();
 let priceMap = new Map();
 let credentialOptions = [];
 let credentialMap = new Map();
+let modelFallbackActive = false;
 
 function loadSettings() {
   try {
@@ -265,8 +271,29 @@ function populateCredentialControls() {
   populateCredentialSelect(inputs.stage3Credential);
 }
 
+function toggleNotice(element, show) {
+  if (!element) return;
+  if (show) {
+    element.hidden = false;
+    element.removeAttribute('hidden');
+  } else {
+    element.hidden = true;
+    element.setAttribute('hidden', '');
+  }
+}
+
+function updateModelNotice() {
+  toggleNotice(notices.modelFallback, modelFallbackActive);
+}
+
+function updateCredentialNotice() {
+  const empty = credentialOptions.length === 0;
+  toggleNotice(notices.credentialEmpty, empty);
+}
+
 async function loadCatalogs({ silent = false } = {}) {
   let fetchedModels = [];
+  modelFallbackActive = false;
   try {
     fetchedModels = await fetchActiveModels({});
   } catch (error) {
@@ -274,16 +301,26 @@ async function loadCatalogs({ silent = false } = {}) {
     if (!silent) logStatus(`Model registry error: ${error.message}`);
   }
 
+  const fallbackModels = getPlannerFallbackModels();
   if (!fetchedModels.length) {
     if (!silent) logStatus('Using default AI model catalogue.');
-    modelOptions = getPlannerFallbackModels();
+    modelOptions = fallbackModels;
+    modelFallbackActive = true;
   } else {
-    modelOptions = fetchedModels;
+    const seen = new Set(fetchedModels.map((model) => model.slug));
+    const extras = fallbackModels.filter((model) => !seen.has(model.slug));
+    if (extras.length) {
+      modelOptions = [...fetchedModels, ...extras];
+      modelFallbackActive = true;
+    } else {
+      modelOptions = fetchedModels;
+    }
   }
 
   modelMap = buildModelMap(modelOptions);
   priceMap = buildPriceMap(modelOptions);
   populateModelControls();
+  updateModelNotice();
 
   try {
     credentialOptions = await fetchActiveCredentials({ scope: 'automation' });
@@ -295,9 +332,11 @@ async function loadCatalogs({ silent = false } = {}) {
       credentialMap.set(credential.id, credential);
     });
     populateCredentialControls();
+    updateCredentialNotice();
   } catch (error) {
     console.error('Failed to load API credentials', error);
     if (!silent) logStatus(`Credential registry error: ${error.message}`);
+    updateCredentialNotice();
   }
 }
 
