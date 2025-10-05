@@ -336,6 +336,9 @@ function initCredentialManager() {
 
   const statusEl = modal.querySelector('#credentialStatus');
   const lockedEl = modal.querySelector('#credentialLocked');
+  const lockedTitleEl = lockedEl?.querySelector('[data-locked-title]');
+  const lockedMessageEl = lockedEl?.querySelector('[data-locked-message]');
+  const lockedLoginEl = lockedEl?.querySelector('[data-locked-login]');
   const formEl = modal.querySelector('#credentialForm');
   const listEl = modal.querySelector('#credentialList');
   const idInput = modal.querySelector('#credentialId');
@@ -379,9 +382,44 @@ function initCredentialManager() {
     statusEl.dataset.tone = text ? tone : '';
   };
 
-  const toggleLocked = (locked) => {
-    if (lockedEl) lockedEl.hidden = !locked;
-    if (formEl) formEl.hidden = locked;
+  const applyLockedContent = (reason) => {
+    if (!lockedEl) return;
+    const copy = {
+      'signed-out': {
+        title: 'Sign in required',
+        message: 'Sign in with an administrator account to manage API credentials.',
+        showLogin: true
+      },
+      'no-admin': {
+        title: 'Admin access required',
+        message: 'This account does not have admin permissions. Contact an administrator to manage credentials.',
+        showLogin: false
+      }
+    }[reason] || {
+      title: 'Admin access required',
+      message: 'Sign in with an administrator account to manage API credentials.',
+      showLogin: true
+    };
+
+    if (lockedTitleEl) lockedTitleEl.textContent = copy.title;
+    if (lockedMessageEl) lockedMessageEl.textContent = copy.message;
+    if (lockedLoginEl) {
+      lockedLoginEl.hidden = !copy.showLogin;
+    }
+  };
+
+  const toggleLocked = (locked, reason = 'signed-out') => {
+    if (!lockedEl) return;
+    if (locked) {
+      applyLockedContent(reason);
+      lockedEl.hidden = false;
+      if (formEl) formEl.hidden = true;
+      return;
+    }
+
+    lockedEl.hidden = true;
+    if (lockedLoginEl) lockedLoginEl.hidden = false;
+    if (formEl) formEl.hidden = false;
   };
 
   const renderEmptyList = (message) => {
@@ -462,13 +500,13 @@ function initCredentialManager() {
   const ensureAdmin = async () => {
     await refreshAuthContext();
     if (!authContext.user) {
-      toggleLocked(true);
+      toggleLocked(true, 'signed-out');
       setStatus('Sign in to manage API credentials.', 'error');
       return false;
     }
     if (!authContext.isAdmin) {
-      toggleLocked(true);
-      setStatus('Admin access required to manage API credentials.', 'error');
+      toggleLocked(true, 'no-admin');
+      setStatus('Current account lacks admin permissions for API credentials.', 'error');
       return false;
     }
     toggleLocked(false);
