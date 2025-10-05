@@ -28,6 +28,7 @@ multi-stage model runs and reporting:
 | `sector_prompts` | Optional sector-specific prompt augmentations injected into Stage 2+. |
 | `runs` | High-level batch execution log for each analysis sweep (start time, status, budget flags). |
 | `run_items` | Per-ticker processing state tracking the current stage, label, and spend. |
+| `run_schedules` | Stores per-run automation cadence, batch limits, and activation state for the background dispatcher. |
 | `answers` | Stores structured and narrative outputs produced at each stage of the pipeline. |
 | `cost_ledger` | Aggregated token usage and USD cost per stage/run for budget monitoring. |
 | `doc_chunks` | Optional retrieval corpus of text snippets (10-Ks, transcripts, etc.) used for RAG. |
@@ -448,6 +449,31 @@ Composite primary key: `(run_id, ticker)`.
 | `status` | `text` | `'pending'` | `pending`, `ok`, `skipped`, or `failed`. |
 | `spend_est_usd` | `numeric(12,4)` | `0` | Running total of estimated spend for this ticker. |
 | `updated_at` | `timestamptz` | `now()` | Touch on each stage completion. |
+
+### `run_schedules`
+
+*Primary key*: `id uuid`.
+
+| Column | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `id` | `uuid` | `gen_random_uuid()` | Stable identifier for the schedule row. |
+| `run_id` | `uuid` | — | References `runs(id)` and must be unique so each run has at most one schedule. |
+| `label` | `text` | — | Optional operator-friendly descriptor for admin UIs. |
+| `cadence_seconds` | `integer` | `3600` | Minimum of 60 seconds. Controls how frequently the dispatcher invokes `runs-continue`. |
+| `stage1_limit` | `integer` | `8` | Batch size for Stage&nbsp;1 when the scheduler triggers (1–25). |
+| `stage2_limit` | `integer` | `4` | Batch size for Stage&nbsp;2 when the scheduler triggers. |
+| `stage3_limit` | `integer` | `2` | Batch size for Stage&nbsp;3 when the scheduler triggers. |
+| `max_cycles` | `integer` | `1` | Number of sequential `runs-continue` cycles per dispatch (1–10). |
+| `active` | `boolean` | `true` | Whether the dispatcher should consider this schedule. |
+| `last_triggered_at` | `timestamptz` | — | Updated whenever the dispatcher runs; used to enforce cadence spacing. |
+| `created_at` | `timestamptz` | `now()` | Creation timestamp. |
+| `updated_at` | `timestamptz` | `now()` | Updated by edge functions when the schedule changes. |
+
+`sql/011_run_schedules.sql` provisions the table, indexes, and validation constraints. Operators call
+the `runs-schedule` edge function to create or update rows, while the unattended dispatcher
+(`runs-dispatch`) polls this table on a cron cadence and invokes `runs-continue` with the
+stored limits. Both endpoints expect an `AUTOMATION_SERVICE_SECRET` environment variable so
+service-to-service calls can bypass interactive auth without exposing the Supabase service role key.
 
 ### `answers`
 

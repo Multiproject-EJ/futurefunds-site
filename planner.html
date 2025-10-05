@@ -672,6 +672,128 @@
       font-size: .85rem;
       color: var(--muted,#475569);
     }
+
+    .background-scheduler {
+      border: 1px solid rgba(16,185,129,.18);
+      background: rgba(16,185,129,.05);
+      border-radius: 16px;
+      padding: 16px 18px;
+      display: grid;
+      gap: 12px;
+    }
+
+    .background-scheduler__intro h3 {
+      margin: 0 0 4px;
+      font-size: 1rem;
+      font-weight: 600;
+    }
+
+    .background-scheduler__intro p {
+      margin: 0;
+      font-size: .88rem;
+      color: var(--muted,#475569);
+    }
+
+    .background-scheduler__controls {
+      display: grid;
+      gap: 12px;
+    }
+
+    .background-scheduler__toggle {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      font-size: .9rem;
+      font-weight: 600;
+      color: var(--text,#0f172a);
+    }
+
+    .background-scheduler__toggle input[type="checkbox"] {
+      width: 18px;
+      height: 18px;
+    }
+
+    .background-scheduler__grid {
+      display: grid;
+      gap: 12px;
+      grid-template-columns: repeat(auto-fit,minmax(160px,1fr));
+    }
+
+    .background-scheduler__grid label {
+      display: grid;
+      gap: 6px;
+      font-size: .85rem;
+      font-weight: 600;
+      color: var(--muted,#475569);
+    }
+
+    .background-scheduler__grid input,
+    .background-scheduler__grid select {
+      height: 36px;
+      border-radius: 10px;
+      border: 1px solid var(--border,#cbd5f5);
+      background: rgba(255,255,255,.95);
+      font: inherit;
+      padding: 0 12px;
+      color: var(--text,#0f172a);
+    }
+
+    .background-scheduler__grid input[type="number"] {
+      font-variant-numeric: tabular-nums;
+    }
+
+    .background-scheduler__actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .background-scheduler__status {
+      margin: 0;
+      font-size: .85rem;
+      color: var(--muted,#475569);
+    }
+
+    .background-scheduler__toast {
+      margin: 0;
+      font-size: .85rem;
+      line-height: 1.45;
+      border-radius: 12px;
+      padding: 10px 12px;
+      border: 1px solid rgba(37,99,235,.28);
+      background: rgba(37,99,235,.1);
+      color: var(--text,#0f172a);
+    }
+
+    .background-scheduler__toast.is-success {
+      border-color: rgba(16,185,129,.35);
+      background: rgba(16,185,129,.14);
+      color: #047857;
+    }
+
+    .background-scheduler__toast.is-error {
+      border-color: rgba(239,68,68,.35);
+      background: rgba(239,68,68,.14);
+      color: #b91c1c;
+    }
+
+    .background-scheduler__toast.is-info {
+      border-color: rgba(37,99,235,.28);
+      background: rgba(37,99,235,.1);
+      color: var(--text,#0f172a);
+    }
+
+    .background-scheduler__toast[hidden] {
+      display: none;
+    }
+
+    .background-scheduler__summary {
+      margin: 0;
+      font-size: .9rem;
+      font-weight: 500;
+      color: var(--text,#0f172a);
+    }
     .sector-notes {
       border: 1px solid rgba(37,99,235,.18);
       background: rgba(37,99,235,.05);
@@ -1753,6 +1875,55 @@
         </div>
         <p class="auto-continue__status" id="autoContinueStatus" role="status" aria-live="polite">
           Auto continue idle.
+        </p>
+      </section>
+
+      <section class="background-scheduler" aria-label="Background scheduler" id="schedulerSection">
+        <div class="background-scheduler__intro">
+          <h3>Background scheduler</h3>
+          <p>Let automation continue when the planner is closed. Configure cadence and batch sizes for unattended dispatch.</p>
+        </div>
+        <div class="background-scheduler__controls">
+          <label class="background-scheduler__toggle" for="schedulerEnabled">
+            <input type="checkbox" id="schedulerEnabled" />
+            <span>Enable background dispatch</span>
+          </label>
+          <div class="background-scheduler__grid">
+            <label>
+              <span>Cadence</span>
+              <select id="schedulerCadence">
+                <option value="1800">Every 30 minutes</option>
+                <option value="3600" selected>Every hour</option>
+                <option value="7200">Every 2 hours</option>
+                <option value="14400">Every 4 hours</option>
+              </select>
+            </label>
+            <label>
+              <span>Stage 1 batch</span>
+              <input type="number" id="schedulerStage1Limit" min="1" max="25" value="1" />
+            </label>
+            <label>
+              <span>Stage 2 batch</span>
+              <input type="number" id="schedulerStage2Limit" min="1" max="25" value="1" />
+            </label>
+            <label>
+              <span>Stage 3 batch</span>
+              <input type="number" id="schedulerStage3Limit" min="1" max="25" value="1" />
+            </label>
+            <label>
+              <span>Cycles per trigger</span>
+              <input type="number" id="schedulerCycles" min="1" max="10" value="1" />
+            </label>
+          </div>
+          <div class="background-scheduler__actions">
+            <button class="btn-primary" type="button" id="schedulerSaveBtn">Save schedule</button>
+            <button class="btn-secondary" type="button" id="schedulerRefreshBtn">Refresh</button>
+          </div>
+          <p class="background-scheduler__status" id="schedulerStatus" role="status" aria-live="polite"></p>
+          <div class="background-scheduler__toast" id="schedulerToast" role="status" aria-live="polite" hidden></div>
+        </div>
+        <p class="background-scheduler__summary" id="schedulerSummary">
+          Assign a run to enable background automation.
         </p>
       </section>
 

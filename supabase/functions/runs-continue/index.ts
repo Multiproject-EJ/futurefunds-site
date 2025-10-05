@@ -1,5 +1,6 @@
 import { serve } from 'https://deno.land/std@0.210.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
+import { resolveServiceAuth } from '../_shared/service-auth.ts';
 
 type JsonRecord = Record<string, unknown>;
 
@@ -222,18 +223,22 @@ async function invokeStage({
   stage,
   limit,
   runId,
-  accessToken,
   functionsBaseUrl,
   cycleIndex,
-  clientMeta
+  clientMeta,
+  mode,
+  accessToken,
+  serviceSecret
 }: {
   stage: 1 | 2 | 3;
   limit: number;
   runId: string;
-  accessToken: string;
   functionsBaseUrl: string;
   cycleIndex: number;
   clientMeta: Record<string, unknown> | null | undefined;
+  mode: 'user' | 'service';
+  accessToken?: string | null;
+  serviceSecret?: string | null;
 }): Promise<InvokeOutcome> {
   const endpoint =
     stage === 1
@@ -245,17 +250,35 @@ async function invokeStage({
   const meta = mergeClientMeta(clientMeta, {
     orchestrator: 'runs-continue',
     cycle_index: cycleIndex,
-    triggered_at: new Date().toISOString()
+    triggered_at: new Date().toISOString(),
+    invocation_mode: mode
   });
 
   let response: Response;
   try {
+    const headers = new Headers({ 'Content-Type': 'application/json' });
+    if (mode === 'service') {
+      if (!serviceSecret) {
+        return {
+          type: 'error',
+          status: 500,
+          message: 'Automation secret missing for service invocation'
+        };
+      }
+      headers.set('x-automation-secret', serviceSecret);
+    } else if (accessToken) {
+      headers.set('Authorization', `Bearer ${accessToken}`);
+    } else {
+      return {
+        type: 'error',
+        status: 401,
+        message: 'Missing access token for stage invocation'
+      };
+    }
+
     response = await fetch(endpoint, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${accessToken}`
-      },
+      headers,
       body: JSON.stringify({
         run_id: runId,
         limit,
@@ -348,42 +371,52 @@ serve(async (req) => {
 
   const cycles = clampInteger(payload?.cycles, 1, MAX_CYCLES, 1);
 
-  const authHeader = req.headers.get('Authorization') ?? '';
-  const tokenMatch = authHeader.match(/^Bearer\s+(.+)$/i);
-  const accessToken = tokenMatch?.[1]?.trim();
-
-  if (!accessToken) {
-    return jsonResponse(401, { error: 'Missing bearer token' });
-  }
-
+  const serviceAuth = resolveServiceAuth(req);
   const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, { auth: { persistSession: false } });
 
-  const { data: userData, error: userError } = await supabaseAdmin.auth.getUser(accessToken);
-  if (userError || !userData?.user) {
-    console.error('Invalid session token for runs-continue', userError);
-    return jsonResponse(401, { error: 'Invalid or expired session token' });
-  }
+  let invocationMode: 'user' | 'service' = 'user';
+  let accessToken: string | null = null;
+  let serviceSecret: string | null = null;
 
-  const [profileResult, membershipResult] = await Promise.all([
-    supabaseAdmin.from('profiles').select('*').eq('id', userData.user.id).maybeSingle(),
-    supabaseAdmin.from('memberships').select('*').eq('user_id', userData.user.id).maybeSingle()
-  ]);
+  if (serviceAuth.authorized) {
+    invocationMode = 'service';
+    serviceSecret = serviceAuth.providedSecret;
+  } else {
+    const authHeader = req.headers.get('Authorization') ?? '';
+    const tokenMatch = authHeader.match(/^Bearer\s+(.+)$/i);
+    accessToken = tokenMatch?.[1]?.trim() ?? null;
 
-  if (profileResult.error) {
-    console.warn('Failed to load profile for runs-continue', profileResult.error);
-  }
-  if (membershipResult.error) {
-    console.warn('Failed to load membership for runs-continue', membershipResult.error);
-  }
+    if (!accessToken) {
+      return jsonResponse(401, { error: 'Missing bearer token' });
+    }
 
-  const context = {
-    user: userData.user as JsonRecord,
-    profile: (profileResult.data ?? null) as JsonRecord | null,
-    membership: (membershipResult.data ?? null) as JsonRecord | null
-  };
+    const { data: userData, error: userError } = await supabaseAdmin.auth.getUser(accessToken);
+    if (userError || !userData?.user) {
+      console.error('Invalid session token for runs-continue', userError);
+      return jsonResponse(401, { error: 'Invalid or expired session token' });
+    }
 
-  if (!isAdminContext(context)) {
-    return jsonResponse(403, { error: 'Admin access required' });
+    const [profileResult, membershipResult] = await Promise.all([
+      supabaseAdmin.from('profiles').select('*').eq('id', userData.user.id).maybeSingle(),
+      supabaseAdmin.from('memberships').select('*').eq('user_id', userData.user.id).maybeSingle()
+    ]);
+
+    if (profileResult.error) {
+      console.warn('Failed to load profile for runs-continue', profileResult.error);
+    }
+    if (membershipResult.error) {
+      console.warn('Failed to load membership for runs-continue', membershipResult.error);
+    }
+
+    const context = {
+      user: userData.user as JsonRecord,
+      profile: (profileResult.data ?? null) as JsonRecord | null,
+      membership: (membershipResult.data ?? null) as JsonRecord | null
+    };
+
+    if (!isAdminContext(context)) {
+      return jsonResponse(403, { error: 'Admin access required' });
+    }
   }
 
   const runColumns = 'id, status, stop_requested, notes, budget_usd';
@@ -488,10 +521,12 @@ serve(async (req) => {
           stage: 1,
           limit: stageLimits.stage1,
           runId,
-          accessToken,
           functionsBaseUrl,
           cycleIndex: cycle,
-          clientMeta: payload?.client_meta
+          clientMeta: payload?.client_meta,
+          mode: invocationMode,
+          accessToken,
+          serviceSecret
         });
 
         if (outcome.type === 'error') {
@@ -525,10 +560,12 @@ serve(async (req) => {
           stage: 2,
           limit: stageLimits.stage2,
           runId,
-          accessToken,
           functionsBaseUrl,
           cycleIndex: cycle,
-          clientMeta: payload?.client_meta
+          clientMeta: payload?.client_meta,
+          mode: invocationMode,
+          accessToken,
+          serviceSecret
         });
 
         if (outcome.type === 'error') {
@@ -562,10 +599,12 @@ serve(async (req) => {
           stage: 3,
           limit: stageLimits.stage3,
           runId,
-          accessToken,
           functionsBaseUrl,
           cycleIndex: cycle,
-          clientMeta: payload?.client_meta
+          clientMeta: payload?.client_meta,
+          mode: invocationMode,
+          accessToken,
+          serviceSecret
         });
 
         if (outcome.type === 'error') {

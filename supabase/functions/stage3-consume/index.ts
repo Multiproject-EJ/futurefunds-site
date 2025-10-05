@@ -20,6 +20,7 @@ import {
   unpackRetrySettings
 } from '../_shared/model-config.ts';
 import { loadPromptTemplate, renderTemplate } from '../_shared/prompt-loader.ts';
+import { resolveServiceAuth } from '../_shared/service-auth.ts';
 
 type JsonRecord = Record<string, unknown>;
 
@@ -689,41 +690,45 @@ serve(async (req) => {
     return jsonResponse(400, { error: 'Invalid or missing run_id' });
   }
 
+  const serviceAuth = resolveServiceAuth(req);
   const authHeader = req.headers.get('Authorization') ?? '';
   const tokenMatch = authHeader.match(/^Bearer\s+(.+)$/i);
   const accessToken = tokenMatch?.[1]?.trim();
-  if (!accessToken) {
-    return jsonResponse(401, { error: 'Missing bearer token' });
-  }
 
   const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, { auth: { persistSession: false } });
 
-  const { data: userData, error: userError } = await supabaseAdmin.auth.getUser(accessToken);
-  if (userError || !userData?.user) {
-    console.error('Invalid session token', userError);
-    return jsonResponse(401, { error: 'Invalid or expired session token' });
-  }
+  if (!serviceAuth.authorized) {
+    if (!accessToken) {
+      return jsonResponse(401, { error: 'Missing bearer token' });
+    }
 
-  const [profileResult, membershipResult] = await Promise.all([
-    supabaseAdmin.from('profiles').select('*').eq('id', userData.user.id).maybeSingle(),
-    supabaseAdmin.from('memberships').select('*').eq('user_id', userData.user.id).maybeSingle()
-  ]);
+    const { data: userData, error: userError } = await supabaseAdmin.auth.getUser(accessToken);
+    if (userError || !userData?.user) {
+      console.error('Invalid session token', userError);
+      return jsonResponse(401, { error: 'Invalid or expired session token' });
+    }
 
-  if (profileResult.error) {
-    console.error('Failed to load profile', profileResult.error);
-  }
-  if (membershipResult.error) {
-    console.error('Failed to load membership', membershipResult.error);
-  }
+    const [profileResult, membershipResult] = await Promise.all([
+      supabaseAdmin.from('profiles').select('*').eq('id', userData.user.id).maybeSingle(),
+      supabaseAdmin.from('memberships').select('*').eq('user_id', userData.user.id).maybeSingle()
+    ]);
 
-  const isAdmin = isAdminContext({
-    user: userData.user,
-    profile: profileResult.data ?? null,
-    membership: membershipResult.data ?? null
-  });
+    if (profileResult.error) {
+      console.error('Failed to load profile', profileResult.error);
+    }
+    if (membershipResult.error) {
+      console.error('Failed to load membership', membershipResult.error);
+    }
 
-  if (!isAdmin) {
-    return jsonResponse(403, { error: 'Admin privileges required' });
+    const isAdmin = isAdminContext({
+      user: userData.user,
+      profile: profileResult.data ?? null,
+      membership: membershipResult.data ?? null
+    });
+
+    if (!isAdmin) {
+      return jsonResponse(403, { error: 'Admin privileges required' });
+    }
   }
 
   const { data: runRow, error: runError } = await supabaseAdmin

@@ -65,6 +65,18 @@ const inputs = {
   autoContinueToggle: $('autoContinueToggle'),
   autoContinueInterval: $('autoContinueInterval'),
   autoContinueStatus: $('autoContinueStatus'),
+  schedulerSection: $('schedulerSection'),
+  schedulerEnabled: $('schedulerEnabled'),
+  schedulerCadence: $('schedulerCadence'),
+  schedulerStage1: $('schedulerStage1Limit'),
+  schedulerStage2: $('schedulerStage2Limit'),
+  schedulerStage3: $('schedulerStage3Limit'),
+  schedulerCycles: $('schedulerCycles'),
+  schedulerSaveBtn: $('schedulerSaveBtn'),
+  schedulerRefreshBtn: $('schedulerRefreshBtn'),
+  schedulerStatus: $('schedulerStatus'),
+  schedulerToast: $('schedulerToast'),
+  schedulerSummary: $('schedulerSummary'),
   stageSpendSection: $('stageSpendSection'),
   stageSpendChart: $('stageSpendChart'),
   stageSpendTotal: $('stageSpendTotal'),
@@ -133,6 +145,7 @@ const STAGE2_CONSUME_ENDPOINT = `${FUNCTIONS_BASE}/stage2-consume`;
 const STAGE3_CONSUME_ENDPOINT = `${FUNCTIONS_BASE}/stage3-consume`;
 const RUNS_STOP_ENDPOINT = `${FUNCTIONS_BASE}/runs-stop`;
 const RUNS_CONTINUE_ENDPOINT = `${FUNCTIONS_BASE}/runs-continue`;
+const RUNS_SCHEDULE_ENDPOINT = `${FUNCTIONS_BASE}/runs-schedule`;
 const HEALTH_ENDPOINT = `${FUNCTIONS_BASE}/health`;
 const RUN_STORAGE_KEY = 'ff-active-run-id';
 
@@ -166,9 +179,21 @@ const STAGE_LABELS = {
 };
 const AUTO_CONTINUE_LIMITS = { stage1: 8, stage2: 4, stage3: 2 };
 const AUTO_CONTINUE_DEFAULT_SECONDS = 30;
+const SCHEDULER_DEFAULTS = {
+  cadenceSeconds: 3600,
+  stage1Limit: 1,
+  stage2Limit: 1,
+  stage3Limit: 1,
+  maxCycles: 1
+};
 let autoContinueTimer = null;
 let autoContinueActive = false;
 let autoContinueInFlight = false;
+let schedulerLoading = false;
+let schedulerDirty = false;
+let currentSchedule = null;
+const scheduleCache = new Map();
+let schedulerToastTimer = null;
 let healthLoading = false;
 let errorLogLoading = false;
 let errorLogRows = [];
@@ -1748,6 +1773,372 @@ async function handleAutoContinueToggle(event) {
   }
 }
 
+function formatSchedulerCadence(seconds) {
+  const value = Number(seconds);
+  if (!Number.isFinite(value) || value <= 0) return 'custom interval';
+  if (value % 3600 === 0) {
+    const hours = Math.round(value / 3600);
+    if (hours === 1) return '60 minutes';
+    return `${hours} hour${hours === 1 ? '' : 's'}`;
+  }
+  if (value % 60 === 0) {
+    const minutes = Math.round(value / 60);
+    return `${minutes} minute${minutes === 1 ? '' : 's'}`;
+  }
+  return `${value} seconds`;
+}
+
+function formatRelativeFutureTimestamp(value) {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  const delta = date.getTime() - Date.now();
+  if (delta <= 0) {
+    return formatRelativeTimestamp(value);
+  }
+  if (delta < 60_000) return 'in under a minute';
+  if (delta < 3_600_000) {
+    const minutes = Math.round(delta / 60_000);
+    return `in ${minutes} minute${minutes === 1 ? '' : 's'}`;
+  }
+  if (delta < 86_400_000) {
+    const hours = Math.round(delta / 3_600_000);
+    return `in ${hours} hour${hours === 1 ? '' : 's'}`;
+  }
+  const days = Math.round(delta / 86_400_000);
+  return `in ${days} day${days === 1 ? '' : 's'}`;
+}
+
+function markSchedulerDirty(message = 'Unsaved changes. Save schedule to update the background dispatcher.') {
+  schedulerDirty = true;
+  if (inputs.schedulerStatus) {
+    inputs.schedulerStatus.textContent = message;
+  }
+  hideSchedulerToast();
+}
+
+function applySchedulerUI(schedule, { cache = true } = {}) {
+  const sanitized = schedule ? { ...schedule } : null;
+  const scheduleData = sanitized;
+  currentSchedule = scheduleData;
+  if (cache && activeRunId) {
+    scheduleCache.set(activeRunId, scheduleData ? { ...scheduleData } : null);
+  }
+  schedulerDirty = false;
+
+  const toggle = inputs.schedulerEnabled;
+  const cadenceSelect = inputs.schedulerCadence;
+  const stage1Input = inputs.schedulerStage1;
+  const stage2Input = inputs.schedulerStage2;
+  const stage3Input = inputs.schedulerStage3;
+  const cyclesInput = inputs.schedulerCycles;
+
+  const cadenceSeconds = Number(scheduleData?.cadence_seconds ?? SCHEDULER_DEFAULTS.cadenceSeconds);
+  const stage1Limit = Number(scheduleData?.stage1_limit ?? SCHEDULER_DEFAULTS.stage1Limit);
+  const stage2Limit = Number(scheduleData?.stage2_limit ?? SCHEDULER_DEFAULTS.stage2Limit);
+  const stage3Limit = Number(scheduleData?.stage3_limit ?? SCHEDULER_DEFAULTS.stage3Limit);
+  const maxCycles = Number(scheduleData?.max_cycles ?? SCHEDULER_DEFAULTS.maxCycles);
+
+  if (toggle) toggle.checked = Boolean(scheduleData?.active);
+  if (cadenceSelect) cadenceSelect.value = String(cadenceSeconds);
+  if (stage1Input) stage1Input.value = String(stage1Limit);
+  if (stage2Input) stage2Input.value = String(stage2Limit);
+  if (stage3Input) stage3Input.value = String(stage3Limit);
+  if (cyclesInput) cyclesInput.value = String(maxCycles);
+
+  let summary;
+  if (!activeRunId) {
+    summary = 'Assign a run to enable background automation.';
+  } else if (!scheduleData) {
+    summary = 'No background schedule saved. Configure cadence and save to dispatch unattended batches.';
+  } else if (!scheduleData.active) {
+    summary = 'Background dispatcher disabled for this run.';
+  } else {
+    const cadenceLabel = formatSchedulerCadence(cadenceSeconds);
+    summary = `Dispatches every ${cadenceLabel} · Stage 1 ${stage1Limit}, Stage 2 ${stage2Limit}, Stage 3 ${stage3Limit}`;
+    if (maxCycles > 1) {
+      summary += ` · ${maxCycles} cycles per trigger`;
+    }
+
+    const descriptors = [];
+    if (scheduleData.next_trigger_at) {
+      const relative = formatRelativeFutureTimestamp(scheduleData.next_trigger_at);
+      const absolute = new Date(scheduleData.next_trigger_at).toLocaleString();
+      descriptors.push(`next run ${relative ?? 'soon'} (${absolute})`);
+    }
+    if (scheduleData.last_triggered_at) {
+      descriptors.push(`last triggered ${formatRelativeTimestamp(scheduleData.last_triggered_at)}`);
+    }
+    if (descriptors.length) {
+      summary += `. ${descriptors.join('; ')}.`;
+    } else {
+      summary += '.';
+    }
+  }
+
+  if (inputs.schedulerSummary) {
+    inputs.schedulerSummary.textContent = summary;
+  }
+
+  if (inputs.schedulerStatus) {
+    if (!scheduleData) {
+      inputs.schedulerStatus.textContent = '';
+    } else if (!scheduleData.active) {
+      inputs.schedulerStatus.textContent = 'Scheduler disabled for this run.';
+    } else {
+      const relative = formatRelativeFutureTimestamp(scheduleData.next_trigger_at);
+      inputs.schedulerStatus.textContent = relative ? `Scheduler enabled (${relative}).` : 'Scheduler enabled.';
+    }
+  }
+
+  applyAccessState({ preserveStatus: true });
+}
+
+function hideSchedulerToast() {
+  if (!inputs.schedulerToast) return;
+  if (schedulerToastTimer) {
+    clearTimeout(schedulerToastTimer);
+    schedulerToastTimer = null;
+  }
+  inputs.schedulerToast.hidden = true;
+  inputs.schedulerToast.textContent = '';
+  inputs.schedulerToast.classList.remove('is-success', 'is-error', 'is-info');
+}
+
+function showSchedulerToast(message, variant = 'info') {
+  if (!inputs.schedulerToast) return;
+  if (schedulerToastTimer) {
+    clearTimeout(schedulerToastTimer);
+    schedulerToastTimer = null;
+  }
+
+  const toast = inputs.schedulerToast;
+  const variantClass =
+    variant === 'error' ? 'is-error' : variant === 'success' ? 'is-success' : 'is-info';
+
+  toast.hidden = false;
+  toast.textContent = message;
+  toast.classList.remove('is-success', 'is-error', 'is-info');
+  toast.classList.add(variantClass);
+
+  schedulerToastTimer = window.setTimeout(() => {
+    toast.hidden = true;
+    toast.classList.remove(variantClass);
+    toast.textContent = '';
+    schedulerToastTimer = null;
+  }, 4000);
+}
+
+function readSchedulerNumber(input, { min, max, fallback }) {
+  if (!input) return fallback;
+  const raw = Number(input.value);
+  if (!Number.isFinite(raw)) {
+    input.value = String(fallback);
+    return fallback;
+  }
+  const clamped = Math.min(Math.max(Math.floor(raw), min), max);
+  input.value = String(clamped);
+  return clamped;
+}
+
+async function fetchRunSchedule({ silent = false } = {}) {
+  if (!inputs.schedulerSummary) return;
+  if (!silent) hideSchedulerToast();
+  if (!activeRunId) {
+    applySchedulerUI(null, { cache: false });
+    hideSchedulerToast();
+    if (!silent && inputs.schedulerStatus) {
+      inputs.schedulerStatus.textContent = 'Assign a run to configure background automation.';
+    }
+    return;
+  }
+
+  if (!authContext.token) {
+    if (!silent && inputs.schedulerStatus) {
+      inputs.schedulerStatus.textContent = 'Sign in to view the background scheduler.';
+    }
+    return;
+  }
+
+  if (schedulerLoading) return;
+  schedulerLoading = true;
+  applyAccessState({ preserveStatus: true });
+
+  if (!silent && inputs.schedulerStatus) {
+    inputs.schedulerStatus.textContent = 'Loading background schedule…';
+  }
+
+  try {
+    const response = await fetch(`${RUNS_SCHEDULE_ENDPOINT}?run_id=${activeRunId}`, {
+      headers: {
+        Authorization: `Bearer ${authContext.token}`
+      }
+    });
+
+    const raw = await response.text();
+    let payload = {};
+    if (raw) {
+      try {
+        payload = JSON.parse(raw);
+      } catch (error) {
+        console.warn('Unable to parse run schedule response', error);
+      }
+    }
+
+    if (!response.ok) {
+      const message = payload?.error || `Schedule endpoint responded ${response.status}`;
+      throw new Error(message);
+    }
+
+    applySchedulerUI(payload?.schedule ?? null);
+
+    if (!silent && inputs.schedulerStatus) {
+      if (payload?.schedule) {
+        inputs.schedulerStatus.textContent = payload.schedule.active
+          ? 'Background dispatcher enabled.'
+          : 'Background dispatcher disabled.';
+      } else {
+        inputs.schedulerStatus.textContent = 'No background schedule configured.';
+      }
+    }
+  } catch (error) {
+    console.error('Failed to fetch run schedule', error);
+    if (!silent && inputs.schedulerStatus) {
+      inputs.schedulerStatus.textContent = `Failed to load schedule: ${error.message}`;
+    }
+    if (!silent) {
+      showSchedulerToast(`Failed to load schedule: ${error.message}`, 'error');
+    }
+  } finally {
+    schedulerLoading = false;
+    applyAccessState({ preserveStatus: true });
+  }
+}
+
+async function saveRunSchedule() {
+  if (!inputs.schedulerStatus) return;
+
+  if (!activeRunId) {
+    inputs.schedulerStatus.textContent = 'Assign a run ID before saving the schedule.';
+    return;
+  }
+
+  await syncAccess({ preserveStatus: true });
+
+  if (!authContext.user) {
+    inputs.schedulerStatus.textContent = 'Sign in required to manage the scheduler.';
+    return;
+  }
+
+  if (!authContext.isAdmin) {
+    inputs.schedulerStatus.textContent = 'Admin access required to manage the scheduler.';
+    return;
+  }
+
+  if (!authContext.token) {
+    inputs.schedulerStatus.textContent = 'Session expired. Sign in again to continue.';
+    await syncAccess();
+    return;
+  }
+
+  const active = Boolean(inputs.schedulerEnabled?.checked);
+  const cadenceSeconds = readSchedulerNumber(inputs.schedulerCadence, {
+    min: 60,
+    max: 21_600,
+    fallback: SCHEDULER_DEFAULTS.cadenceSeconds
+  });
+  const stage1Limit = readSchedulerNumber(inputs.schedulerStage1, {
+    min: 1,
+    max: 25,
+    fallback: SCHEDULER_DEFAULTS.stage1Limit
+  });
+  const stage2Limit = readSchedulerNumber(inputs.schedulerStage2, {
+    min: 1,
+    max: 25,
+    fallback: SCHEDULER_DEFAULTS.stage2Limit
+  });
+  const stage3Limit = readSchedulerNumber(inputs.schedulerStage3, {
+    min: 1,
+    max: 25,
+    fallback: SCHEDULER_DEFAULTS.stage3Limit
+  });
+  const maxCycles = readSchedulerNumber(inputs.schedulerCycles, {
+    min: 1,
+    max: 10,
+    fallback: SCHEDULER_DEFAULTS.maxCycles
+  });
+
+  schedulerLoading = true;
+  applyAccessState({ preserveStatus: true });
+
+  hideSchedulerToast();
+  inputs.schedulerStatus.textContent = active ? 'Saving scheduler…' : 'Disabling scheduler…';
+
+  try {
+    const response = await fetch(RUNS_SCHEDULE_ENDPOINT, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${authContext.token}`
+      },
+      body: JSON.stringify({
+        run_id: activeRunId,
+        cadence_seconds: cadenceSeconds,
+        stage_limits: {
+          stage1: stage1Limit,
+          stage2: stage2Limit,
+          stage3: stage3Limit
+        },
+        max_cycles: maxCycles,
+        active
+      })
+    });
+
+    const raw = await response.text();
+    let payload = {};
+    if (raw) {
+      try {
+        payload = JSON.parse(raw);
+      } catch (error) {
+        console.warn('Unable to parse schedule save response', error);
+      }
+    }
+
+    if (!response.ok) {
+      const message = payload?.error || `Scheduler save failed (${response.status})`;
+      throw new Error(message);
+    }
+
+    applySchedulerUI(payload?.schedule ?? null);
+
+    if (inputs.schedulerStatus) {
+      if (payload?.schedule && payload.schedule.active) {
+        const cadenceLabel = formatSchedulerCadence(payload.schedule.cadence_seconds ?? cadenceSeconds);
+        inputs.schedulerStatus.textContent = `Background dispatcher enabled (${cadenceLabel}).`;
+      } else {
+        inputs.schedulerStatus.textContent = 'Background dispatcher saved.';
+      }
+    }
+
+      if (payload?.schedule?.active) {
+        const cadenceLabel = formatSchedulerCadence(payload.schedule.cadence_seconds ?? cadenceSeconds);
+        logStatus(`Background scheduler enabled: ${cadenceLabel} cadence.`);
+        showSchedulerToast(`Scheduler enabled · ${cadenceLabel} cadence`, 'success');
+      } else {
+        logStatus('Background scheduler disabled for this run.');
+        showSchedulerToast('Scheduler disabled for this run', 'info');
+      }
+    } catch (error) {
+      console.error('Failed to save run schedule', error);
+      inputs.schedulerStatus.textContent = `Failed to save schedule: ${error.message}`;
+      schedulerDirty = true;
+      showSchedulerToast(`Failed to save schedule: ${error.message}`, 'error');
+    } finally {
+      schedulerLoading = false;
+      applyAccessState({ preserveStatus: true });
+    }
+  }
+
 function updateStage1Metrics(metrics = null) {
   const formatter = (value) => {
     if (value == null || Number.isNaN(value)) return '—';
@@ -2163,8 +2554,14 @@ function setActiveRunId(value, { announce = true, silent = false } = {}) {
     renderStage2Insights([]);
     updateStage3Metrics();
     renderStage3Reports([]);
-    if (announce && inputs.stage1Status) inputs.stage1Status.textContent = 'Active run cleared. Set a run ID to continue.';
-    if (announce) logStatus('Active run cleared.');
+    applySchedulerUI(null);
+    hideSchedulerToast();
+    if (announce && inputs.stage1Status) {
+      inputs.stage1Status.textContent = 'Active run cleared. Set a run ID to continue.';
+    }
+    if (announce) {
+      logStatus('Active run cleared.');
+    }
     if (inputs.stage2Status) inputs.stage2Status.textContent = 'Active run cleared.';
     if (inputs.stage3Status) inputs.stage3Status.textContent = 'Active run cleared.';
     return changed;
@@ -2172,8 +2569,23 @@ function setActiveRunId(value, { announce = true, silent = false } = {}) {
 
   subscribeToRunChannel(activeRunId);
 
+  hideSchedulerToast();
+  const hasCachedSchedule = scheduleCache.has(activeRunId);
+  const cachedSchedule = hasCachedSchedule ? scheduleCache.get(activeRunId) : null;
+  applySchedulerUI(cachedSchedule ?? null, { cache: hasCachedSchedule });
+  if (!hasCachedSchedule && inputs.schedulerStatus) {
+    inputs.schedulerStatus.textContent = 'Loading background schedule…';
+  }
+  if (!hasCachedSchedule && inputs.schedulerSummary) {
+    inputs.schedulerSummary.textContent = 'Loading background schedule…';
+  }
+
   fetchRunMeta({ silent }).catch((error) => {
     console.error('Failed to refresh run details', error);
+  });
+
+  fetchRunSchedule({ silent: true }).catch((error) => {
+    console.error('Failed to refresh run schedule', error);
   });
 
   if (announce) {
@@ -2686,6 +3098,27 @@ function applyAccessState({ preserveStatus = false } = {}) {
 
   updateAutoContinueAvailability();
 
+  const schedulerReady = state === 'admin-ok' && Boolean(activeRunId);
+  const schedulerDisabled = !schedulerReady || schedulerLoading;
+  if (inputs.schedulerEnabled) {
+    inputs.schedulerEnabled.disabled = schedulerDisabled;
+  }
+  [
+    inputs.schedulerCadence,
+    inputs.schedulerStage1,
+    inputs.schedulerStage2,
+    inputs.schedulerStage3,
+    inputs.schedulerCycles
+  ].forEach((input) => {
+    if (input) input.disabled = schedulerDisabled;
+  });
+  if (inputs.schedulerSaveBtn) {
+    inputs.schedulerSaveBtn.disabled = schedulerDisabled;
+  }
+  if (inputs.schedulerRefreshBtn) {
+    inputs.schedulerRefreshBtn.disabled = !activeRunId || schedulerLoading;
+  }
+
   if (inputs.observabilityPanel) {
     const shouldShow = state === 'admin-ok';
     inputs.observabilityPanel.hidden = !shouldShow;
@@ -3182,6 +3615,34 @@ function bindEvents() {
     scheduleAutoContinue();
     updateAutoContinueStatus(`Auto continue interval set to ${inputs.autoContinueInterval.value || AUTO_CONTINUE_DEFAULT_SECONDS} seconds.`);
   });
+
+  inputs.schedulerSaveBtn?.addEventListener('click', () => {
+    saveRunSchedule().catch((error) => {
+      console.error('Failed to save schedule', error);
+    });
+  });
+  inputs.schedulerRefreshBtn?.addEventListener('click', () => {
+    fetchRunSchedule({ silent: false }).catch((error) => {
+      console.error('Failed to refresh schedule', error);
+    });
+  });
+  inputs.schedulerEnabled?.addEventListener('change', () => {
+    if (!inputs.schedulerEnabled) return;
+    const message = inputs.schedulerEnabled.checked
+      ? 'Scheduler enabled. Save changes to activate unattended dispatch.'
+      : 'Scheduler disabled. Save changes to pause unattended dispatch.';
+    markSchedulerDirty(message);
+    applyAccessState({ preserveStatus: true });
+  });
+  [
+    inputs.schedulerCadence,
+    inputs.schedulerStage1,
+    inputs.schedulerStage2,
+    inputs.schedulerStage3,
+    inputs.schedulerCycles
+  ].forEach((input) => {
+    input?.addEventListener('input', () => markSchedulerDirty());
+  });
 }
 
 async function bootstrap() {
@@ -3217,8 +3678,19 @@ async function bootstrap() {
 
   await syncAccess();
 
+  if (activeRunId) {
+    fetchRunSchedule({ silent: true }).catch((error) => {
+      console.error('Failed to refresh run schedule after access sync', error);
+    });
+  }
+
   supabase.auth.onAuthStateChange(async () => {
     await syncAccess();
+    if (activeRunId) {
+      fetchRunSchedule({ silent: true }).catch((error) => {
+        console.error('Failed to refresh run schedule after auth change', error);
+      });
+    }
   });
 }
 

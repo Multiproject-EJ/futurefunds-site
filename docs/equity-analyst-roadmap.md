@@ -70,7 +70,7 @@ incrementally.
 ## 9. Automation Loop (Week 6)
 - [x] `/api/runs/continue` endpoint to sequentially trigger Stage 1 → 3 until batch limit / stop.
 - [x] Planner toggle for **Auto continue** that polls the endpoint every N seconds.
-- [ ] Optional: schedule nightly cron (Supabase Edge) to run small watchlists.
+- [x] Background scheduler + cron-friendly dispatcher to keep hourly watchlists running without the planner.
 
 ## 10. Retrieval Augmentation (Week 6–7)
 - [x] `docs` uploader UI to add filings, transcripts, letters; chunk + embed into `doc_chunks`.
