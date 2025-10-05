@@ -101,6 +101,26 @@
     .planner-alert a:focus {
       text-decoration: underline;
     }
+    .planner-alert__link {
+      background: none;
+      border: none;
+      padding: 0;
+      margin: 0;
+      color: var(--accent,#2563eb);
+      font: inherit;
+      font-weight: 600;
+      cursor: pointer;
+      text-decoration: none;
+    }
+    .planner-alert__link:hover,
+    .planner-alert__link:focus-visible {
+      text-decoration: underline;
+    }
+    .planner-alert__link:focus-visible {
+      outline: 3px solid rgba(37,99,235,.35);
+      border-radius: 4px;
+      outline-offset: 2px;
+    }
     .field {
       display: grid;
       gap: 8px;
@@ -842,6 +862,272 @@
         right: 10px;
       }
     }
+    .credential-modal {
+      position: fixed;
+      inset: 0;
+      padding: clamp(18px, 4vw, 48px);
+      background: rgba(15,23,42,.52);
+      display: grid;
+      place-items: center;
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity .22s ease, visibility .22s ease;
+      z-index: 1100;
+    }
+    .credential-modal[hidden] {
+      display: none;
+    }
+    .credential-modal.is-visible {
+      opacity: 1;
+      visibility: visible;
+    }
+    .credential-modal__dialog {
+      position: relative;
+      width: min(960px, 96vw);
+      max-height: min(94vh, 960px);
+      overflow: hidden;
+      border-radius: 24px;
+      background: var(--panel,#fff);
+      box-shadow: 0 26px 68px rgba(15,23,42,.22);
+      padding: clamp(18px, 3vw, 26px);
+      display: grid;
+      gap: 20px;
+    }
+    .credential-modal__header {
+      display: grid;
+      gap: 6px;
+    }
+    .credential-modal__header h2 {
+      margin: 0;
+      font-size: 1.38rem;
+      font-weight: 700;
+      color: var(--text,#0f172a);
+    }
+    .credential-modal__header p {
+      margin: 0;
+      font-size: .92rem;
+      color: var(--muted,#475569);
+    }
+    .credential-modal__body {
+      display: grid;
+      gap: 18px;
+    }
+    @media (min-width: 880px) {
+      .credential-modal__body {
+        grid-template-columns: minmax(0, .34fr) minmax(0, .66fr);
+      }
+    }
+    .credential-modal__sidebar {
+      border: 1px solid var(--border,#e2e8f0);
+      border-radius: 20px;
+      background: var(--panel-muted,#f8fafc);
+      padding: 16px;
+      display: grid;
+      gap: 14px;
+      align-content: start;
+      max-height: 420px;
+      overflow: hidden;
+    }
+    .credential-modal__sidebar-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+    }
+    .credential-list {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      display: grid;
+      gap: 8px;
+      overflow: auto;
+      max-height: 340px;
+    }
+    .credential-list__item {
+      border: 1px solid rgba(37,99,235,.18);
+      border-radius: 14px;
+      background: #fff;
+      padding: 12px 14px;
+      display: grid;
+      gap: 4px;
+      text-align: left;
+      cursor: pointer;
+      transition: border-color .2s ease, box-shadow .2s ease, transform .2s ease;
+    }
+    .credential-list__item strong {
+      font-size: .94rem;
+      color: var(--text,#0f172a);
+    }
+    .credential-list__item span {
+      font-size: .8rem;
+      color: var(--muted,#64748b);
+    }
+    .credential-list__item:hover,
+    .credential-list__item:focus-visible {
+      border-color: var(--accent,#2563eb);
+      box-shadow: 0 12px 26px rgba(37,99,235,.18);
+      outline: none;
+      transform: translateY(-2px);
+    }
+    .credential-list__item[aria-current="true"] {
+      border-color: var(--accent,#2563eb);
+      box-shadow: 0 0 0 2px rgba(37,99,235,.25);
+    }
+    .credential-list__empty {
+      font-size: .82rem;
+      color: var(--muted,#64748b);
+    }
+    .credential-modal__content {
+      border: 1px solid var(--border,#e2e8f0);
+      border-radius: 20px;
+      padding: 18px;
+      background: var(--panel,#fff);
+      display: grid;
+      gap: 16px;
+    }
+    .credential-status {
+      margin: 0;
+      font-size: .85rem;
+      color: var(--muted,#64748b);
+    }
+    .credential-status[data-tone="error"] {
+      color: var(--danger,#ef4444);
+    }
+    .credential-status[data-tone="success"] {
+      color: var(--ok,#31d0a3);
+    }
+    .credential-locked {
+      border: 1px dashed rgba(239,68,68,.36);
+      background: rgba(239,68,68,.08);
+      border-radius: 16px;
+      padding: 18px;
+      display: grid;
+      gap: 10px;
+    }
+    .credential-locked h3 {
+      margin: 0;
+      font-size: 1rem;
+      color: var(--danger,#ef4444);
+    }
+    .credential-locked p {
+      margin: 0;
+      font-size: .9rem;
+      color: var(--muted,#64748b);
+    }
+    .credential-form {
+      display: grid;
+      gap: 16px;
+    }
+    .credential-form__grid {
+      display: grid;
+      gap: 12px;
+    }
+    @media (min-width: 640px) {
+      .credential-form__grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+      .credential-form__grid label[for="credentialScopes"] {
+        grid-column: 1 / -1;
+      }
+    }
+    .credential-form label {
+      display: grid;
+      gap: 6px;
+      font-size: .85rem;
+      font-weight: 600;
+      color: var(--muted,#475569);
+    }
+    .credential-form input[type="text"],
+    .credential-form textarea {
+      width: 100%;
+      box-sizing: border-box;
+      border: 1px solid var(--border,#cfd8e7);
+      border-radius: 12px;
+      padding: 10px 12px;
+      font: inherit;
+      background: rgba(248,250,252,.95);
+      color: var(--text,#0f172a);
+      transition: border-color .2s ease, box-shadow .2s ease;
+    }
+    .credential-form textarea {
+      resize: vertical;
+      min-height: 100px;
+      font-family: ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;
+    }
+    .credential-form input[type="text"]:focus,
+    .credential-form textarea:focus {
+      outline: none;
+      border-color: var(--accent,#2563eb);
+      box-shadow: 0 0 0 3px rgba(37,99,235,.2);
+      background: #fff;
+    }
+    .credential-form__meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .credential-form__toggle {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      font-size: .85rem;
+      color: var(--muted,#475569);
+    }
+    .credential-form__timestamp {
+      display: grid;
+      gap: 4px;
+      text-align: right;
+      font-size: .78rem;
+      color: var(--muted,#64748b);
+    }
+    .credential-form__timestamp strong {
+      font-size: .85rem;
+      color: var(--text,#0f172a);
+    }
+    .credential-form__actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+      justify-content: flex-end;
+    }
+    .credential-modal__close {
+      position: absolute;
+      top: 14px;
+      right: 14px;
+      border: none;
+      border-radius: 999px;
+      background: rgba(15,23,42,.08);
+      color: var(--muted,#475569);
+      width: 36px;
+      height: 36px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      font-size: 1.2rem;
+      font-weight: 600;
+      transition: background .2s ease, color .2s ease, transform .2s ease;
+    }
+    .credential-modal__close:hover,
+    .credential-modal__close:focus-visible {
+      background: rgba(37,99,235,.18);
+      color: var(--accent,#2563eb);
+      outline: none;
+      transform: rotate(6deg);
+    }
+    @media (max-width: 640px) {
+      .credential-modal__dialog {
+        padding: 18px;
+        border-radius: 20px;
+      }
+      .credential-modal__close {
+        top: 10px;
+        right: 10px;
+      }
+    }
     body.guided-active {
       overflow: hidden;
     }
@@ -1155,11 +1441,11 @@
         <div class="planner-form" id="plannerForm">
           <div class="planner-alert" id="modelFallbackNotice" hidden>
             <strong>Default model catalogue loaded</strong>
-            <span>Live registry is unavailable right now, so the planner is using the built-in model list. Use <a href="/tools.html">Tools → API Registry</a> to verify the providers you have access to.</span>
+            <span>Live registry is unavailable right now, so the planner is using the built-in model list. Use <button type="button" class="planner-alert__link" data-open-credential-manager>Tools → API Registry</button> to verify the providers you have access to.</span>
           </div>
           <div class="planner-alert" id="credentialEmptyNotice" hidden>
             <strong>No API credentials detected</strong>
-            <span>Add keys from your providers in <a href="/tools.html">Tools → API Registry</a> and then refresh the planner to assign them to each stage.</span>
+            <span>Add keys from your providers in <button type="button" class="planner-alert__link" data-open-credential-manager>Tools → API Registry</button> and then refresh the planner to assign them to each stage.</span>
           </div>
           <div class="field">
             <label for="universeInput">Universe size (tickers)</label>
@@ -1543,6 +1829,91 @@
       </table>
     </section>
   </section>
+  <div
+    id="credentialModal"
+    class="credential-modal"
+    role="dialog"
+    aria-modal="true"
+    aria-hidden="true"
+    aria-labelledby="credentialModalTitle"
+    hidden
+  >
+    <div class="credential-modal__dialog">
+      <button type="button" class="credential-modal__close" data-credential-close aria-label="Close API registry manager">×</button>
+      <div class="credential-modal__header">
+        <h2 id="credentialModalTitle">API registry manager</h2>
+        <p>Rotate provider credentials without leaving the planner. Keys are stored in Supabase and encrypted at rest.</p>
+      </div>
+      <div class="credential-modal__body">
+        <aside class="credential-modal__sidebar">
+          <div class="credential-modal__sidebar-actions">
+            <button type="button" class="btn small" id="credentialNew">New credential</button>
+            <button type="button" class="btn small ghost" id="credentialRefresh">Refresh list</button>
+          </div>
+          <ul class="credential-list" id="credentialList" aria-label="Saved API credentials">
+            <li class="credential-list__empty" data-credential-empty>Loading credentials…</li>
+          </ul>
+        </aside>
+        <section class="credential-modal__content">
+          <p class="credential-status muted" id="credentialStatus" role="status" aria-live="polite"></p>
+          <div class="credential-locked" id="credentialLocked" hidden>
+            <h3>Admin access required</h3>
+            <p>Sign in with an administrator account to manage API credentials.</p>
+            <a class="btn small" href="/login.html">Go to login</a>
+          </div>
+          <form id="credentialForm" class="credential-form" hidden novalidate>
+            <input type="hidden" id="credentialId" />
+            <div class="credential-form__grid">
+              <label for="credentialProvider">
+                Provider
+                <input type="text" id="credentialProvider" placeholder="e.g., openrouter" autocomplete="off" required />
+              </label>
+              <label for="credentialLabel">
+                Label
+                <input type="text" id="credentialLabel" placeholder="Internal description" autocomplete="off" />
+              </label>
+              <label for="credentialTier">
+                Tier
+                <input type="text" id="credentialTier" placeholder="standard / premium" autocomplete="off" />
+              </label>
+              <label for="credentialScopes">
+                Scopes
+                <input
+                  type="text"
+                  id="credentialScopes"
+                  placeholder="Comma separated (e.g., automation, editor)"
+                  autocomplete="off"
+                />
+              </label>
+            </div>
+            <label for="credentialKey">
+              API key
+              <textarea id="credentialKey" rows="4" placeholder="Paste the provider API key"></textarea>
+            </label>
+            <div class="credential-form__meta">
+              <label class="credential-form__toggle" for="credentialActive">
+                <input type="checkbox" id="credentialActive" checked />
+                <span>Active (available to assign)</span>
+              </label>
+              <div class="credential-form__timestamp">
+                <span>Updated</span>
+                <strong id="credentialUpdated">—</strong>
+              </div>
+            </div>
+            <div class="credential-form__actions">
+              <button type="button" class="btn small ghost" id="credentialCopy">Copy key</button>
+              <button type="button" class="btn small ghost" id="credentialDiscard">Discard changes</button>
+              <button type="submit" class="btn primary" id="credentialSave">Save credential</button>
+            </div>
+            <p class="muted-small">
+              Keys are encrypted in Supabase. Include the <code>automation</code> scope to make them available in this planner.
+            </p>
+          </form>
+        </section>
+      </div>
+    </div>
+  </div>
+
   <div
     id="sectorModal"
     class="sector-modal"

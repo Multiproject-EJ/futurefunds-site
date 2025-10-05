@@ -5,7 +5,8 @@ import {
   buildModelMap,
   buildPriceMap,
   formatModelOption,
-  formatCredentialOption
+  formatCredentialOption,
+  parseScopes
 } from './ai-registry.js';
 import { DEFAULT_STAGE_MODELS, getPlannerFallbackModels } from './model-defaults.js';
 
@@ -325,6 +326,496 @@ function updateModelNotice() {
 function updateCredentialNotice() {
   const empty = credentialOptions.length === 0;
   toggleNotice(notices.credentialEmpty, empty);
+}
+
+function initCredentialManager() {
+  const modal = document.getElementById('credentialModal');
+  const triggers = Array.from(document.querySelectorAll('[data-open-credential-manager]'));
+
+  if (!modal || !triggers.length) return null;
+
+  const statusEl = modal.querySelector('#credentialStatus');
+  const lockedEl = modal.querySelector('#credentialLocked');
+  const formEl = modal.querySelector('#credentialForm');
+  const listEl = modal.querySelector('#credentialList');
+  const idInput = modal.querySelector('#credentialId');
+  const providerInput = modal.querySelector('#credentialProvider');
+  const labelInput = modal.querySelector('#credentialLabel');
+  const tierInput = modal.querySelector('#credentialTier');
+  const scopesInput = modal.querySelector('#credentialScopes');
+  const keyInput = modal.querySelector('#credentialKey');
+  const activeInput = modal.querySelector('#credentialActive');
+  const updatedEl = modal.querySelector('#credentialUpdated');
+  const copyBtn = modal.querySelector('#credentialCopy');
+  const discardBtn = modal.querySelector('#credentialDiscard');
+  const saveBtn = modal.querySelector('#credentialSave');
+  const newBtn = modal.querySelector('#credentialNew');
+  const refreshBtn = modal.querySelector('#credentialRefresh');
+  const closeButtons = Array.from(modal.querySelectorAll('[data-credential-close]'));
+
+  let credentials = [];
+  let activeId = null;
+  let isOpen = false;
+  let isLoading = false;
+  let isSaving = false;
+  let isDirty = false;
+  let suppressDirty = false;
+  let lastTrigger = null;
+
+  const formatTimestamp = (value) => {
+    if (!value) return '—';
+    try {
+      const timestamp = new Date(value);
+      if (Number.isNaN(timestamp.getTime())) return '—';
+      return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(timestamp);
+    } catch (error) {
+      return '—';
+    }
+  };
+
+  const setStatus = (text, tone = 'info') => {
+    if (!statusEl) return;
+    statusEl.textContent = text || '';
+    statusEl.dataset.tone = text ? tone : '';
+  };
+
+  const toggleLocked = (locked) => {
+    if (lockedEl) lockedEl.hidden = !locked;
+    if (formEl) formEl.hidden = locked;
+  };
+
+  const renderEmptyList = (message) => {
+    if (!listEl) return;
+    listEl.innerHTML = '';
+    const li = document.createElement('li');
+    li.className = 'credential-list__empty';
+    li.textContent = message;
+    listEl.appendChild(li);
+  };
+
+  const renderList = () => {
+    if (!listEl) return;
+    listEl.innerHTML = '';
+    if (!credentials.length) {
+      renderEmptyList(isLoading ? 'Loading credentials…' : 'No credentials yet.');
+      return;
+    }
+
+    credentials.forEach((record) => {
+      const li = document.createElement('li');
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'credential-list__item';
+      button.dataset.credentialId = record.id;
+      if (record.id === activeId) {
+        button.setAttribute('aria-current', 'true');
+      }
+      const title = document.createElement('strong');
+      title.textContent = record.label || record.provider || 'Unnamed credential';
+      const meta = document.createElement('span');
+      const parts = [];
+      if (record.provider) parts.push(record.provider.toUpperCase());
+      if (record.tier) parts.push(record.tier);
+      if (record.scopes?.length) parts.push(record.scopes.join(', '));
+      if (!record.is_active) parts.push('inactive');
+      meta.textContent = parts.join(' • ') || '—';
+      button.append(title, meta);
+      li.appendChild(button);
+      listEl.appendChild(li);
+    });
+  };
+
+  const resetForm = () => {
+    if (!formEl) return;
+    suppressDirty = true;
+    formEl.reset();
+    if (idInput) idInput.value = '';
+    if (providerInput) providerInput.value = '';
+    if (labelInput) labelInput.value = '';
+    if (tierInput) tierInput.value = '';
+    if (scopesInput) scopesInput.value = 'automation';
+    if (keyInput) keyInput.value = '';
+    if (activeInput) activeInput.checked = true;
+    if (updatedEl) updatedEl.textContent = '—';
+    suppressDirty = false;
+    isDirty = false;
+  };
+
+  const populateForm = (record) => {
+    if (!formEl) return;
+    suppressDirty = true;
+    if (idInput) idInput.value = record.id || '';
+    if (providerInput) providerInput.value = record.provider || '';
+    if (labelInput) labelInput.value = record.label || '';
+    if (tierInput) tierInput.value = record.tier || '';
+    if (scopesInput) {
+      const scopesText = (record.scopes && record.scopes.length ? record.scopes : ['automation']).join(', ');
+      scopesInput.value = scopesText;
+    }
+    if (keyInput) keyInput.value = record.api_key || '';
+    if (activeInput) activeInput.checked = record.is_active !== false;
+    if (updatedEl) updatedEl.textContent = formatTimestamp(record.updated_at);
+    suppressDirty = false;
+    isDirty = false;
+  };
+
+  const ensureAdmin = async () => {
+    await refreshAuthContext();
+    if (!authContext.user) {
+      toggleLocked(true);
+      setStatus('Sign in to manage API credentials.', 'error');
+      return false;
+    }
+    if (!authContext.isAdmin) {
+      toggleLocked(true);
+      setStatus('Admin access required to manage API credentials.', 'error');
+      return false;
+    }
+    toggleLocked(false);
+    return true;
+  };
+
+  const setActiveCredential = (id) => {
+    if (isDirty && id !== activeId) {
+      const proceed = window.confirm('Discard unsaved changes?');
+      if (!proceed) return;
+    }
+    isDirty = false;
+    activeId = id || null;
+    if (activeId) {
+      const record = credentials.find((entry) => entry.id === activeId);
+      if (record) {
+        populateForm(record);
+        setStatus('Credential ready to edit.', 'info');
+        if (formEl) formEl.hidden = false;
+      } else {
+        activeId = null;
+        resetForm();
+      }
+    } else {
+      resetForm();
+      setStatus('Add details for the new credential, then save to store it.', 'info');
+      if (formEl) formEl.hidden = false;
+    }
+    renderList();
+    if (keyInput) keyInput.scrollTop = 0;
+  };
+
+  const normalizeScopes = (value) => {
+    const parsed = parseScopes(value || '');
+    const normalized = Array.from(
+      new Set(parsed.map((entry) => entry.trim().toLowerCase()).filter(Boolean))
+    );
+    if (!normalized.length) normalized.push('automation');
+    return normalized;
+  };
+
+  const collectFormValues = () => {
+    const provider = (providerInput?.value || '').trim().toLowerCase();
+    const label = (labelInput?.value || '').trim();
+    const tier = (tierInput?.value || '').trim();
+    const scopes = normalizeScopes(scopesInput?.value ?? '');
+    const apiKey = (keyInput?.value || '').trim();
+    const isActive = !!activeInput?.checked;
+    const id = (idInput?.value || '').trim();
+    return {
+      id: id || null,
+      provider,
+      label: label || null,
+      tier: tier || null,
+      scopes,
+      apiKey,
+      isActive
+    };
+  };
+
+  const loadCredentials = async ({ preserveSelection = true } = {}) => {
+    const allowed = await ensureAdmin();
+    if (!allowed) {
+      credentials = [];
+      renderList();
+      resetForm();
+      return;
+    }
+
+    isLoading = true;
+    renderList();
+    setStatus('Loading credentials…', 'info');
+
+    try {
+      const { data, error } = await supabase
+        .from('editor_api_credentials')
+        .select('id, provider, label, tier, scopes, api_key, is_active, updated_at')
+        .order('updated_at', { ascending: false });
+      if (error) throw error;
+
+      credentials = (data ?? []).map((row) => {
+        const parsedScopes = Array.isArray(row.scopes)
+          ? row.scopes.filter(Boolean)
+          : parseScopes(row.scopes);
+        return {
+          id: row.id,
+          provider: row.provider ?? '',
+          label: row.label ?? '',
+          tier: row.tier ?? '',
+          scopes: parsedScopes.map((entry) => entry.trim()).filter(Boolean),
+          api_key: row.api_key ?? '',
+          is_active: row.is_active !== false,
+          updated_at: row.updated_at ?? null
+        };
+      });
+
+      credentials.sort((a, b) => {
+        const providerOrder = (a.provider || '').localeCompare(b.provider || '');
+        if (providerOrder !== 0) return providerOrder;
+        return (a.label || '').localeCompare(b.label || '');
+      });
+
+      renderList();
+
+      if (!credentials.length) {
+        resetForm();
+        setStatus('No credentials yet. Use “New credential” to add one.', 'info');
+        activeId = null;
+        return;
+      }
+
+      const nextId =
+        preserveSelection && activeId && credentials.some((entry) => entry.id === activeId)
+          ? activeId
+          : credentials[0].id;
+
+      setActiveCredential(nextId);
+      setStatus('Select a credential to review or edit.', 'info');
+    } catch (error) {
+      console.error('Credential registry load error', error);
+      setStatus(`Unable to load credentials: ${error.message}`, 'error');
+      credentials = [];
+      renderList();
+      resetForm();
+    } finally {
+      isLoading = false;
+    }
+  };
+
+  const closeModal = () => {
+    if (!isOpen) return;
+    modal.classList.remove('is-visible');
+    modal.setAttribute('aria-hidden', 'true');
+    document.body.classList.remove('modal-open');
+    const handleTransitionEnd = () => {
+      modal.hidden = true;
+      credentials = [];
+      renderList();
+      resetForm();
+      setStatus('', '');
+      isOpen = false;
+      if (lastTrigger) {
+        try {
+          lastTrigger.focus();
+        } catch (error) {
+          // ignore
+        }
+        lastTrigger = null;
+      }
+    };
+    modal.addEventListener('transitionend', handleTransitionEnd, { once: true });
+  };
+
+  const openModal = async (event) => {
+    if (event) {
+      event.preventDefault();
+      lastTrigger = event.currentTarget || event.target || null;
+    }
+    if (isOpen) return;
+    modal.hidden = false;
+    requestAnimationFrame(() => modal.classList.add('is-visible'));
+    modal.setAttribute('aria-hidden', 'false');
+    document.body.classList.add('modal-open');
+    isOpen = true;
+    setStatus('', '');
+    await loadCredentials({ preserveSelection: true });
+  };
+
+  const saveCredential = async (event) => {
+    event.preventDefault();
+    if (isSaving) return;
+    const allowed = await ensureAdmin();
+    if (!allowed) return;
+
+    const { id, provider, label, tier, scopes, apiKey, isActive } = collectFormValues();
+
+    if (!provider) {
+      setStatus('Provider is required.', 'error');
+      providerInput?.focus();
+      return;
+    }
+
+    if (!apiKey) {
+      setStatus('API key is required.', 'error');
+      keyInput?.focus();
+      return;
+    }
+
+    isSaving = true;
+    saveBtn?.setAttribute('disabled', 'true');
+    setStatus('Saving credential…', 'info');
+
+    try {
+      const payload = {
+        provider,
+        label,
+        tier,
+        scopes,
+        api_key: apiKey,
+        is_active: isActive
+      };
+
+      let result = null;
+      if (id) {
+        const { data, error } = await supabase
+          .from('editor_api_credentials')
+          .update(payload)
+          .eq('id', id)
+          .select()
+          .maybeSingle();
+        if (error) throw error;
+        result = data;
+      } else {
+        const { data, error } = await supabase
+          .from('editor_api_credentials')
+          .insert([payload])
+          .select()
+          .maybeSingle();
+        if (error) throw error;
+        result = data;
+      }
+
+      const storedId = result?.id || id;
+      if (storedId) {
+        activeId = storedId;
+      }
+
+      isDirty = false;
+      setStatus('Credential saved. Refreshing registry…', 'success');
+      logStatus(`Credential saved for provider ${provider}.`);
+
+      const snapshot = getSettingsFromInputs();
+      await loadCredentials({ preserveSelection: true });
+      await loadCatalogs({ silent: true });
+      applySettings(snapshot);
+      updateCostOutput();
+      if (inputs.status) {
+        inputs.status.textContent = 'Credential registry updated';
+      }
+    } catch (error) {
+      console.error('Credential save error', error);
+      setStatus(`Save failed: ${error.message}`, 'error');
+    } finally {
+      isSaving = false;
+      saveBtn?.removeAttribute('disabled');
+    }
+  };
+
+  const discardChanges = () => {
+    if (activeId) {
+      const record = credentials.find((entry) => entry.id === activeId);
+      if (record) {
+        populateForm(record);
+        setStatus('Changes discarded.', 'info');
+        return;
+      }
+    }
+    resetForm();
+    setStatus('Ready to add a new credential.', 'info');
+  };
+
+  const copyKey = async () => {
+    const value = keyInput?.value?.trim() || '';
+    if (!value) {
+      setStatus('Add an API key before copying.', 'error');
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(value);
+      setStatus('API key copied to clipboard.', 'success');
+    } catch (error) {
+      try {
+        keyInput?.focus();
+        keyInput?.select();
+        const succeeded = document.execCommand('copy');
+        if (!succeeded) throw new Error('Copy command failed');
+        setStatus('API key copied to clipboard.', 'success');
+      } catch (copyError) {
+        setStatus('Copy failed. Select the key and copy manually.', 'error');
+      } finally {
+        keyInput?.blur();
+      }
+    }
+  };
+
+  const handleListClick = (event) => {
+    const button = event.target.closest('[data-credential-id]');
+    if (!button || isSaving) return;
+    const { credentialId } = button.dataset;
+    if (!credentialId) return;
+    setActiveCredential(credentialId);
+  };
+
+  const handleOverlayClick = (event) => {
+    if (event.target === modal) {
+      closeModal();
+    }
+  };
+
+  const handleKeydown = (event) => {
+    if (event.key === 'Escape' && isOpen) {
+      closeModal();
+    }
+  };
+
+  formEl?.addEventListener('submit', saveCredential);
+  formEl?.addEventListener('input', () => {
+    if (suppressDirty) return;
+    isDirty = true;
+  });
+  copyBtn?.addEventListener('click', copyKey);
+  discardBtn?.addEventListener('click', discardChanges);
+  newBtn?.addEventListener('click', async () => {
+    const allowed = await ensureAdmin();
+    if (!allowed) return;
+    if (isDirty) {
+      const proceed = window.confirm('Discard unsaved changes?');
+      if (!proceed) return;
+    }
+    activeId = null;
+    toggleLocked(false);
+    resetForm();
+    if (formEl) formEl.hidden = false;
+    setStatus('Add details for the new credential, then save to store it.', 'info');
+    renderList();
+  });
+  refreshBtn?.addEventListener('click', () => {
+    loadCredentials({ preserveSelection: true });
+  });
+  listEl?.addEventListener('click', handleListClick);
+  modal.addEventListener('click', handleOverlayClick);
+  document.addEventListener('keydown', handleKeydown);
+  closeButtons.forEach((button) => button.addEventListener('click', closeModal));
+  triggers.forEach((trigger) => trigger.addEventListener('click', openModal));
+
+  const manager = {
+    open: openModal,
+    refresh: () => loadCredentials({ preserveSelection: true })
+  };
+
+  modal.ffCredentialManager = manager;
+  if (typeof window !== 'undefined') {
+    window.ffCredentialManager = manager;
+  }
+
+  return manager;
 }
 
 async function loadCatalogs({ silent = false } = {}) {
@@ -2162,4 +2653,5 @@ async function bootstrap() {
   });
 }
 
+initCredentialManager();
 bootstrap();
