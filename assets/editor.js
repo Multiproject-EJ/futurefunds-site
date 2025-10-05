@@ -2,6 +2,7 @@
 import { supabase } from './supabase.js';
 import { onAuthReady, getAccountState, hasRole, refreshAuthState } from './auth.js';
 import { describeSupabaseError, composePromptSummary } from './editor-support.js';
+import { getEditorDefaultModels } from './model-defaults.js';
 
 const PROMPT_TABLE = 'editor_prompts';
 const MODEL_TABLE = 'editor_models';
@@ -67,11 +68,7 @@ Keep it crisp, factual and focused on what an investment committee needs.`,
   },
 ];
 
-const DEFAULT_MODELS = [
-  { value: 'openrouter/auto', label: 'OpenRouter Auto', is_default: true },
-  { value: 'openai/gpt-4.1-mini', label: 'OpenAI GPT-4.1 Mini' },
-  { value: 'anthropic/claude-3.5-sonnet', label: 'Anthropic Claude 3.5 Sonnet' },
-];
+const DEFAULT_MODELS = getEditorDefaultModels();
 
 const DEFAULT_OPENROUTER_API_KEY = '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';
 
