@@ -1,0 +1,273 @@
+<!doctype html>
+<html lang="en" data-lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>FutureFunds — Ticker Deep Dive</title>
+<link rel="stylesheet" href="/assets/styles.css"/>
+<style>
+  :root {
+    --panel-bg: var(--panel, #ffffff);
+    --panel-border: var(--border, #e2e8f0);
+    --panel-shadow: var(--shadow, 0 12px 30px rgba(15, 23, 42, 0.08));
+  }
+
+  .wrap { max-width: 1100px; margin: 32px auto; padding: 0 18px; }
+  .hero { padding: 32px 0 12px; margin-top: 18px; }
+  .hero h1 { margin: 0 0 12px; font-size: clamp(2rem, 4vw, 2.6rem); }
+  .hero p { margin: 0; color: var(--muted, #64748b); max-width: 720px; }
+
+  .gate { border: 1px solid var(--panel-border); border-radius: 18px; padding: 32px; background: var(--panel-bg); text-align: center; box-shadow: var(--panel-shadow); }
+  .gate h2 { margin: 0 0 12px; }
+  .gate p { margin: 0 0 16px; color: var(--muted, #64748b); }
+  .gate .actions { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+
+  .context-card { background: var(--panel-bg); border: 1px solid var(--panel-border); border-radius: 18px; padding: 24px; box-shadow: var(--panel-shadow); display: grid; gap: 18px; }
+  .context-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; }
+  .context-metric { display: grid; gap: 4px; }
+  .context-label { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted, #64748b); }
+  .context-value { font-size: 1.1rem; font-weight: 600; }
+  .controls-row { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+  .controls-row select { min-width: 220px; padding: 10px 14px; border-radius: 12px; border: 1px solid var(--panel-border); background: var(--bg, #f8fafc); font-size: 0.95rem; }
+  .controls-row button { padding: 10px 16px; border-radius: 999px; border: 1px solid var(--panel-border); background: var(--panel-bg); cursor: pointer; font-size: 0.9rem; }
+  .controls-row button.primary { background: var(--accent, #2563eb); border-color: var(--accent, #2563eb); color: #fff; }
+
+  .panel { background: var(--panel-bg); border: 1px solid var(--panel-border); border-radius: 18px; padding: 24px; box-shadow: var(--panel-shadow); display: grid; gap: 16px; }
+  .panel h2 { margin: 0; font-size: 1.4rem; }
+  .panel h3 { margin: 16px 0 8px; font-size: 1rem; }
+  .panel p { margin: 0; line-height: 1.5; }
+  .pill { display: inline-flex; align-items: center; gap: 6px; border-radius: 999px; padding: 4px 12px; background: color-mix(in srgb, var(--accent, #2563eb) 12%, var(--panel-bg) 88%); color: var(--accent-contrast, #0f172a); font-size: 0.8rem; font-weight: 600; }
+  .badge { font-size: 0.75rem; letter-spacing: 0.06em; text-transform: uppercase; border-radius: 999px; padding: 4px 10px; border: 1px solid currentColor; display: inline-flex; align-items: center; gap: 6px; }
+  .badge.pending { color: #0ea5e9; }
+  .badge.ok { color: #16a34a; }
+  .badge.failed { color: #dc2626; }
+
+  .list { display: grid; gap: 8px; }
+  .list li { margin-left: 18px; }
+
+  .group-card { border: 1px solid var(--panel-border); border-radius: 14px; padding: 16px; background: color-mix(in srgb, var(--panel-bg) 88%, var(--bg, #f8fafc) 12%); display: grid; gap: 8px; }
+  .group-card h4 { margin: 0; font-size: 1rem; }
+  .group-card pre { margin: 0; padding: 12px; background: var(--bg, #f1f5f9); border-radius: 12px; overflow: auto; font-size: 0.85rem; }
+
+  .muted { color: var(--muted, #64748b); }
+
+  .layout { display: grid; gap: 24px; }
+
+  @media (max-width: 780px) {
+    .controls-row { flex-direction: column; align-items: stretch; }
+    .controls-row select, .controls-row button { width: 100%; }
+  }
+</style>
+</head>
+<body>
+<header class="site-header">
+  <a class="brand" href="/">
+    <img src="/images/logo.webp" alt="FutureFunds.ai logo" class="logo" />
+    <span>FutureFunds.ai</span>
+  </a>
+  <button class="nav-toggle" id="navToggle" type="button" aria-expanded="false" aria-controls="siteNav">
+    <span class="sr-only">Menu</span>
+    <span class="nav-toggle__bar"></span>
+  </button>
+  <nav class="nav" id="siteNav" aria-label="Primary navigation">
+    <div class="nav-links">
+      <div class="nav-item nav-item--team">
+        <a href="/team.html" class="nav-link" data-i18n="nav.team">Experiment</a>
+      </div>
+      <div class="nav-item nav-item--has-panel nav-item--tools">
+        <a href="/tools.html" class="nav-link" data-i18n="nav.investmentTools">Investment Tools</a>
+        <div class="nav-panel nav-panel--tools" role="group" aria-label="Investment tools">
+          <div class="nav-panel__header">
+            <span class="nav-panel__title">Featured tools</span>
+            <a class="nav-panel__cta" href="/tools.html">Explore tools →</a>
+          </div>
+          <div class="nav-panel__content nav-panel__content--tools">
+            <a class="nav-tool" href="/tool.html?id=ff-pms">
+              <span class="chip membership">Member</span>
+              <h4>Portfolio OS</h4>
+              <p>Run strategies end-to-end with sheets + AI copilots.</p>
+            </a>
+            <a class="nav-tool" href="/tool.html?id=stockalpha-journal">
+              <span class="chip free">Free</span>
+              <h4>StockAlpha Journal</h4>
+              <p>Track theses, catalysts, and behavioral loops.</p>
+            </a>
+            <a class="nav-tool" href="/tool.html?id=valuebot">
+              <span class="chip paid">Paid</span>
+              <h4>ValueBot Valuation</h4>
+              <p>Get sourced, step-by-step valuations on demand.</p>
+            </a>
+          </div>
+        </div>
+      </div>
+      <div class="nav-item nav-item--has-panel nav-item--ai">
+        <a href="/ai-economy.html" class="nav-link" data-i18n="nav.aiEconomy">The AI Economy</a>
+        <div class="nav-panel nav-panel--ai" role="group" aria-label="AI economy preview">
+          <div class="nav-panel__header">
+            <span class="nav-panel__title">AI economy brief</span>
+            <a class="nav-panel__cta" href="/ai-economy.html">Dive in →</a>
+          </div>
+          <div class="nav-ai">
+            <p class="nav-ai__pitch">Weekly signals on how automation, capital, and policy collide. Built from filings, expert transcripts, and on-chain data.</p>
+            <form class="nav-ai__signup newsletter-form" action="/ai-economy.html#newsletter" method="get">
+              <label class="sr-only" for="nav-ai-email">Email address</label>
+              <input id="nav-ai-email" type="email" name="email" placeholder="you@example.com" autocomplete="email" />
+              <button type="submit" class="btn primary">Get the brief</button>
+              <p class="nav-ai__status newsletter-status muted" aria-live="polite"></p>
+            </form>
+          </div>
+        </div>
+      </div>
+      <a href="/portfolio.html" class="nav-link" data-i18n="nav.portfolios">Portfolios</a>
+      <a href="/universe.html" class="nav-link" data-i18n="nav.universe">Universe</a>
+    </div>
+    <div class="nav-actions">
+      <button id="langBtn" class="btn small">EN ▾</button>
+      <button id="themeToggle" class="btn small ghost theme-toggle" aria-label="Toggle theme">
+        <span class="theme-toggle__icon" aria-hidden="true">🌗</span>
+        <span class="theme-toggle__label" data-i18n="nav.themeToggle">Theme</span>
+      </button>
+      <a id="membershipLogin" class="btn danger" href="/membership.html" data-i18n="cta.membership">Membership</a>
+    </div>
+  </nav>
+</header>
+
+<section class="wrap hero">
+  <h1 id="tickerTitle">Ticker deep dive</h1>
+  <p id="tickerSubtitle" class="muted">Loading report…</p>
+</section>
+
+<main class="wrap layout">
+  <section id="tickerGate" class="gate" hidden>
+    <h2>Members-only dossier</h2>
+    <p>This page surfaces raw Stage 1–3 outputs. Sign in with an analyst account to continue.</p>
+    <div class="actions">
+      <a class="btn primary" href="/login.html">Sign in</a>
+      <a class="btn" href="/membership.html">Request access</a>
+    </div>
+  </section>
+
+  <section id="tickerContent" hidden>
+    <article class="context-card">
+      <div class="controls-row">
+        <label for="runPicker" class="sr-only">Select run</label>
+        <select id="runPicker"></select>
+        <button id="exportJson" type="button">Download JSON</button>
+        <button id="copySummary" type="button" class="primary">Copy thesis</button>
+      </div>
+      <div class="context-grid">
+        <div class="context-metric">
+          <span class="context-label">Status</span>
+          <span class="context-value" id="metaStatus">—</span>
+        </div>
+        <div class="context-metric">
+          <span class="context-label">Stage</span>
+          <span class="context-value" id="metaStage">—</span>
+        </div>
+        <div class="context-metric">
+          <span class="context-label">Stage 1 label</span>
+          <span class="context-value" id="metaLabel">—</span>
+        </div>
+        <div class="context-metric">
+          <span class="context-label">Go-deep</span>
+          <span class="context-value" id="metaGoDeep">—</span>
+        </div>
+        <div class="context-metric">
+          <span class="context-label">Run spend</span>
+          <span class="context-value" id="metaSpend">—</span>
+        </div>
+        <div class="context-metric">
+          <span class="context-label">Last updated</span>
+          <span class="context-value" id="metaUpdated">—</span>
+        </div>
+      </div>
+    </article>
+
+    <article class="panel" id="stage1Panel">
+      <header>
+        <h2>Stage 1 — Triage</h2>
+      </header>
+      <div id="stage1Body">
+        <p class="muted">No triage output captured for this run.</p>
+      </div>
+    </article>
+
+    <article class="panel" id="stage2Panel">
+      <header>
+        <h2>Stage 2 — Thematic scoring</h2>
+      </header>
+      <div id="stage2Scores"></div>
+      <div id="stage2Verdict"></div>
+      <div id="stage2Next"></div>
+    </article>
+
+    <article class="panel" id="stage3Panel">
+      <header>
+        <h2>Stage 3 — Deep dive report</h2>
+      </header>
+      <p id="stage3Summary" class="muted">Deep dive not yet available.</p>
+      <div id="stage3Groups" class="layout"></div>
+    </article>
+  </section>
+</main>
+
+<footer class="site-footer">
+  <div class="footer-inner">
+    <div class="footer-col footer-about">
+      <a class="brand" href="/">
+        <img src="/images/logo.webp" alt="FutureFunds.ai logo" class="logo" />
+        <span>FutureFunds.ai</span>
+      </a>
+      <p class="muted">Researching how AI can run the investment process in public. Educational only.</p>
+    </div>
+
+    <div class="footer-col footer-links">
+      <h3 class="footer-heading">Explore</h3>
+      <ul class="footer-links-list">
+        <li><a href="/team.html">Experiment</a></li>
+        <li><a href="/tools.html">Investment Tools</a></li>
+        <li><a href="/ai-economy.html">The AI Economy</a></li>
+        <li><a href="/portfolio.html">Portfolios</a></li>
+        <li><a href="/blog.html">Commentary</a></li>
+      </ul>
+    </div>
+
+    <div class="footer-col footer-links">
+      <h3 class="footer-heading">Legal &amp; Access</h3>
+      <ul class="footer-links-list">
+        <li><a href="/disclaimer.html">Disclaimer &amp; Disclosures</a></li>
+        <li><a href="/membership.html">Membership</a></li>
+        <li><a href="/login.html">Member Login</a></li>
+        <li><a href="/editor.html">Editor (admin)</a></li>
+      </ul>
+    </div>
+
+    <div class="footer-col footer-newsletter">
+      <h3 class="footer-heading">Stay in the loop</h3>
+      <p class="muted">Sign up for updates on new research drops and product releases.</p>
+      <form class="newsletter-form" novalidate>
+        <label class="sr-only" for="newsletter-email">Email address</label>
+        <input id="newsletter-email" type="email" name="email" placeholder="you@example.com" autocomplete="email" required />
+        <button type="submit" class="btn primary">Join the list</button>
+      </form>
+      <p class="newsletter-status muted" aria-live="polite"></p>
+    </div>
+  </div>
+
+  <div class="footer-bottom">
+    <small>© <span id="year"></span> FutureFunds.ai. Educational experiment. Not investment advice.</small>
+    <div class="footer-legal">
+      <a href="/disclaimer.html">Disclaimer</a>
+      <a href="/sitemap.xml">Sitemap</a>
+      <a href="/editor.html">Editor</a>
+    </div>
+  </div>
+</footer>
+
+<script src="/assets/app.js" defer></script>
+<script src="/assets/i18n.js" defer></script>
+<script src="/assets/paywall.js" defer></script>
+<script type="module" src="/assets/auth.js"></script>
+<script type="module" src="/assets/ticker.js"></script>
+</body>
+</html>

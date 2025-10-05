@@ -11,5 +11,7 @@ universe, and internal tooling.
 - [Automated equity analyst roadmap](docs/equity-analyst-roadmap.md) — phased build plan for the
   multi-stage research system and associated UI.
 - [Sector prompt library](sectors.html) — admin console to curate Stage 2 heuristics synced to the planner.
+- [Universe cockpit](universe.html) — requires the helper functions from `sql/003_dashboard_helpers.sql`
+  and `sql/005_universe_snapshot.sql` to surface run outputs and ticker dossiers.
 - Database migrations live under `/sql` (apply them with `supabase db push` or your preferred
   migration runner).

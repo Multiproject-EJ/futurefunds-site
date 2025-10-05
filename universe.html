@@ -3,70 +3,90 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>FutureFunds — Universe</title>
+<title>FutureFunds — Analyst Universe</title>
 
-<!-- Site styles -->
 <link rel="stylesheet" href="/assets/styles.css"/>
 
 <style>
-  /* Page-local styles (keeps your global tokens) */
-  .wrap{max-width:1200px;margin:32px auto;padding:0 16px}
-  .hero{padding:32px 0 12px;text-align:left;background:none}
-  .hero h1{margin:.2rem 0 .35rem}
-  .hero p{margin:0;color:var(--muted,#64748b)}
+  :root {
+    --card-bg: var(--panel, #ffffff);
+    --card-border: var(--border, #e2e8f0);
+    --card-shadow: var(--shadow, 0 12px 30px rgba(15, 23, 42, 0.08));
+  }
 
-  .universe-toolbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:8px 0 16px}
-  .universe-search{flex:1 1 260px}
-  .universe-search input{width:100%;padding:10px 14px;border:1px solid var(--border,#e5e7eb);border-radius:999px;background:var(--panel,#fff);box-shadow:inset 0 0 0 1px transparent;transition:border .2s ease,box-shadow .2s ease}
-  .universe-search input:focus{outline:none;border-color:var(--accent,#1a73e8);box-shadow:0 0 0 3px color-mix(in srgb, var(--accent,#1a73e8) 18%, transparent)}
-  .universe-actions{display:flex;gap:8px;flex-wrap:wrap}
-  .universe-actions .btn{padding:8px 12px;border:1px solid var(--border,#e5e7eb);border-radius:999px;background:var(--panel,#fff);cursor:pointer;font-size:.85rem}
-  .universe-actions .btn:hover{border-color:var(--accent,#1a73e8)}
+  .wrap { max-width: 1200px; margin: 32px auto; padding: 0 18px; }
+  .hero { padding: 32px 0 12px; margin-top: 18px; }
+  .hero h1 { margin: 0 0 10px; font-size: clamp(2rem, 4vw, 2.6rem); }
+  .hero p { margin: 0; color: var(--muted, #64748b); max-width: 720px; }
 
-  .view-switcher{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 18px}
-  .view-switcher button{padding:8px 14px;border:1px solid var(--border,#e5e7eb);border-radius:999px;background:var(--panel,#fff);color:var(--text,#1f2937);font-size:.9rem;font-weight:500;cursor:pointer;transition:border .2s ease,background .2s ease,color .2s ease}
-  .view-switcher button.active{border-color:var(--accent,#1a73e8);background:color-mix(in srgb, var(--accent,#1a73e8) 12%, var(--panel,#fff) 88%);color:var(--accent-contrast,#0f172a)}
-  .view-switcher button:focus{outline:none;border-color:var(--accent,#1a73e8)}
+  .universe-shell { display: grid; gap: 24px; }
 
-  .table-wrap{background:var(--panel,#fff);border:1px solid var(--border,#e5e7eb);border-radius:16px;box-shadow:var(--shadow,0 12px 34px rgba(0,0,0,.06));overflow:hidden}
-  table.grid{width:100%;border-collapse:collapse}
-  .grid th,.grid td{padding:12px 14px;border-bottom:1px solid var(--border,#e5e7eb);vertical-align:top}
-  .grid thead th{position:sticky;top:62px;background:var(--bg,#f6f7fb);z-index:5;text-align:left;font-size:.85rem;text-transform:uppercase;letter-spacing:.05em;color:var(--muted,#64748b)}
-  .grid tbody tr:hover{background:#f8fafc}
-  .company-cell{font-weight:600;line-height:1.35}
-  .metric-cell{font-variant-numeric:tabular-nums}
-  .link-btn{background:none;border:none;padding:0;color:var(--accent,#1a73e8);font-size:.85rem;text-decoration:underline;cursor:pointer}
-  .link-btn:hover{color:#0b4dd8}
-  .link-btn:focus{outline:none;text-decoration:none;color:#0b4dd8}
-  .modal-actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:8px}
-  .analysis-full{display:grid;gap:14px}
-  .analysis-full__meta{color:var(--muted,#64748b);font-size:.9rem}
-  .analysis-full__body{white-space:pre-wrap;background:var(--bg,#f6f7fb);border:1px solid var(--border,#e5e7eb);border-radius:12px;padding:14px;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;margin:0;max-height:60vh;overflow:auto}
+  .gate { border: 1px solid var(--card-border); border-radius: 18px; padding: 32px; background: var(--card-bg); text-align: center; box-shadow: var(--card-shadow); }
+  .gate h2 { margin: 0 0 12px; }
+  .gate p { margin: 0 0 16px; color: var(--muted, #64748b); }
+  .gate .actions { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
 
-  .empty{padding:32px;text-align:center;color:var(--muted,#64748b)}
+  .controls-card { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 18px; padding: 20px; display: grid; gap: 16px; box-shadow: var(--card-shadow); }
+  .controls-grid { display: flex; flex-wrap: wrap; gap: 14px; align-items: center; }
+  .controls-grid label { font-size: 0.85rem; font-weight: 600; color: var(--muted, #64748b); }
+  .controls-grid select, .controls-grid input[type="search"] { min-width: 220px; padding: 10px 14px; border-radius: 12px; border: 1px solid var(--card-border); background: var(--bg, #f8fafc); font-size: 0.95rem; }
+  .controls-grid button { padding: 10px 16px; border-radius: 999px; border: 1px solid var(--card-border); background: var(--card-bg); cursor: pointer; font-size: 0.9rem; }
+  .controls-grid button.primary { background: var(--accent, #2563eb); border-color: var(--accent, #2563eb); color: #fff; }
+  .controls-grid button.primary:hover { filter: brightness(1.05); }
 
-  .locked-row td{background:color-mix(in srgb, var(--bg,#f6f7fb) 85%, var(--panel,#fff) 15%);padding:28px 16px;text-align:center}
-  .locked-paywall{display:grid;gap:12px;justify-items:center}
-  .locked-paywall p{margin:0;color:var(--muted,#64748b);max-width:520px}
-  .locked-paywall .actions{display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
-  .locked-note{font-size:13px;color:var(--muted,#64748b)}
+  .metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 16px; }
+  .metric-card { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 16px; padding: 18px; box-shadow: var(--card-shadow); display: grid; gap: 6px; }
+  .metric-label { font-size: 0.8rem; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted, #64748b); }
+  .metric-value { font-size: 1.6rem; font-weight: 600; }
+  .metric-sub { font-size: 0.85rem; color: var(--muted, #64748b); }
 
-  /* Modal */
-  .modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.4);display:none;align-items:center;justify-content:center;padding:16px}
-  .modal{max-width:900px;width:100%;background:var(--panel,#fff);border-radius:18px;box-shadow:var(--shadow,0 12px 34px rgba(0,0,0,.18));border:1px solid var(--border,#e5e7eb)}
-  .modal header{display:flex;justify-content:space-between;align-items:center;padding:16px 18px;border-bottom:1px solid var(--border,#e5e7eb)}
-  .modal .body{padding:16px 18px;max-height:70vh;overflow:auto}
-  .kbd{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;background:#eef2ff;border:1px solid #c7d2fe;border-radius:6px;padding:1px 6px;font-size:12px}
+  .filters-card { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 18px; padding: 16px 20px; box-shadow: var(--card-shadow); display: grid; gap: 14px; }
+  .chip-row { display: flex; flex-wrap: wrap; gap: 10px; }
+  .chip { border-radius: 999px; border: 1px solid var(--card-border); padding: 8px 14px; background: var(--bg, #f8fafc); cursor: pointer; font-size: 0.85rem; display: inline-flex; align-items: center; gap: 6px; }
+  .chip[data-active="true"] { background: color-mix(in srgb, var(--accent, #2563eb) 18%, var(--card-bg) 82%); border-color: var(--accent, #2563eb); color: var(--accent-contrast, #0f172a); }
+  .chip-count { font-variant-numeric: tabular-nums; font-weight: 600; }
+  .filters-card select { min-width: 200px; padding: 8px 12px; border-radius: 12px; border: 1px solid var(--card-border); background: var(--bg, #f8fafc); font-size: 0.9rem; }
 
-  /* Small screens */
-  @media (max-width: 740px){
-    .grid th:nth-child(n+5), .grid td:nth-child(n+5){display:none}
+  .table-card { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 18px; box-shadow: var(--card-shadow); overflow: hidden; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { padding: 14px 16px; border-bottom: 1px solid var(--card-border); vertical-align: top; }
+  thead th { position: sticky; top: 70px; background: var(--bg, #f8fafc); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted, #64748b); z-index: 5; }
+  tbody tr:hover { background: color-mix(in srgb, var(--accent, #2563eb) 6%, var(--card-bg) 94%); }
+  .ticker-cell { font-weight: 600; font-size: 1rem; }
+  .ticker-meta { font-size: 0.85rem; color: var(--muted, #64748b); margin-top: 2px; }
+  .stage-badge { display: inline-flex; align-items: center; gap: 6px; border-radius: 999px; padding: 4px 10px; font-size: 0.75rem; border: 1px solid currentColor; text-transform: uppercase; letter-spacing: 0.05em; }
+  .stage-0 { color: #64748b; }
+  .stage-1 { color: #0ea5e9; }
+  .stage-2 { color: #6366f1; }
+  .stage-3 { color: #16a34a; }
+  .label-pill { display: inline-flex; align-items: center; gap: 6px; border-radius: 999px; padding: 4px 10px; background: color-mix(in srgb, var(--accent, #2563eb) 12%, var(--card-bg) 88%); color: var(--accent-contrast, #0f172a); font-size: 0.8rem; font-weight: 600; }
+  .score-stack { display: grid; gap: 4px; font-size: 0.85rem; }
+  .score-stack span { display: flex; justify-content: space-between; gap: 8px; font-variant-numeric: tabular-nums; }
+  .summary-cell { font-size: 0.9rem; line-height: 1.4; }
+  .summary-cell p { margin: 0 0 4px; }
+  .summary-cell small { color: var(--muted, #64748b); }
+  .actions-cell { display: grid; gap: 8px; }
+  .actions-cell a { text-decoration: none; color: var(--accent, #2563eb); font-weight: 600; }
+  .actions-cell a:hover { text-decoration: underline; }
+
+  .table-empty { padding: 40px 16px; text-align: center; color: var(--muted, #64748b); }
+
+  .table-footer { display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; }
+  .table-footer button { padding: 10px 18px; border-radius: 999px; border: 1px solid var(--card-border); background: var(--card-bg); cursor: pointer; font-size: 0.9rem; }
+  .table-footer button[disabled] { opacity: 0.4; cursor: not-allowed; }
+  .status-text { font-size: 0.85rem; color: var(--muted, #64748b); }
+
+  @media (max-width: 900px) {
+    thead { display: none; }
+    table, tbody, tr, td { display: block; width: 100%; }
+    tr { border-bottom: 1px solid var(--card-border); }
+    td { border-bottom: none; padding: 12px 16px; }
+    .actions-cell { justify-content: flex-start; }
+    .table-footer { flex-direction: column; gap: 12px; align-items: stretch; }
   }
 </style>
 </head>
 <body>
-
-<!-- Top bar -->
 <header class="site-header">
   <a class="brand" href="/">
     <img src="/images/logo.webp" alt="FutureFunds.ai logo" class="logo" />
@@ -139,59 +159,117 @@
   </nav>
 </header>
 
-<!-- Hero -->
-<section class="wrap hero" style="margin-top:18px">
-  <h1>Universe — Daily Deep Dives</h1>
-  <p>Auto-generated research via OpenRouter. Filter, explore, export. Tip: press <span class="kbd">/</span> to search.</p>
+<section class="wrap hero">
+  <h1>Automated Analyst Universe</h1>
+  <p>Inspect the latest multi-stage equity runs. Filter by stage, label, or sector, export reports, and jump into full dossiers for any ticker.</p>
 </section>
 
-<!-- Controls -->
-<main class="wrap">
-  <div class="universe-toolbar">
-    <div class="universe-search">
-      <input id="q" type="search" placeholder="Search the universe…" aria-label="Search the universe" />
+<main class="wrap universe-shell">
+  <section id="gate" class="gate" hidden>
+    <h2>Members-only research cockpit</h2>
+    <p>This dashboard exposes raw pipeline outputs and costs. Please sign in with an analyst or admin account to continue.</p>
+    <div class="actions">
+      <a class="btn primary" href="/login.html">Sign in</a>
+      <a class="btn" href="/membership.html">Request access</a>
     </div>
-    <div class="universe-actions">
-      <button id="btnExportCsv" class="btn" type="button" title="Export current view to CSV">Export CSV</button>
-      <button id="btnCopyJson" class="btn" type="button" title="Copy current view as JSON">Copy JSON</button>
-      <button id="btnRefresh" class="btn" type="button" title="Reload data">Refresh</button>
+  </section>
+
+  <section id="universeContent" hidden>
+    <div class="controls-card">
+      <div class="controls-grid">
+        <label for="runSelect">Run</label>
+        <select id="runSelect"></select>
+        <label for="q" class="sr-only">Search tickers</label>
+        <input id="q" type="search" placeholder="Search tickers or names…" autocomplete="off" />
+        <button id="refreshBtn" type="button">Refresh</button>
+        <button id="exportCsvBtn" type="button">Export CSV</button>
+        <button id="copyJsonBtn" type="button">Copy JSON</button>
+      </div>
     </div>
-  </div>
 
-  <div class="view-switcher" role="tablist" aria-label="Universe view modes">
-    <button type="button" class="toggle active" data-mode="tags" aria-pressed="true">Tags</button>
-    <button type="button" class="toggle" data-mode="strategies" aria-pressed="false">Strategies</button>
-    <button type="button" class="toggle" data-mode="metrics" aria-pressed="false">Metrics</button>
-    <button type="button" class="toggle" data-mode="placeholder1" aria-pressed="false">Placeholder1</button>
-    <button type="button" class="toggle" data-mode="placeholder2" aria-pressed="false">Placeholder2</button>
-  </div>
+    <div class="metrics">
+      <article class="metric-card" data-metric="tickers">
+        <span class="metric-label">Universe size</span>
+        <span class="metric-value" id="metricTickers">—</span>
+        <span class="metric-sub" id="metricTickersSub">Pending update…</span>
+      </article>
+      <article class="metric-card" data-metric="go-deep">
+        <span class="metric-label">Go-deep approvals</span>
+        <span class="metric-value" id="metricGoDeep">—</span>
+        <span class="metric-sub" id="metricGoDeepSub">Stage 2 verdicts</span>
+      </article>
+      <article class="metric-card" data-metric="reports">
+        <span class="metric-label">Deep-dive reports</span>
+        <span class="metric-value" id="metricReports">—</span>
+        <span class="metric-sub" id="metricReportsSub">Stage 3 completions</span>
+      </article>
+      <article class="metric-card" data-metric="spend">
+        <span class="metric-label">Spend (USD)</span>
+        <span class="metric-value" id="metricSpend">—</span>
+        <span class="metric-sub" id="metricSpendSub">Across all stages</span>
+      </article>
+    </div>
 
-  <div class="table-wrap">
-    <table class="grid" id="grid">
-      <thead>
-        <tr id="headerRow"></tr>
-      </thead>
-      <tbody id="tbody">
-        <tr><td class="empty" colspan="6">Loading…</td></tr>
-      </tbody>
-    </table>
-  </div>
+    <div class="filters-card">
+      <div>
+        <strong>Stage</strong>
+        <div class="chip-row" id="stageFilters">
+          <button type="button" class="chip" data-stage="" data-active="true">All</button>
+          <button type="button" class="chip" data-stage="1">Stage 1</button>
+          <button type="button" class="chip" data-stage="2">Stage 2</button>
+          <button type="button" class="chip" data-stage="3">Stage 3</button>
+        </div>
+      </div>
+      <div>
+        <strong>Label</strong>
+        <div class="chip-row" id="labelFilters">
+          <button type="button" class="chip" data-label="" data-active="true">All</button>
+          <button type="button" class="chip" data-label="consider">Consider</button>
+          <button type="button" class="chip" data-label="borderline">Borderline</button>
+          <button type="button" class="chip" data-label="uninvestible">Uninvestible</button>
+        </div>
+      </div>
+      <div>
+        <strong>Go deep</strong>
+        <div class="chip-row" id="goDeepFilters">
+          <button type="button" class="chip" data-go="" data-active="true">All</button>
+          <button type="button" class="chip" data-go="true">Approved</button>
+          <button type="button" class="chip" data-go="false">Not approved</button>
+        </div>
+      </div>
+      <div>
+        <label for="sectorSelect"><strong>Sector</strong></label>
+        <select id="sectorSelect">
+          <option value="">All sectors</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="table-card">
+      <table aria-live="polite">
+        <thead>
+          <tr>
+            <th scope="col">Ticker</th>
+            <th scope="col">Stage</th>
+            <th scope="col">Label</th>
+            <th scope="col">Stage 2 scores</th>
+            <th scope="col">Deep dive summary</th>
+            <th scope="col">Spend</th>
+            <th scope="col">Actions</th>
+          </tr>
+        </thead>
+        <tbody id="tableBody">
+          <tr><td class="table-empty" colspan="7">Select a run to load the universe.</td></tr>
+        </tbody>
+      </table>
+      <div class="table-footer">
+        <button id="loadMoreBtn" type="button">Load more</button>
+        <span class="status-text" id="tableStatus">—</span>
+      </div>
+    </div>
+  </section>
 </main>
 
-<!-- Modal -->
-<div id="modal" class="modal-backdrop" role="dialog" aria-modal="true" aria-hidden="true">
-  <div class="modal">
-    <header>
-      <strong id="mTitle">Details</strong>
-      <button id="mClose" class="btn" style="border:none;background:transparent;font-size:22px;cursor:pointer" aria-label="Close">×</button>
-    </header>
-    <div class="body" id="mBody">
-      <!-- filled dynamically -->
-    </div>
-  </div>
-</div>
-
-<!-- Footer -->
 <footer class="site-footer">
   <div class="footer-inner">
     <div class="footer-col footer-about">

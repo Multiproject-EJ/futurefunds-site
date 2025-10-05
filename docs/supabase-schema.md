@@ -44,8 +44,11 @@ payloads to the browser:
 | `run_cost_breakdown(run_id uuid)` | Summarises `cost_ledger` spend by stage/model for budget monitoring. |
 | `run_cost_summary(run_id uuid)` | Provides overall spend and token totals for a run. |
 | `run_latest_activity(run_id uuid, limit int)` | Streams the latest answers (stage, ticker, summary) for the activity feed. |
+| `run_universe_rows(run_id uuid, ...)` | Paginates ticker-level snapshots (stage, label, spend, Stage 1–3 JSON) for the universe dashboard. |
+| `run_universe_facets(run_id uuid, ...)` | Returns stage/label/sector counts that power the filter badges in `/universe.html`. |
+| `run_ticker_details(run_id uuid, ticker text)` | Fetches the full dossier (Stage 1–3 outputs) for the ticker drilldown page. |
 
-Apply `sql/003_dashboard_helpers.sql` to provision or update these functions.
+Apply `sql/003_dashboard_helpers.sql` and `sql/005_universe_snapshot.sql` to provision or update these functions.
 
 The tables rely on three helper routines:
 

@@ -48,10 +48,10 @@ incrementally.
 - [x] Planner UI: **Process Stage 3 batch**, surface latest reports, and track deep-dive spend.
 
 ## 7. Universe & Report Views (Week 4–5)
-- [ ] `web/universe.html`: searchable table summarising ticker, stage, label, scores, spend.
-- [ ] `web/ticker/{ticker}.html`: render Stage 1–3 outputs, sector notes, and allow CSV / JSON
+- [x] `web/universe.html`: searchable table summarising ticker, stage, label, scores, spend.
+- [x] `web/ticker/{ticker}.html`: render Stage 1–3 outputs, sector notes, and allow CSV / JSON
       export.
-- [ ] Add shareable permalink for members (respect Supabase Auth).
+- [x] Add shareable permalink for members (respect Supabase Auth).
 
 ## 8. Cost Governance (Week 5)
 - [ ] Store `runs.budget_usd` and show in planner alongside actual cost-to-date.
