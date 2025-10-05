@@ -409,6 +409,61 @@
       gap: 12px;
       align-items: center;
     }
+    .sector-notes {
+      border: 1px solid rgba(37,99,235,.18);
+      background: rgba(37,99,235,.05);
+      border-radius: 16px;
+      padding: 18px;
+      display: grid;
+      gap: 12px;
+    }
+    .sector-notes__header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+    }
+    .sector-notes__header h3 {
+      margin: 0;
+      font-size: 1rem;
+      font-weight: 600;
+    }
+    .sector-notes__manage {
+      font-size: .85rem;
+      font-weight: 600;
+      color: var(--accent,#2563eb);
+      text-decoration: none;
+      white-space: nowrap;
+    }
+    .sector-notes__manage:hover,
+    .sector-notes__manage:focus {
+      text-decoration: underline;
+    }
+    .sector-notes__empty {
+      margin: 0;
+      font-size: .85rem;
+      color: var(--muted,#475569);
+    }
+    .sector-notes__list {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      display: grid;
+      gap: 10px;
+    }
+    .sector-notes__item {
+      display: grid;
+      gap: 4px;
+    }
+    .sector-notes__item strong {
+      font-size: .88rem;
+      color: var(--text,#0f172a);
+    }
+    .sector-notes__item p {
+      margin: 0;
+      font-size: .82rem;
+      color: var(--muted,#475569);
+    }
 
     .controller-actions span[role="status"] {
       font-size: .85rem;
@@ -802,6 +857,15 @@
           <dd id="stage2Failed">—</dd>
         </div>
       </dl>
+
+      <section class="sector-notes" aria-live="polite">
+        <div class="sector-notes__header">
+          <h3>Sector guidance in play</h3>
+          <a class="sector-notes__manage" href="/sectors.html">Manage sectors →</a>
+        </div>
+        <p id="sectorNotesEmpty" class="sector-notes__empty">No sector notes yet. Add heuristics to customise Stage 2 scoring.</p>
+        <ul id="sectorNotesList" class="sector-notes__list" hidden></ul>
+      </section>
 
       <div class="controller-actions">
         <button class="btn-primary" type="button" id="processStage2Btn">Process Stage 2 batch</button>

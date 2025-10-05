@@ -10,5 +10,6 @@ universe, and internal tooling.
   tables, policies, and triggers the frontend expects.
 - [Automated equity analyst roadmap](docs/equity-analyst-roadmap.md) — phased build plan for the
   multi-stage research system and associated UI.
+- [Sector prompt library](sectors.html) — admin console to curate Stage 2 heuristics synced to the planner.
 - Database migrations live under `/sql` (apply them with `supabase db push` or your preferred
   migration runner).

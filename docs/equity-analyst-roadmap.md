@@ -37,8 +37,8 @@ incrementally.
 - [x] Persist `go_deep` boolean to `run_items` and show Stage 2 progress in planner.
 
 ## 5. Sector Intelligence CMS (Week 3)
-- [ ] `web/admin/sectors.html`: CRUD editor for `sector_prompts` with autosave + version tag.
-- [ ] Surface sector notes summary inside planner to remind analysts what heuristics are in play.
+- [x] `web/admin/sectors.html`: CRUD editor for `sector_prompts` with autosave + version tag.
+- [x] Surface sector notes summary inside planner to remind analysts what heuristics are in play.
 
 ## 6. Stage 3 – Deep Dive Reports (Week 4)
 - [ ] `/api/stage3/consume`: for tickers with `go_deep=true`, orchestrate 4–6 grouped prompts using

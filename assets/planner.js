@@ -65,7 +65,9 @@ const inputs = {
   stage2Completed: $('stage2Completed'),
   stage2Failed: $('stage2Failed'),
   stage2GoDeep: $('stage2GoDeep'),
-  stage2RecentBody: $('stage2RecentBody')
+  stage2RecentBody: $('stage2RecentBody'),
+  sectorNotesList: $('sectorNotesList'),
+  sectorNotesEmpty: $('sectorNotesEmpty')
 };
 
 const FUNCTIONS_BASE = SUPABASE_URL.replace(/\.supabase\.co$/, '.functions.supabase.co');
@@ -89,6 +91,8 @@ let currentRunMeta = null;
 let runChannel = null;
 let stage1RefreshTimer = null;
 let stage2RefreshTimer = null;
+let sectorNotesChannel = null;
+let sectorNotesReady = false;
 
 function loadSettings() {
   try {
@@ -933,12 +937,120 @@ function logStatus(message) {
   inputs.log.textContent = `[${timestamp}] ${message}\n\n${inputs.log.textContent}`.trim();
 }
 
+const defaultSectorEmptyText = inputs.sectorNotesEmpty?.textContent ??
+  'No sector notes yet. Add heuristics to customise Stage 2 scoring.';
+
+function truncateNotes(text, limit = 180) {
+  if (!text) return '';
+  const normalized = String(text).replace(/\s+/g, ' ').trim();
+  if (normalized.length <= limit) return normalized;
+  return `${normalized.slice(0, limit - 1).trimEnd()}…`;
+}
+
+function clearSectorNotes() {
+  if (inputs.sectorNotesList) {
+    inputs.sectorNotesList.innerHTML = '';
+    inputs.sectorNotesList.hidden = true;
+  }
+  if (inputs.sectorNotesEmpty) {
+    inputs.sectorNotesEmpty.textContent = defaultSectorEmptyText;
+    inputs.sectorNotesEmpty.hidden = false;
+  }
+  sectorNotesReady = false;
+}
+
+function renderSectorNotes(records = []) {
+  if (!inputs.sectorNotesList || !inputs.sectorNotesEmpty) return;
+  if (!records.length) {
+    clearSectorNotes();
+    return;
+  }
+
+  const fragment = document.createDocumentFragment();
+  records.forEach((record) => {
+    const item = document.createElement('li');
+    item.className = 'sector-notes__item';
+    const title = document.createElement('strong');
+    title.textContent = record.sector;
+    const body = document.createElement('p');
+    body.textContent = truncateNotes(record.notes);
+    item.append(title, body);
+    fragment.append(item);
+  });
+
+  inputs.sectorNotesList.innerHTML = '';
+  inputs.sectorNotesList.appendChild(fragment);
+  inputs.sectorNotesList.hidden = false;
+  inputs.sectorNotesEmpty.hidden = true;
+}
+
+async function refreshSectorNotes({ silent = false } = {}) {
+  if (!authContext.isAdmin || !inputs.sectorNotesList) return;
+  if (!silent && inputs.sectorNotesEmpty) {
+    inputs.sectorNotesEmpty.textContent = 'Loading sector guidance…';
+    inputs.sectorNotesEmpty.hidden = false;
+  }
+  try {
+    const { data, error } = await supabase
+      .from('sector_prompts')
+      .select('sector, notes')
+      .order('sector', { ascending: true })
+      .limit(12);
+    if (error) throw error;
+    const records = (data || []).map((entry) => ({
+      sector: String(entry.sector || 'Unknown'),
+      notes: String(entry.notes || '')
+    }));
+    sectorNotesReady = true;
+    renderSectorNotes(records);
+  } catch (error) {
+    console.error('Failed to refresh sector notes', error);
+    if (inputs.sectorNotesEmpty) {
+      inputs.sectorNotesEmpty.textContent = 'Unable to load sector notes right now.';
+      inputs.sectorNotesEmpty.hidden = false;
+    }
+  }
+}
+
+function detachSectorNotesChannel() {
+  if (sectorNotesChannel) {
+    supabase.removeChannel(sectorNotesChannel);
+    sectorNotesChannel = null;
+  }
+}
+
+function subscribeSectorNotes() {
+  if (!authContext.isAdmin || !inputs.sectorNotesList) return;
+  detachSectorNotesChannel();
+  sectorNotesChannel = supabase
+    .channel('planner-sector-prompts')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'sector_prompts' }, () => {
+      refreshSectorNotes({ silent: true });
+    });
+  sectorNotesChannel.subscribe((status) => {
+    if (status === 'SUBSCRIBED') {
+      refreshSectorNotes({ silent: sectorNotesReady });
+    }
+  });
+}
+
 function applyAccessState({ preserveStatus = false } = {}) {
+  const previousState = lastAccessState;
   const state = !authContext.user
     ? 'signed-out'
     : authContext.isAdmin
       ? 'admin-ok'
       : 'no-admin';
+
+  if (state === 'admin-ok' && previousState !== 'admin-ok') {
+    subscribeSectorNotes();
+    refreshSectorNotes({ silent: true });
+  } else if (state !== 'admin-ok' && previousState === 'admin-ok') {
+    detachSectorNotesChannel();
+    clearSectorNotes();
+  } else if (state === 'admin-ok' && !sectorNotesReady) {
+    refreshSectorNotes({ silent: true });
+  }
 
   if (inputs.startBtn) {
     inputs.startBtn.disabled = state !== 'admin-ok';
