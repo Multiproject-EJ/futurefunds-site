@@ -62,6 +62,9 @@ const inputs = {
   runRemaining: $('runRemainingValue'),
   runRemainingStat: $('runRemainingStat'),
   runMetaStatus: $('runMetaStatus'),
+  autoContinueToggle: $('autoContinueToggle'),
+  autoContinueInterval: $('autoContinueInterval'),
+  autoContinueStatus: $('autoContinueStatus'),
   stageSpendSection: $('stageSpendSection'),
   stageSpendChart: $('stageSpendChart'),
   stageSpendTotal: $('stageSpendTotal'),
@@ -113,6 +116,7 @@ const STAGE1_CONSUME_ENDPOINT = `${FUNCTIONS_BASE}/stage1-consume`;
 const STAGE2_CONSUME_ENDPOINT = `${FUNCTIONS_BASE}/stage2-consume`;
 const STAGE3_CONSUME_ENDPOINT = `${FUNCTIONS_BASE}/stage3-consume`;
 const RUNS_STOP_ENDPOINT = `${FUNCTIONS_BASE}/runs-stop`;
+const RUNS_CONTINUE_ENDPOINT = `${FUNCTIONS_BASE}/runs-continue`;
 const RUN_STORAGE_KEY = 'ff-active-run-id';
 
 let authContext = {
@@ -143,6 +147,11 @@ const STAGE_LABELS = {
   2: 'Stage 2 · Scoring',
   3: 'Stage 3 · Deep dive'
 };
+const AUTO_CONTINUE_LIMITS = { stage1: 8, stage2: 4, stage3: 2 };
+const AUTO_CONTINUE_DEFAULT_SECONDS = 30;
+let autoContinueTimer = null;
+let autoContinueActive = false;
+let autoContinueInFlight = false;
 
 function loadSettings() {
   try {
@@ -1449,6 +1458,276 @@ async function toggleRunStop(stopRequested) {
   }
 }
 
+function updateAutoContinueStatus(message) {
+  if (inputs.autoContinueStatus) {
+    inputs.autoContinueStatus.textContent = message;
+  }
+}
+
+function getAutoContinueIntervalMs() {
+  const rawValue = Number(inputs.autoContinueInterval?.value ?? AUTO_CONTINUE_DEFAULT_SECONDS);
+  const seconds = Number.isFinite(rawValue) && rawValue > 0 ? rawValue : AUTO_CONTINUE_DEFAULT_SECONDS;
+  const clamped = Math.min(Math.max(Math.round(seconds), 5), 600);
+  return clamped * 1000;
+}
+
+function clearAutoContinueTimer() {
+  if (autoContinueTimer) {
+    window.clearTimeout(autoContinueTimer);
+    autoContinueTimer = null;
+  }
+}
+
+function disableAutoContinue(message = 'Auto continue paused.') {
+  clearAutoContinueTimer();
+  autoContinueActive = false;
+  autoContinueInFlight = false;
+  if (inputs.autoContinueToggle) {
+    inputs.autoContinueToggle.checked = false;
+  }
+  updateAutoContinueStatus(message);
+}
+
+function scheduleAutoContinue({ immediate = false } = {}) {
+  clearAutoContinueTimer();
+  if (!autoContinueActive) return;
+
+  if (immediate) {
+    runAutoContinue().catch((error) => {
+      console.error('Auto continue execution failed', error);
+    });
+    return;
+  }
+
+  const delay = getAutoContinueIntervalMs();
+  autoContinueTimer = window.setTimeout(() => {
+    autoContinueTimer = null;
+    runAutoContinue().catch((error) => {
+      console.error('Auto continue execution failed', error);
+    });
+  }, delay);
+}
+
+function updateAutoContinueAvailability() {
+  const toggle = inputs.autoContinueToggle;
+  const intervalSelect = inputs.autoContinueInterval;
+  const halted = currentRunMeta?.stop_requested
+    ? 'stop'
+    : currentRunMeta?.budget_exhausted
+      ? 'budget'
+      : null;
+  const hasAuth = Boolean(authContext.user && authContext.isAdmin && authContext.token);
+  const ready = Boolean(activeRunId && hasAuth && !halted);
+
+  if (!ready && autoContinueActive) {
+    clearAutoContinueTimer();
+    autoContinueActive = false;
+    autoContinueInFlight = false;
+    if (toggle) toggle.checked = false;
+    if (halted === 'budget') {
+      updateAutoContinueStatus('Auto continue halted — budget reached.');
+    } else if (halted === 'stop') {
+      updateAutoContinueStatus('Auto continue halted — stop requested.');
+    } else if (!authContext.user) {
+      updateAutoContinueStatus('Sign in to enable auto continue.');
+    } else if (!authContext.isAdmin) {
+      updateAutoContinueStatus('Admin access required for auto continue.');
+    } else if (!activeRunId) {
+      updateAutoContinueStatus('Select a run to enable auto continue.');
+    } else {
+      updateAutoContinueStatus('Auto continue paused.');
+    }
+  }
+
+  if (toggle) {
+    toggle.disabled = !ready && !autoContinueActive;
+  }
+
+  if (intervalSelect) {
+    intervalSelect.disabled = !ready || autoContinueInFlight;
+  }
+
+  if (!autoContinueActive) {
+    if (!activeRunId) {
+      updateAutoContinueStatus('Select a run to enable auto continue.');
+    } else if (!authContext.user) {
+      updateAutoContinueStatus('Sign in to enable auto continue.');
+    } else if (!authContext.isAdmin) {
+      updateAutoContinueStatus('Admin access required for auto continue.');
+    } else if (halted === 'stop') {
+      updateAutoContinueStatus('Auto continue halted — stop requested.');
+    } else if (halted === 'budget') {
+      updateAutoContinueStatus('Auto continue halted — budget reached.');
+    } else if (!autoContinueInFlight && (!inputs.autoContinueStatus || !inputs.autoContinueStatus.textContent)) {
+      updateAutoContinueStatus('Auto continue idle.');
+    }
+  }
+}
+
+async function runAutoContinue() {
+  if (!autoContinueActive || autoContinueInFlight) return;
+
+  if (!activeRunId) {
+    disableAutoContinue('Select a run to enable auto continue.');
+    updateAutoContinueAvailability();
+    return;
+  }
+
+  if (!authContext.token) {
+    await syncAccess({ preserveStatus: true });
+  }
+
+  if (!authContext.token) {
+    disableAutoContinue('Session expired. Sign in again to continue.');
+    updateAutoContinueAvailability();
+    return;
+  }
+
+  autoContinueInFlight = true;
+  updateAutoContinueStatus('Auto continue running…');
+
+  try {
+    const response = await fetch(RUNS_CONTINUE_ENDPOINT, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${authContext.token}`
+      },
+      body: JSON.stringify({
+        run_id: activeRunId,
+        stage_limits: AUTO_CONTINUE_LIMITS,
+        cycles: 1,
+        client_meta: {
+          origin: window.location.origin,
+          triggered_at: new Date().toISOString()
+        }
+      })
+    });
+
+    const raw = await response.text();
+    let payload = {};
+    if (raw) {
+      try {
+        payload = JSON.parse(raw);
+      } catch (error) {
+        console.warn('Unable to parse runs-continue response JSON', error);
+        payload = {};
+      }
+    }
+
+    if (!response.ok) {
+      const message = payload?.error || `Auto continue failed (${response.status})`;
+      updateAutoContinueStatus(message);
+      logStatus(`[Auto] ${message}`);
+      disableAutoContinue('Auto continue stopped due to error.');
+      updateAutoContinueAvailability();
+      return;
+    }
+
+    const message = typeof payload?.message === 'string' ? payload.message : 'Auto continue cycle completed.';
+    updateAutoContinueStatus(message);
+    logStatus(`[Auto] ${message}`);
+
+    if (Array.isArray(payload?.operations)) {
+      payload.operations.forEach((operation) => {
+        if (!operation || typeof operation !== 'object') return;
+        const stageNumber = Number(operation.stage);
+        const stageLabel = STAGE_LABELS[stageNumber] ?? `Stage ${stageNumber}`;
+        const opMessage = operation.message || 'Stage call completed.';
+        logStatus(`[Auto] ${stageLabel}: ${opMessage}`);
+      });
+    }
+
+    if (payload?.halted) {
+      const haltMessage = typeof payload.halted.message === 'string'
+        ? payload.halted.message
+        : 'Auto continue halted.';
+      logStatus(`[Auto] ${haltMessage}`);
+      disableAutoContinue(haltMessage);
+    }
+
+    await Promise.all([
+      fetchStage1Summary({ silent: true }),
+      fetchStage2Summary({ silent: true }),
+      fetchStage3Summary({ silent: true }),
+      fetchRunMeta({ silent: true })
+    ]).catch((error) => {
+      console.error('Auto continue refresh failed', error);
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error('Auto continue error', error);
+    updateAutoContinueStatus(`Auto continue error: ${message}`);
+    logStatus(`Auto continue error: ${message}`);
+    disableAutoContinue('Auto continue stopped due to error.');
+  } finally {
+    autoContinueInFlight = false;
+    updateAutoContinueAvailability();
+    if (autoContinueActive) {
+      scheduleAutoContinue();
+    }
+  }
+}
+
+async function handleAutoContinueToggle(event) {
+  const checked = Boolean(event?.target?.checked);
+
+  if (checked) {
+    await syncAccess({ preserveStatus: true });
+
+    if (!authContext.user) {
+      updateAutoContinueStatus('Sign in to enable auto continue.');
+      if (inputs.autoContinueToggle) inputs.autoContinueToggle.checked = false;
+      updateAutoContinueAvailability();
+      return;
+    }
+
+    if (!authContext.isAdmin) {
+      updateAutoContinueStatus('Admin access required for auto continue.');
+      if (inputs.autoContinueToggle) inputs.autoContinueToggle.checked = false;
+      updateAutoContinueAvailability();
+      return;
+    }
+
+    if (!authContext.token) {
+      updateAutoContinueStatus('Session expired. Sign in again to continue.');
+      if (inputs.autoContinueToggle) inputs.autoContinueToggle.checked = false;
+      updateAutoContinueAvailability();
+      return;
+    }
+
+    if (!activeRunId) {
+      updateAutoContinueStatus('Select a run to enable auto continue.');
+      if (inputs.autoContinueToggle) inputs.autoContinueToggle.checked = false;
+      updateAutoContinueAvailability();
+      return;
+    }
+
+    if (currentRunMeta?.stop_requested) {
+      updateAutoContinueStatus('Auto continue halted — stop requested.');
+      if (inputs.autoContinueToggle) inputs.autoContinueToggle.checked = false;
+      updateAutoContinueAvailability();
+      return;
+    }
+
+    if (currentRunMeta?.budget_exhausted) {
+      updateAutoContinueStatus('Auto continue halted — budget reached.');
+      if (inputs.autoContinueToggle) inputs.autoContinueToggle.checked = false;
+      updateAutoContinueAvailability();
+      return;
+    }
+
+    autoContinueActive = true;
+    logStatus('Auto continue enabled.');
+    updateAutoContinueAvailability();
+    scheduleAutoContinue({ immediate: true });
+  } else {
+    disableAutoContinue('Auto continue paused.');
+    logStatus('Auto continue paused by operator.');
+    updateAutoContinueAvailability();
+  }
+}
+
 function updateStage1Metrics(metrics = null) {
   const formatter = (value) => {
     if (value == null || Number.isNaN(value)) return '—';
@@ -1825,6 +2104,10 @@ function setActiveRunId(value, { announce = true, silent = false } = {}) {
   const previous = activeRunId;
   activeRunId = normalized || null;
   const changed = previous !== activeRunId;
+
+  if (changed && autoContinueActive) {
+    disableAutoContinue('Auto continue paused while switching runs.');
+  }
 
   if (activeRunId) {
     localStorage.setItem(RUN_STORAGE_KEY, activeRunId);
@@ -2357,6 +2640,8 @@ function applyAccessState({ preserveStatus = false } = {}) {
 
   const haltRequested = (currentRunMeta?.stop_requested ?? false) || (currentRunMeta?.budget_exhausted ?? false);
 
+  updateAutoContinueAvailability();
+
   if (state === 'admin-ok' && previousState !== 'admin-ok') {
     subscribeSectorNotes();
     refreshSectorNotes({ silent: true });
@@ -2650,6 +2935,13 @@ function bindEvents() {
     updateCostOutput();
     logStatus('Registry refreshed.');
     inputs.status.textContent = 'Registry updated';
+  });
+  inputs.autoContinueToggle?.addEventListener('change', handleAutoContinueToggle);
+  inputs.autoContinueInterval?.addEventListener('change', () => {
+    if (!autoContinueActive) return;
+    if (autoContinueInFlight) return;
+    scheduleAutoContinue();
+    updateAutoContinueStatus(`Auto continue interval set to ${inputs.autoContinueInterval.value || AUTO_CONTINUE_DEFAULT_SECONDS} seconds.`);
   });
 }
 

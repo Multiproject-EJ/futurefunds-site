@@ -68,8 +68,8 @@ incrementally.
 - [x] Add sparkline / bar chart for stage-level spend (client-side or lightweight chart lib).
 
 ## 9. Automation Loop (Week 6)
-- [ ] `/api/runs/continue` endpoint to sequentially trigger Stage 1 → 3 until batch limit / stop.
-- [ ] Planner toggle for **Auto continue** that polls the endpoint every N seconds.
+- [x] `/api/runs/continue` endpoint to sequentially trigger Stage 1 → 3 until batch limit / stop.
+- [x] Planner toggle for **Auto continue** that polls the endpoint every N seconds.
 - [ ] Optional: schedule nightly cron (Supabase Edge) to run small watchlists.
 
 ## 10. Retrieval Augmentation (Week 6–7)
