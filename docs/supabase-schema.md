@@ -31,6 +31,10 @@ multi-stage model runs and reporting:
 | `answers` | Stores structured and narrative outputs produced at each stage of the pipeline. |
 | `cost_ledger` | Aggregated token usage and USD cost per stage/run for budget monitoring. |
 | `doc_chunks` | Optional retrieval corpus of text snippets (10-Ks, transcripts, etc.) used for RAG. |
+| `analysis_dimensions` | Registry of scoring dimensions (financial resilience, leadership, etc.) with color/weight metadata. |
+| `analysis_questions` | Question bank powering Stage&nbsp;3 prompts, dependency graphing, and verdict schemas. |
+| `analysis_question_results` | Per-question outputs (verdict, score, tags) stored per run/ticker for browser caching. |
+| `analysis_dimension_scores` | Aggregated dimension verdicts and weights derived from question results for dashboards. |
 
 The analyst dashboard queries a handful of helper functions to avoid shipping large
 payloads to the browser:
@@ -469,3 +473,86 @@ Composite primary key: `(run_id, ticker)`.
 | `chunk` | `text` | Plain-text snippet used for retrieval-augmented prompts. |
 
 When enabling pgvector for semantic search, add an `embedding vector` column via a follow-up migration.
+
+### `analysis_dimensions`
+
+*Primary key*: `id uuid` generated with `gen_random_uuid()`.
+
+| Column | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `slug` | `text` | — | Unique identifier (e.g., `financial_resilience`). Used in prompts and dashboards. |
+| `name` | `text` | — | Human-readable label displayed in scorecards. |
+| `description` | `text` | `null` | Optional blurb describing what the dimension captures. |
+| `stage` | `int` | `3` | Stage the dimension applies to (defaults to Stage&nbsp;3 deep dives). |
+| `order_index` | `int` | `0` | Ordering key for scorecards. |
+| `weight` | `numeric(8,4)` | `1` | Weight applied when averaging question scores. |
+| `color_bad` / `color_neutral` / `color_good` | `text` | Palette hex codes used for UI badges. |
+| `is_active` | `boolean` | `true` | Toggle to deactivate a dimension without removing history. |
+| `metadata` | `jsonb` | `'{}'` | Free-form JSON for downstream tuning (e.g., signal hints). |
+| `created_at` / `updated_at` | `timestamptz` | `now()` | Managed timestamps. |
+
+Seed and maintain this table via `/sql/007_question_registry.sql` so serverless workers and dashboards stay aligned.
+
+### `analysis_questions`
+
+*Primary key*: `id uuid`.
+
+| Column | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `dimension_id` | `uuid` | — | References `analysis_dimensions(id)`. |
+| `slug` | `text` | — | Stable question identifier (e.g., `fin_core_liquidity`). |
+| `stage` | `int` | `3` | Stage the question executes in. |
+| `order_index` | `int` | `0` | Controls execution order (dependencies should come later). |
+| `prompt` | `text` | — | Primary instruction block injected into Stage&nbsp;3 prompts. |
+| `guidance` | `text` | `null` | Optional extra heuristics appended below the prompt. |
+| `weight` | `numeric(8,4)` | `1` | Contribution to weighted averages. |
+| `answer_schema` | `jsonb` | default schema | Expected JSON structure returned by the model. Workers stringify this in the prompt. |
+| `depends_on` | `text[]` | `{}` | Array of prerequisite question slugs; used to feed dependency notes back to the model. |
+| `tags` | `text[]` | `{}` | Category hints (e.g., `['debt','liquidity']`). |
+| `is_active` | `boolean` | `true` | Toggle without deleting history. |
+| `metadata` | `jsonb` | `'{}'` | Optional extras (model hints, thresholds). |
+| `created_at` / `updated_at` | `timestamptz` | `now()` | Managed timestamps. |
+
+### `analysis_question_results`
+
+Composite primary key: `(run_id, ticker, question_id)`.
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `run_id` | `uuid` | References `runs`. |
+| `ticker` | `text` | References `tickers`. |
+| `question_id` | `uuid` | References `analysis_questions`. |
+| `question_slug` | `text` | Convenience copy for fast lookups. |
+| `dimension_id` | `uuid` | References `analysis_dimensions`. |
+| `stage` | `int` | Stage executed (normally 3). |
+| `verdict` | `text` | Normalised verdict string (`bad`, `neutral`, `good`). |
+| `score` | `numeric(8,4)` | 0–100 scale when provided by the model. |
+| `weight` | `numeric(8,4)` | Question weight at execution time. |
+| `color` | `text` | Color applied in the UI (mirrors dimension palette). |
+| `summary` | `text` | Short rationale summarising the answer. |
+| `answer` | `jsonb` | Raw structured output returned by the model. |
+| `tags` | `text[]` | Normalised tag list from the response. |
+| `dependencies` | `text[]` | Dependency slugs referenced when generating the prompt. |
+| `created_at` / `updated_at` | `timestamptz` | Timestamped at execution. |
+
+Workers upsert into this table so the browser can build dependency graphs without re-querying the model.
+
+### `analysis_dimension_scores`
+
+Composite primary key: `(run_id, ticker, dimension_id)`.
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `run_id` | `uuid` | References `runs`. |
+| `ticker` | `text` | References `tickers`. |
+| `dimension_id` | `uuid` | References `analysis_dimensions`. |
+| `verdict` | `text` | Weighted verdict computed across question results. |
+| `score` | `numeric(8,4)` | Weighted average score (0–100) when available. |
+| `weight` | `numeric(8,4)` | Total weight aggregated for the dimension. |
+| `color` | `text` | Tone used in dashboards (defaults to the dimension palette). |
+| `summary` | `text` | Concise roll-up summarising the dimension. |
+| `tags` | `text[]` | Union of tags from contributing questions. |
+| `details` | `jsonb` | Array of question-level metadata (verdict, score, answer snapshot). |
+| `created_at` / `updated_at` | `timestamptz` | Timestamped at aggregation time. |
+
+The Universe and ticker dashboards read from this table to render color-coded scorecards without parsing raw answer blobs.

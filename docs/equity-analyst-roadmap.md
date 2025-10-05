@@ -47,6 +47,15 @@ incrementally.
       `answer_text`.
 - [x] Planner UI: **Process Stage 3 batch**, surface latest reports, and track deep-dive spend.
 
+## 6.5. Question Graph & Scorecards (Week 4–5)
+- [x] `sql/007_question_registry.sql`: provision `analysis_dimensions`, `analysis_questions`, and
+      result tables for verdict tracking with safe upserts.
+- [x] Stage 3 worker resolves registry metadata, enforces dependency prompts, and writes
+      per-question + per-dimension verdicts (`analysis_question_results`,
+      `analysis_dimension_scores`).
+- [x] Universe and ticker dashboards render color-coded dimension pills, verdict scorecards,
+      and cached dependency graphs in-browser using the new tables.
+
 ## 7. Universe & Report Views (Week 4–5)
 - [x] `web/universe.html`: searchable table summarising ticker, stage, label, scores, spend.
 - [x] `web/ticker/{ticker}.html`: render Stage 1–3 outputs, sector notes, and allow CSV / JSON

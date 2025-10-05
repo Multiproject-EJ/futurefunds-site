@@ -13,5 +13,8 @@ universe, and internal tooling.
 - [Sector prompt library](sectors.html) — admin console to curate Stage 2 heuristics synced to the planner.
 - [Universe cockpit](universe.html) — requires the helper functions from `sql/003_dashboard_helpers.sql`
   and `sql/005_universe_snapshot.sql` to surface run outputs and ticker dossiers.
+- Question + scoring registry lives in `sql/007_question_registry.sql`; apply it after the
+  core schema so Stage&nbsp;3 workers can resolve dimensions, dependency graphs, and
+  weighted scorecards.
 - Database migrations live under `/sql` (apply them with `supabase db push` or your preferred
   migration runner).

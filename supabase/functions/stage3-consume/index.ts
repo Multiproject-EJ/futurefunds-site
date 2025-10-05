@@ -30,6 +30,52 @@ type DocChunk = {
   chunk: string | null;
 };
 
+type DimensionDefinition = {
+  id: string;
+  slug: string;
+  name: string;
+  description?: string | null;
+  stage: number;
+  order_index: number;
+  weight: number;
+  color_bad?: string | null;
+  color_neutral?: string | null;
+  color_good?: string | null;
+};
+
+type QuestionDefinition = {
+  id: string;
+  slug: string;
+  stage: number;
+  order_index: number;
+  prompt: string;
+  guidance?: string | null;
+  weight: number;
+  answer_schema?: JsonRecord | null;
+  depends_on: string[];
+  tags: string[];
+  dimension: DimensionDefinition;
+};
+
+type QuestionOutcome = {
+  definition: QuestionDefinition;
+  verdict: 'bad' | 'neutral' | 'good';
+  score: number | null;
+  summary: string;
+  tags: string[];
+  color: string;
+  raw: JsonRecord;
+};
+
+const DEFAULT_SCHEMA = {
+  question: 'slug',
+  verdict: 'bad|neutral|good',
+  score: { type: 'number', min: 0, max: 100 },
+  summary: 'string',
+  signals: [],
+  tags: []
+};
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -236,13 +282,115 @@ function formatDocSnippets(chunks: DocChunk[]) {
     .join('\n---\n');
 }
 
-function buildGroupPrompts(context: {
-  ticker: string;
-  meta: Record<string, unknown>;
-  stage1: string;
-  stage2: string;
-  docs: string;
-}) {
+function normalizeStringArray(value: unknown): string[] {
+  if (!value) return [];
+  if (Array.isArray(value)) return value.map((entry) => String(entry)).filter(Boolean);
+  if (typeof value === 'string') {
+    return value
+      .split(/[\s,]+/)
+      .map((part) => part.trim())
+      .filter(Boolean);
+  }
+  return [];
+}
+
+function normalizeSchema(schema: unknown): JsonRecord {
+  if (schema && typeof schema === 'object' && !Array.isArray(schema)) {
+    return schema as JsonRecord;
+  }
+  return DEFAULT_SCHEMA as JsonRecord;
+}
+
+async function fetchQuestionDefinitions(
+  client: ReturnType<typeof createClient>,
+  stage = 3
+): Promise<QuestionDefinition[]> {
+  const { data, error } = await client
+    .from('analysis_questions')
+    .select(
+      `id, slug, stage, order_index, prompt, guidance, weight, answer_schema, depends_on, tags, is_active,
+      dimension:analysis_dimensions!inner(id, slug, name, description, stage, order_index, weight, color_bad, color_neutral, color_good, is_active)`
+    )
+    .eq('stage', stage)
+    .eq('is_active', true)
+    .eq('dimension.is_active', true)
+    .order('dimension(order_index)', { ascending: true })
+    .order('order_index', { ascending: true });
+
+  if (error) throw error;
+
+  return (data ?? [])
+    .filter((row) => row?.dimension?.is_active !== false)
+    .map((row) => ({
+      id: String(row.id),
+      slug: String(row.slug),
+      stage: Number(row.stage ?? stage),
+      order_index: Number(row.order_index ?? 0),
+      prompt: String(row.prompt ?? ''),
+      guidance: row.guidance ? String(row.guidance) : null,
+      weight: Number(row.weight ?? 1),
+      answer_schema: normalizeSchema(row.answer_schema ?? null),
+      depends_on: normalizeStringArray(row.depends_on),
+      tags: normalizeStringArray(row.tags),
+      dimension: {
+        id: String(row.dimension.id),
+        slug: String(row.dimension.slug),
+        name: String(row.dimension.name ?? row.dimension.slug ?? ''),
+        description: row.dimension.description ?? null,
+        stage: Number(row.dimension.stage ?? stage),
+        order_index: Number(row.dimension.order_index ?? 0),
+        weight: Number(row.dimension.weight ?? 1),
+        color_bad: row.dimension.color_bad ?? null,
+        color_neutral: row.dimension.color_neutral ?? null,
+        color_good: row.dimension.color_good ?? null
+      }
+    }));
+}
+
+function normalizeVerdictValue(value: unknown): 'bad' | 'neutral' | 'good' {
+  const text = String(value ?? '').toLowerCase();
+  if (!text) return 'neutral';
+  if (['bad', 'negative', 'bearish', 'poor', 'weak', 'red'].includes(text)) return 'bad';
+  if (['good', 'positive', 'bullish', 'strong', 'green', 'favorable'].includes(text)) return 'good';
+  if (['neutral', 'balanced', 'yellow'].includes(text)) return 'neutral';
+  if (text.includes('bad') || text.includes('risk') || text.includes('negative')) return 'bad';
+  if (text.includes('good') || text.includes('strong') || text.includes('positive')) return 'good';
+  return 'neutral';
+}
+
+function normalizeScoreValue(value: unknown): number | null {
+  const num = Number(value);
+  if (!Number.isFinite(num)) return null;
+  if (num < 0) return 0;
+  if (num > 100) return 100;
+  return num;
+}
+
+function pickColor(verdict: 'bad' | 'neutral' | 'good', dimension: DimensionDefinition) {
+  if (verdict === 'bad') return dimension.color_bad ?? '#c0392b';
+  if (verdict === 'good') return dimension.color_good ?? '#27ae60';
+  return dimension.color_neutral ?? '#f39c12';
+}
+
+function digestDependencies(question: QuestionDefinition, cache: Map<string, QuestionOutcome>): string {
+  if (!question.depends_on?.length) return 'No prior dependencies were recorded.';
+  const lines: string[] = [];
+  question.depends_on.forEach((slug) => {
+    const ref = cache.get(slug);
+    if (!ref) return;
+    lines.push(
+      `${slug}: verdict=${ref.verdict} score=${ref.score ?? 'n/a'} — ${ref.summary.slice(0, 220)}`
+    );
+  });
+  if (!lines.length) return 'Dependencies listed but no answers recorded yet.';
+  return lines.join('\n');
+}
+
+function buildQuestionPrompt(
+  context: { ticker: string; meta: Record<string, unknown>; stage1: string; stage2: string; docs: string },
+  question: QuestionDefinition,
+  dependencyDigest: string
+) {
   const header = [
     `Ticker: ${context.ticker}`,
     `Name: ${context.meta.name ?? 'Unknown'}`,
@@ -251,60 +399,140 @@ function buildGroupPrompts(context: {
     `Sector: ${context.meta.sector ?? 'n/a'}`,
     `Industry: ${context.meta.industry ?? 'n/a'}`,
     '',
+    'Stage 1 triage:',
     context.stage1,
     '',
+    'Stage 2 medium verdict:',
     context.stage2,
     '',
-    `Document excerpts:`,
-    context.docs
+    'Supporting excerpts:',
+    context.docs,
+    '',
+    'Dependency notes:',
+    dependencyDigest
   ].join('\n');
 
-  return [
-    {
-      key: 'business',
-      system:
-        'You are a buy-side equity analyst. Return strict JSON matching {"business_model": string, "moat": {"score": int, "rationale": string}, "customer_lock_in": string, "growth_drivers": [string]}.' +
-        ' Scores must be 0-10. Keep rationales under 160 characters and ground commentary in supplied facts.',
-      user: `${header}\n\nFocus: describe the business model, moat durability, customer lock-in dynamics, and near-term growth drivers.`
-    },
-    {
-      key: 'financials',
-      system:
-        'You are evaluating unit economics and capital allocation. Return JSON {"unit_economics": {"score": int, "rationale": string}, "capital_allocation": {"score": int, "rationale": string}, "balance_sheet": {"score": int, "rationale": string}, "kpis": [string]}.' +
-        ' Scores must be 0-10. Summaries must be concise and factual.',
-      user: `${header}\n\nFocus: comment on unit economics resilience, capital allocation discipline, balance sheet flexibility, and standout KPIs.`
-    },
-    {
-      key: 'risks',
-      system:
-        'You are cataloguing risk and timing. Return JSON {"principal_risks": [string], "catalysts": [string], "timing_window": string, "monitoring_flags": [string]}.' +
-        ' Keep lists to a maximum of 5 items and ensure each item is specific.',
-      user: `${header}\n\nFocus: enumerate principal risks, catalysts, the likely timing window (e.g., 3-6 months) and monitoring flags for follow-up.`
+  const schema = JSON.stringify(question.answer_schema ?? DEFAULT_SCHEMA, null, 2);
+  const guidance = question.guidance ? `\nGuidance: ${question.guidance}` : '';
+
+  return {
+    system:
+      'You are a senior equity researcher. Respond ONLY with strict JSON following the provided schema. Do not add prose outside JSON.',
+    user:
+      `${header}\n\nDimension focus: ${question.dimension.name} (${question.dimension.slug})` +
+      `\nObjective: ${question.prompt}${guidance}` +
+      `\n\nReturn JSON with this schema:\n${schema}`
+  };
+}
+
+function computeDimensionSummaries(outcomes: QuestionOutcome[]) {
+  const map = new Map<string, {
+    dimension: DimensionDefinition;
+    weightSum: number;
+    scoreSum: number;
+    scoredWeight: number;
+    verdicts: Record<'bad' | 'neutral' | 'good', number>;
+    tags: Set<string>;
+    summaries: string[];
+    details: JsonRecord[];
+  }>();
+
+  outcomes.forEach((outcome) => {
+    const key = outcome.definition.dimension.id;
+    if (!map.has(key)) {
+      map.set(key, {
+        dimension: outcome.definition.dimension,
+        weightSum: 0,
+        scoreSum: 0,
+        scoredWeight: 0,
+        verdicts: { bad: 0, neutral: 0, good: 0 },
+        tags: new Set<string>(),
+        summaries: [],
+        details: []
+      });
     }
-  ];
+
+    const bucket = map.get(key)!;
+    const weight = Number(outcome.definition.weight ?? 1) || 1;
+    bucket.weightSum += weight;
+    bucket.verdicts[outcome.verdict] += 1;
+    if (outcome.score != null) {
+      bucket.scoreSum += outcome.score * weight;
+      bucket.scoredWeight += weight;
+    }
+    outcome.tags.forEach((tag) => bucket.tags.add(tag));
+    if (outcome.summary) {
+      bucket.summaries.push(`${outcome.definition.slug}: ${outcome.summary}`);
+    }
+    bucket.details.push({
+      question: outcome.definition.slug,
+      verdict: outcome.verdict,
+      score: outcome.score,
+      weight,
+      tags: outcome.tags,
+      color: outcome.color,
+      summary: outcome.summary,
+      answer: outcome.raw
+    });
+  });
+
+  return Array.from(map.values()).map((bucket) => {
+    const avg = bucket.scoredWeight > 0 ? bucket.scoreSum / bucket.scoredWeight : null;
+    let verdict: 'bad' | 'neutral' | 'good' = 'neutral';
+    if (bucket.verdicts.bad > bucket.verdicts.good && bucket.verdicts.bad >= bucket.verdicts.neutral) {
+      verdict = 'bad';
+    } else if (bucket.verdicts.good >= bucket.verdicts.bad && bucket.verdicts.good >= bucket.verdicts.neutral) {
+      verdict = 'good';
+    }
+    if (avg != null) {
+      if (avg <= 33) verdict = 'bad';
+      else if (avg >= 67) verdict = 'good';
+    }
+
+    const color = pickColor(verdict, bucket.dimension);
+
+    return {
+      dimension: bucket.dimension,
+      verdict,
+      score: avg != null ? Number(avg.toFixed(2)) : null,
+      weight: bucket.weightSum || bucket.dimension.weight || 1,
+      color,
+      summary: bucket.summaries.slice(0, 4).join(' \n') || '',
+      tags: Array.from(bucket.tags),
+      details: bucket.details
+    };
+  });
 }
 
 function buildSummaryPrompt(
   context: { ticker: string; meta: Record<string, unknown>; stage1: string; stage2: string; docs: string },
-  groupOutputs: JsonRecord[]
+  dimensionSummaries: ReturnType<typeof computeDimensionSummaries>
 ) {
-  const base = [
-    `Ticker: ${context.ticker}`,
-    `Name: ${context.meta.name ?? 'Unknown'}`,
-    '',
-    context.stage1,
-    '',
-    context.stage2,
-    '',
-    'Deep dive findings:',
-    JSON.stringify(groupOutputs)
-  ].join('\n');
+  const scoreboard = dimensionSummaries.map((entry) => ({
+    dimension: entry.dimension.slug,
+    name: entry.dimension.name,
+    verdict: entry.verdict,
+    score: entry.score,
+    weight: entry.weight,
+    summary: entry.summary,
+    tags: entry.tags
+  }));
+
+  const payload = {
+    ticker: context.ticker,
+    company: context.meta.name ?? 'Unknown',
+    stage1: context.stage1,
+    stage2: context.stage2,
+    docs: context.docs,
+    scoreboard
+  };
 
   return {
     system:
-      'You are preparing an investment memo. Return JSON {"verdict": string, "confidence": int, "thesis": string, "watch_items": [string], "next_actions": [string]}.' +
-      ' Confidence must be 0-100. Thesis should be < 200 words and evidence-backed. Watch items/next actions max 5 each.',
-    user: `${base}\n\nCompose the final verdict, conviction score, thesis paragraph, key watch items, and next actions.`
+      'You are preparing an investment memo. Respond ONLY in JSON matching {"verdict": "bad|neutral|good", "confidence": int, "thesis": string, "watch_items": [string], "next_actions": [string], "scoreboard": array}.' +
+      ' Confidence must be 0-100. Thesis <= 220 words. Watch_items and next_actions max 5 entries each.',
+    user:
+      `Context:\n${JSON.stringify(payload, null, 2)}\n\nCompose final verdict, conviction, thesis, watch items, next actions, and echo the supplied scoreboard.`
   };
 }
 
@@ -435,6 +663,27 @@ serve(async (req) => {
     });
   }
 
+  let questionDefinitions: QuestionDefinition[] = [];
+  try {
+    questionDefinitions = await fetchQuestionDefinitions(supabaseAdmin, 3);
+  } catch (error) {
+    console.error('Failed to load Stage 3 question registry', error);
+    return jsonResponse(500, { error: 'Failed to load question registry' });
+  }
+
+  if (!questionDefinitions.length) {
+    console.warn('No active Stage 3 questions configured');
+    return jsonResponse(200, {
+      run_id: runRow.id,
+      processed: 0,
+      failed: 0,
+      model: modelRecord.slug,
+      metrics: await computeMetrics(supabaseAdmin, runRow.id),
+      results: [],
+      message: 'No Stage 3 questions configured. Add analysis_questions entries to continue.'
+    });
+  }
+
   const runJsonPrompt = async (systemPrompt: string, userPrompt: string) => {
     const completion = await requestChatCompletion(modelRecord, credentialRecord, {
       temperature: 0.1,
@@ -514,19 +763,87 @@ serve(async (req) => {
         docs: formatDocSnippets(docChunks)
       };
 
-      const prompts = buildGroupPrompts(context);
-      const groupOutputs: JsonRecord[] = [];
+      const questionCache = new Map<string, QuestionOutcome>();
+      const outcomes: QuestionOutcome[] = [];
       let totalCost = 0;
 
-      for (const prompt of prompts) {
+      for (const question of questionDefinitions) {
+        const dependencyNotes = digestDependencies(question, questionCache);
+        const prompt = buildQuestionPrompt(context, question, dependencyNotes);
         const { parsed, cost, promptTokens, completionTokens } = await runJsonPrompt(prompt.system, prompt.user);
         totalCost += cost;
+
+        const verdict = normalizeVerdictValue(
+          (parsed as JsonRecord)?.verdict ?? (parsed as JsonRecord)?.rating ?? (parsed as JsonRecord)?.outlook
+        );
+        const score = normalizeScoreValue(
+          (parsed as JsonRecord)?.score ?? (parsed as JsonRecord)?.rating ?? (parsed as JsonRecord)?.numeric_score
+        );
+        const summary = (() => {
+          if (typeof parsed.summary === 'string' && parsed.summary.trim()) {
+            return parsed.summary.trim();
+          }
+          if (typeof parsed.rationale === 'string' && parsed.rationale.trim()) {
+            return parsed.rationale.trim().slice(0, 240);
+          }
+          if (Array.isArray((parsed as JsonRecord).signals) && (parsed as JsonRecord).signals.length) {
+            return (parsed as JsonRecord).signals
+              .map((signal: unknown) => String(signal))
+              .join('; ')
+              .slice(0, 240);
+          }
+          return 'No summary provided.';
+        })();
+        const tags = Array.from(
+          new Set([
+            ...question.tags,
+            ...normalizeStringArray((parsed as JsonRecord)?.tags ?? null)
+          ])
+        );
+        const color = pickColor(verdict, question.dimension);
+
+        const outcome: QuestionOutcome = {
+          definition: question,
+          verdict,
+          score,
+          summary,
+          tags,
+          color,
+          raw: parsed
+        };
+
+        outcomes.push(outcome);
+        questionCache.set(question.slug, outcome);
+
+        await supabaseAdmin
+          .from('analysis_question_results')
+          .upsert(
+            {
+              run_id: runRow.id,
+              ticker,
+              question_id: question.id,
+              question_slug: question.slug,
+              dimension_id: question.dimension.id,
+              stage: question.stage,
+              verdict,
+              score,
+              weight: question.weight,
+              color,
+              summary,
+              answer: parsed,
+              tags,
+              dependencies: question.depends_on,
+              created_at: startedAt,
+              updated_at: startedAt
+            },
+            { onConflict: 'run_id,ticker,question_id' }
+          );
 
         await supabaseAdmin.from('answers').insert({
           run_id: runRow.id,
           ticker,
           stage: 3,
-          question_group: prompt.key,
+          question_group: question.slug,
           answer_json: parsed,
           tokens_in: promptTokens,
           tokens_out: completionTokens,
@@ -543,11 +860,33 @@ serve(async (req) => {
           cost_usd: cost,
           created_at: startedAt
         });
-
-        groupOutputs.push({ key: prompt.key, data: parsed });
       }
 
-      const summaryPrompt = buildSummaryPrompt(context, groupOutputs);
+      const dimensionSummaries = computeDimensionSummaries(outcomes);
+
+      if (dimensionSummaries.length) {
+        await supabaseAdmin
+          .from('analysis_dimension_scores')
+          .upsert(
+            dimensionSummaries.map((entry) => ({
+              run_id: runRow.id,
+              ticker,
+              dimension_id: entry.dimension.id,
+              verdict: entry.verdict,
+              score: entry.score,
+              weight: entry.weight,
+              color: entry.color,
+              summary: entry.summary,
+              tags: entry.tags,
+              details: entry.details,
+              created_at: startedAt,
+              updated_at: startedAt
+            })),
+            { onConflict: 'run_id,ticker,dimension_id' }
+          );
+      }
+
+      const summaryPrompt = buildSummaryPrompt(context, dimensionSummaries);
       const {
         parsed: summaryJson,
         cost: summaryCost,
@@ -555,6 +894,19 @@ serve(async (req) => {
         completionTokens: summaryCompletionTokens
       } = await runJsonPrompt(summaryPrompt.system, summaryPrompt.user);
       totalCost += summaryCost;
+
+      if (!summaryJson.scoreboard) {
+        summaryJson.scoreboard = dimensionSummaries.map((entry) => ({
+          dimension: entry.dimension.slug,
+          name: entry.dimension.name,
+          verdict: entry.verdict,
+          score: entry.score,
+          weight: entry.weight,
+          color: entry.color,
+          summary: entry.summary,
+          tags: entry.tags
+        }));
+      }
 
       const thesisText =
         typeof summaryJson.thesis === 'string'

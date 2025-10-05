@@ -30,6 +30,7 @@ returns table(
   stage2 jsonb,
   stage3 jsonb,
   stage3_summary text,
+  dimension_scores jsonb,
   total_count bigint
 )
 language sql
@@ -83,6 +84,7 @@ as $$
     stage2.answer_json as stage2,
     stage3_summary.answer_json as stage3,
     coalesce(stage3_summary.answer_text, stage3_summary.answer_json ->> 'summary') as stage3_summary,
+    dims.dimension_scores,
     count(*) over () as total_count
   from base
   left join lateral (
@@ -113,6 +115,22 @@ as $$
      order by created_at desc
      limit 1
   ) stage3_summary on true
+  left join lateral (
+    select coalesce(jsonb_agg(jsonb_build_object(
+        'dimension', dim.slug,
+        'name', dim.name,
+        'verdict', score.verdict,
+        'score', score.score,
+        'weight', score.weight,
+        'color', score.color,
+        'summary', score.summary,
+        'tags', score.tags
+      ) order by dim.order_index asc), '[]'::jsonb) as dimension_scores
+      from public.analysis_dimension_scores score
+      join public.analysis_dimensions dim on dim.id = score.dimension_id
+     where score.run_id = base.run_id
+       and score.ticker = base.ticker
+  ) dims on true
   order by base.stage desc, base.status asc, base.label asc, base.ticker
   limit least(greatest(coalesce(p_limit, 100), 1), 500)
   offset greatest(coalesce(p_offset, 0), 0);
@@ -198,7 +216,9 @@ returns table(
   stage2 jsonb,
   stage3_summary jsonb,
   stage3_text text,
-  stage3_groups jsonb
+  stage3_groups jsonb,
+  dimension_scores jsonb,
+  question_results jsonb
 )
 language sql
 stable
@@ -263,6 +283,43 @@ as $$
        and ticker = p_ticker
        and stage = 3
        and coalesce(question_group, '') <> 'summary'
+  ),
+  dimension_scores as (
+    select coalesce(jsonb_agg(jsonb_build_object(
+        'dimension', dim.slug,
+        'name', dim.name,
+        'verdict', score.verdict,
+        'score', score.score,
+        'weight', score.weight,
+        'color', score.color,
+        'summary', score.summary,
+        'tags', score.tags,
+        'details', score.details
+      ) order by dim.order_index asc), '[]'::jsonb) as rows
+      from public.analysis_dimension_scores score
+      join public.analysis_dimensions dim on dim.id = score.dimension_id
+     where score.run_id = p_run_id
+       and score.ticker = p_ticker
+  ),
+  question_results as (
+    select coalesce(jsonb_agg(jsonb_build_object(
+        'question', q.slug,
+        'dimension', d.slug,
+        'dimension_name', d.name,
+        'verdict', r.verdict,
+        'score', r.score,
+        'weight', r.weight,
+        'color', r.color,
+        'summary', r.summary,
+        'tags', r.tags,
+        'dependencies', r.dependencies,
+        'answer', r.answer
+      ) order by d.order_index asc, q.order_index asc), '[]'::jsonb) as rows
+      from public.analysis_question_results r
+      join public.analysis_questions q on q.id = r.question_id
+      join public.analysis_dimensions d on d.id = r.dimension_id
+     where r.run_id = p_run_id
+       and r.ticker = p_ticker
   )
   select
     base.run_id,
@@ -282,10 +339,14 @@ as $$
     stage2.answer_json as stage2,
     stage3_summary.answer_json as stage3_summary,
     coalesce(stage3_summary.answer_text, stage3_summary.answer_json ->> 'summary') as stage3_text,
-    stage3_groups.groups as stage3_groups
+    stage3_groups.groups as stage3_groups,
+    dimension_scores.rows as dimension_scores,
+    question_results.rows as question_results
   from base
   left join stage1 on true
   left join stage2 on true
   left join stage3_summary on true
-  left join stage3_groups on true;
+  left join stage3_groups on true
+  left join dimension_scores on true
+  left join question_results on true;
 $$;

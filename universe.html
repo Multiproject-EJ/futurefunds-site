@@ -65,6 +65,12 @@
   .summary-cell { font-size: 0.9rem; line-height: 1.4; }
   .summary-cell p { margin: 0 0 4px; }
   .summary-cell small { color: var(--muted, #64748b); }
+  .dimension-pill-stack { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+  .dimension-pill { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; font-size: 0.75rem; font-weight: 600; border: 1px solid color-mix(in srgb, var(--dimension-color, #475569) 35%, transparent); background: color-mix(in srgb, var(--dimension-color, #475569) 12%, var(--card-bg) 88%); color: var(--dimension-color, #0f172a); }
+  .dimension-pill strong { font-weight: 700; }
+  .dimension-pill[data-tone="bad"] { --dimension-color: #ef4444; color: #7f1d1d; }
+  .dimension-pill[data-tone="neutral"] { --dimension-color: #f59e0b; color: #92400e; }
+  .dimension-pill[data-tone="good"] { --dimension-color: #22c55e; color: #065f46; }
   .actions-cell { display: grid; gap: 8px; }
   .actions-cell a { text-decoration: none; color: var(--accent, #2563eb); font-weight: 600; }
   .actions-cell a:hover { text-decoration: underline; }

@@ -71,6 +71,44 @@ function titleCase(value) {
     .join(' ');
 }
 
+function verdictTone(value) {
+  const text = String(value ?? '').toLowerCase();
+  if (!text) return 'neutral';
+  if (text.startsWith('bad') || text.includes('risk') || text.includes('bear')) return 'bad';
+  if (text.startsWith('good') || text.includes('bull') || text.includes('positive')) return 'good';
+  return 'neutral';
+}
+
+function renderDimensionPills(container, row) {
+  if (!container) return;
+  container.querySelector('.dimension-pill-stack')?.remove();
+  const dimensions = Array.isArray(row.dimension_scores) ? row.dimension_scores : [];
+  if (!dimensions.length) return;
+  const stack = document.createElement('div');
+  stack.className = 'dimension-pill-stack';
+  dimensions.forEach((entry) => {
+    const pill = document.createElement('span');
+    pill.className = 'dimension-pill';
+    const tone = verdictTone(entry?.verdict);
+    pill.dataset.tone = tone;
+    if (entry?.color) {
+      pill.style.setProperty('--dimension-color', entry.color);
+    }
+    const label = document.createElement('strong');
+    label.textContent = entry?.name ?? entry?.dimension ?? 'Dimension';
+    const verdict = document.createElement('span');
+    verdict.textContent = (entry?.verdict ?? 'neutral').toUpperCase();
+    pill.append(label, verdict);
+    if (Number.isFinite(Number(entry?.score))) {
+      const scoreSpan = document.createElement('span');
+      scoreSpan.textContent = `${Math.round(Number(entry.score))}`;
+      pill.append(scoreSpan);
+    }
+    stack.append(pill);
+  });
+  container.append(stack);
+}
+
 function debounce(fn, wait = 300) {
   let timeout;
   return (...args) => {
@@ -397,6 +435,7 @@ function renderTable() {
     } else {
       summaryCell.innerHTML = '<span class="ticker-meta">Deep dive not yet available.</span>';
     }
+    renderDimensionPills(summaryCell, row);
     tr.append(summaryCell);
 
     const spendCell = document.createElement('td');

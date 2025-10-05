@@ -27,7 +27,8 @@ const elements = {
   stage2Verdict: document.getElementById('stage2Verdict'),
   stage2Next: document.getElementById('stage2Next'),
   stage3Summary: document.getElementById('stage3Summary'),
-  stage3Groups: document.getElementById('stage3Groups')
+  stage3Scorecard: document.getElementById('stage3Scorecard'),
+  stage3Questions: document.getElementById('stage3Questions')
 };
 
 function isUuid(value) {
@@ -55,6 +56,44 @@ function titleCase(value) {
     .split(/[\s_-]+/)
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
     .join(' ');
+}
+
+const questionMemory = (window.equityQuestionCache = window.equityQuestionCache || new Map());
+
+function normalizeArray(value) {
+  if (!value) return [];
+  if (Array.isArray(value)) return value.map((entry) => String(entry)).filter(Boolean);
+  if (typeof value === 'string') {
+    return value
+      .split(/[\s,]+/)
+      .map((part) => part.trim())
+      .filter(Boolean);
+  }
+  return [];
+}
+
+function verdictTone(value) {
+  const text = String(value ?? '').toLowerCase();
+  if (!text) return 'neutral';
+  if (text.startsWith('bad') || text.includes('risk') || text.includes('bear')) return 'bad';
+  if (text.startsWith('good') || text.includes('bull') || text.includes('positive')) return 'good';
+  return 'neutral';
+}
+
+function cacheKey() {
+  return `${state.runId ?? 'run'}:${state.ticker ?? 'ticker'}`;
+}
+
+function cacheQuestionGraph(detail) {
+  questionMemory.set(cacheKey(), {
+    dimension_scores: detail.dimension_scores ?? [],
+    question_results: detail.question_results ?? [],
+    updated_at: detail.updated_at ?? new Date().toISOString()
+  });
+}
+
+function recallQuestionGraph() {
+  return questionMemory.get(cacheKey()) ?? { dimension_scores: [], question_results: [] };
 }
 
 async function ensureAccess() {
@@ -145,7 +184,7 @@ async function loadDetails() {
   renderContext(detail);
   renderStage1(detail.stage1, detail.label);
   renderStage2(detail.stage2);
-  renderStage3(detail.stage3_summary, detail.stage3_text, detail.stage3_groups);
+  renderStage3(detail);
 }
 
 function updateHero(detail) {
@@ -170,7 +209,13 @@ function clearPanels() {
   elements.stage2Next.textContent = '';
   elements.stage3Summary.classList.add('muted');
   elements.stage3Summary.textContent = 'Deep dive not yet available.';
-  elements.stage3Groups.innerHTML = '';
+  if (elements.stage3Scorecard) {
+    elements.stage3Scorecard.hidden = true;
+    elements.stage3Scorecard.innerHTML = '';
+  }
+  if (elements.stage3Questions) {
+    elements.stage3Questions.innerHTML = '<p class="muted">Deep dive not yet available.</p>';
+  }
 }
 
 function renderStage1(stage1, label) {
@@ -297,7 +342,9 @@ function renderStage2(stage2) {
   }
 }
 
-function renderStage3(summaryJson, summaryText, groupsJson) {
+function renderStage3(detail) {
+  const summaryJson = detail?.stage3_summary ?? null;
+  const summaryText = detail?.stage3_text ?? null;
   const summary = summaryText || summaryJson?.summary || summaryJson?.thesis || summaryJson?.narrative;
   if (summary) {
     elements.stage3Summary.classList.remove('muted');
@@ -307,20 +354,167 @@ function renderStage3(summaryJson, summaryText, groupsJson) {
     elements.stage3Summary.textContent = 'Deep dive not yet available.';
   }
 
-  elements.stage3Groups.innerHTML = '';
-  const groups = Array.isArray(groupsJson) ? groupsJson : [];
-  if (!groups.length) return;
+  const currentDimensions = Array.isArray(detail?.dimension_scores) ? detail.dimension_scores : [];
+  const currentQuestions = Array.isArray(detail?.question_results) ? detail.question_results : [];
 
-  groups.forEach((group) => {
-    const card = document.createElement('section');
-    card.className = 'group-card';
-    const title = document.createElement('h4');
-    title.textContent = group.question_group ? titleCase(group.question_group) : 'Analysis';
+  if (currentDimensions.length || currentQuestions.length) {
+    cacheQuestionGraph(detail);
+  }
+
+  const cached = recallQuestionGraph();
+  const dimensions = currentDimensions.length ? currentDimensions : cached.dimension_scores;
+  const questions = currentQuestions.length ? currentQuestions : cached.question_results;
+
+  renderScorecard(dimensions);
+  renderQuestionGrid(questions);
+}
+
+function renderScorecard(rows = []) {
+  if (!elements.stage3Scorecard) return;
+  elements.stage3Scorecard.innerHTML = '';
+  if (!Array.isArray(rows) || !rows.length) {
+    elements.stage3Scorecard.hidden = true;
+    return;
+  }
+  elements.stage3Scorecard.hidden = false;
+  rows.forEach((entry) => {
+    const card = document.createElement('article');
+    card.className = 'scorecard-item';
+    const tone = verdictTone(entry?.verdict);
+    card.dataset.tone = tone;
+
+    const title = document.createElement('h3');
+    title.textContent = entry?.name ?? entry?.dimension ?? 'Dimension';
     card.append(title);
-    const pre = document.createElement('pre');
-    pre.textContent = JSON.stringify(group.answer_json ?? group, null, 2);
-    card.append(pre);
-    elements.stage3Groups.append(card);
+
+    if (Number.isFinite(Number(entry?.score))) {
+      const score = document.createElement('div');
+      score.className = 'score';
+      score.textContent = `${Math.round(Number(entry.score))}`;
+      card.append(score);
+    }
+
+    if (entry?.summary) {
+      const summary = document.createElement('p');
+      summary.className = 'question-summary';
+      summary.textContent = entry.summary;
+      card.append(summary);
+    }
+
+    const tags = normalizeArray(entry?.tags);
+    if (tags.length) {
+      const tagRow = document.createElement('div');
+      tagRow.className = 'tags';
+      tags.forEach((tag) => {
+        const span = document.createElement('span');
+        span.textContent = tag;
+        tagRow.append(span);
+      });
+      card.append(tagRow);
+    }
+
+    elements.stage3Scorecard.append(card);
+  });
+}
+
+function renderQuestionGrid(results = []) {
+  if (!elements.stage3Questions) return;
+  elements.stage3Questions.innerHTML = '';
+  if (!Array.isArray(results) || !results.length) {
+    elements.stage3Questions.innerHTML = '<p class="muted">Deep dive questions have not run yet.</p>';
+    return;
+  }
+
+  const dependencyMap = new Map();
+  results.forEach((entry) => {
+    if (entry?.question) dependencyMap.set(entry.question, entry);
+  });
+
+  results.forEach((entry) => {
+    const card = document.createElement('article');
+    card.className = 'question-card';
+    const tone = verdictTone(entry?.verdict);
+    card.dataset.tone = tone;
+
+    const header = document.createElement('header');
+    const title = document.createElement('h3');
+    title.textContent = `${entry?.dimension_name ?? entry?.dimension ?? 'Dimension'} · ${entry?.question ?? 'Question'}`;
+    header.append(title);
+    const badge = document.createElement('span');
+    badge.className = 'verdict-badge';
+    badge.dataset.tone = tone;
+    badge.textContent = (entry?.verdict ?? 'neutral').toUpperCase();
+    header.append(badge);
+    card.append(header);
+
+    if (Number.isFinite(Number(entry?.score))) {
+      const meta = document.createElement('div');
+      meta.className = 'question-meta';
+      meta.textContent = `Score: ${Math.round(Number(entry.score))}`;
+      card.append(meta);
+    }
+
+    if (entry?.summary) {
+      const summary = document.createElement('p');
+      summary.className = 'question-summary';
+      summary.textContent = entry.summary;
+      card.append(summary);
+    }
+
+    const tags = normalizeArray(entry?.tags);
+    if (tags.length) {
+      const tagRow = document.createElement('div');
+      tagRow.className = 'question-tags';
+      tags.forEach((tag) => {
+        const span = document.createElement('span');
+        span.textContent = tag;
+        tagRow.append(span);
+      });
+      card.append(tagRow);
+    }
+
+    const deps = normalizeArray(entry?.dependencies);
+    if (deps.length) {
+      const depBlock = document.createElement('div');
+      depBlock.className = 'question-deps';
+      const heading = document.createElement('strong');
+      heading.textContent = 'Depends on';
+      depBlock.append(heading);
+      deps.forEach((dep) => {
+        const ref = dependencyMap.get(dep);
+        const line = document.createElement('span');
+        if (ref) {
+          const refTone = verdictTone(ref.verdict);
+          line.textContent = `${dep}: ${ref.verdict ?? 'unknown'}${ref.summary ? ` — ${ref.summary.slice(0, 160)}` : ''}`;
+          line.dataset.tone = refTone;
+        } else {
+          line.textContent = `${dep}: pending`;
+        }
+        depBlock.append(line);
+      });
+      card.append(depBlock);
+    }
+
+    const raw = entry?.answer ?? entry;
+    if (raw) {
+      const rawBlock = document.createElement('div');
+      rawBlock.className = 'question-raw';
+      const details = document.createElement('details');
+      const summary = document.createElement('summary');
+      summary.textContent = 'View JSON';
+      details.append(summary);
+      const pre = document.createElement('pre');
+      try {
+        pre.textContent = JSON.stringify(raw, null, 2);
+      } catch (error) {
+        pre.textContent = String(raw);
+      }
+      details.append(pre);
+      rawBlock.append(details);
+      card.append(rawBlock);
+    }
+
+    elements.stage3Questions.append(card);
   });
 }
 

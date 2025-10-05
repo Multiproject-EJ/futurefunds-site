@@ -42,6 +42,33 @@
   .badge.ok { color: #16a34a; }
   .badge.failed { color: #dc2626; }
 
+  .scorecard-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; }
+  .scorecard-grid[hidden] { display: none; }
+  .scorecard-item { border-radius: 16px; border: 1px solid var(--panel-border); padding: 18px; background: color-mix(in srgb, var(--panel-bg) 88%, var(--bg, #f8fafc) 12%); display: grid; gap: 10px; }
+  .scorecard-item h3 { margin: 0; font-size: 1rem; }
+  .scorecard-item .score { font-size: 1.3rem; font-weight: 700; }
+  .scorecard-item .tags { display: flex; flex-wrap: wrap; gap: 6px; font-size: 0.75rem; }
+  .scorecard-item .tags span { background: color-mix(in srgb, currentColor 14%, var(--panel-bg) 86%); border-radius: 999px; padding: 4px 10px; }
+  .scorecard-item[data-tone="bad"] { border-color: color-mix(in srgb, #ef4444 35%, transparent); background: color-mix(in srgb, #fee2e2 65%, #ffffff 35%); color: #7f1d1d; }
+  .scorecard-item[data-tone="neutral"] { border-color: color-mix(in srgb, #f59e0b 35%, transparent); background: color-mix(in srgb, #fef3c7 65%, #ffffff 35%); color: #92400e; }
+  .scorecard-item[data-tone="good"] { border-color: color-mix(in srgb, #22c55e 35%, transparent); background: color-mix(in srgb, #dcfce7 70%, #ffffff 30%); color: #065f46; }
+
+  .question-grid { display: grid; gap: 18px; }
+  .question-card { border: 1px solid var(--panel-border); border-radius: 16px; padding: 18px; background: color-mix(in srgb, var(--panel-bg) 92%, var(--bg, #f8fafc) 8%); display: grid; gap: 10px; }
+  .question-card header { display: flex; flex-wrap: wrap; gap: 10px; justify-content: space-between; align-items: baseline; }
+  .question-card h3 { margin: 0; font-size: 1rem; }
+  .verdict-badge { font-size: 0.7rem; letter-spacing: 0.06em; text-transform: uppercase; border-radius: 999px; padding: 4px 10px; border: 1px solid currentColor; }
+  .verdict-badge[data-tone="bad"] { color: #b91c1c; }
+  .verdict-badge[data-tone="neutral"] { color: #a16207; }
+  .verdict-badge[data-tone="good"] { color: #15803d; }
+  .question-summary { font-size: 0.95rem; line-height: 1.55; }
+  .question-tags { display: flex; flex-wrap: wrap; gap: 8px; }
+  .question-tags span { background: color-mix(in srgb, var(--accent, #2563eb) 12%, var(--panel-bg) 88%); border-radius: 999px; padding: 4px 10px; font-size: 0.75rem; }
+  .question-deps { font-size: 0.8rem; color: var(--muted, #64748b); display: grid; gap: 4px; }
+  .question-meta { font-size: 0.8rem; color: var(--muted, #64748b); }
+  .question-raw details { border: 1px solid var(--panel-border); border-radius: 12px; padding: 8px 12px; background: var(--bg, #f1f5f9); font-size: 0.8rem; }
+  .question-raw pre { margin: 8px 0 0; white-space: pre-wrap; word-break: break-word; }
+
   .list { display: grid; gap: 8px; }
   .list li { margin-left: 18px; }
 
@@ -206,7 +233,8 @@
         <h2>Stage 3 — Deep dive report</h2>
       </header>
       <p id="stage3Summary" class="muted">Deep dive not yet available.</p>
-      <div id="stage3Groups" class="layout"></div>
+      <section id="stage3Scorecard" class="scorecard-grid" hidden></section>
+      <div id="stage3Questions" class="question-grid"></div>
     </article>
   </section>
 </main>
