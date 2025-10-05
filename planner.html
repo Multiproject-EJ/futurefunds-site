@@ -272,6 +272,63 @@
       border-top: 1px solid rgba(15,23,42,.1);
       margin: 8px 0;
     }
+
+    .budget-control {
+      margin-top: 18px;
+      display: grid;
+      gap: 8px;
+    }
+
+    .budget-control label {
+      font-size: .85rem;
+      font-weight: 600;
+      color: var(--text,#0f172a);
+    }
+
+    .budget-control__input {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .budget-control__input span {
+      font-weight: 600;
+      color: var(--muted,#475569);
+    }
+
+    .budget-control__input input[type="number"] {
+      flex: 1 1 auto;
+      min-width: 0;
+      padding: 10px 12px;
+      border-radius: 12px;
+      border: 1px solid var(--border,#cbd5f5);
+      font: inherit;
+      background: rgba(255,255,255,.92);
+      transition: border-color .2s ease, box-shadow .2s ease;
+    }
+
+    .budget-control__input input[type="number"]:focus {
+      outline: none;
+      border-color: var(--accent,#2563eb);
+      box-shadow: 0 0 0 3px rgba(37,99,235,.2);
+    }
+
+    .budget-control__help {
+      font-size: .78rem;
+      color: var(--muted,#64748b);
+      margin: 0;
+    }
+
+    .budget-delta {
+      font-size: .8rem;
+      margin: 0;
+      color: var(--muted,#475569);
+    }
+
+    .budget-delta.over {
+      color: var(--danger,#dc2626);
+      font-weight: 600;
+    }
     .status-log {
       border: 1px solid var(--border,#e2e8f0);
       border-radius: 14px;
@@ -377,6 +434,10 @@
       background: rgba(37,99,235,.08);
     }
 
+    .run-meta__stat--alert {
+      background: rgba(220,38,38,.12);
+    }
+
     .run-meta__stat span {
       font-size: .75rem;
       letter-spacing: .05em;
@@ -403,6 +464,109 @@
 
     .run-meta__status strong {
       color: var(--text,#0f172a);
+    }
+
+    .stage-spend {
+      border-top: 1px solid rgba(15,23,42,.08);
+      margin-top: 16px;
+      padding-top: 16px;
+      display: grid;
+      gap: 14px;
+    }
+
+    .stage-spend header {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 12px;
+    }
+
+    .stage-spend header h3 {
+      margin: 0;
+      font-size: 1rem;
+      font-weight: 600;
+    }
+
+    .stage-spend header span {
+      font-size: .88rem;
+      color: var(--muted,#475569);
+    }
+
+    .stage-spend__chart {
+      display: grid;
+      grid-auto-flow: column;
+      grid-auto-columns: minmax(0,1fr);
+      gap: 10px;
+      align-items: end;
+      height: 72px;
+      background: linear-gradient(180deg, rgba(37,99,235,.08), transparent 60%);
+      border-radius: 14px;
+      padding: 14px 16px 6px;
+    }
+
+    .stage-spend__bar {
+      position: relative;
+      border-radius: 10px 10px 4px 4px;
+      background: rgba(37,99,235,.65);
+      min-height: 4px;
+      transition: height .2s ease;
+    }
+
+    .stage-spend__bar::after {
+      content: '';
+      position: absolute;
+      inset: auto 0 -8px;
+      margin: auto;
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: currentColor;
+      opacity: .6;
+    }
+
+    .stage-spend__bar[data-stage="1"] {
+      background: rgba(59,130,246,.8);
+      color: rgba(59,130,246,.8);
+    }
+
+    .stage-spend__bar[data-stage="2"] {
+      background: rgba(99,102,241,.8);
+      color: rgba(99,102,241,.8);
+    }
+
+    .stage-spend__bar[data-stage="3"] {
+      background: rgba(129,140,248,.85);
+      color: rgba(129,140,248,.85);
+    }
+
+    .stage-spend__legend {
+      display: grid;
+      gap: 8px;
+      font-size: .85rem;
+      color: var(--muted,#475569);
+    }
+
+    .stage-spend__item {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .stage-spend__item dt {
+      margin: 0;
+      font-weight: 600;
+      color: var(--text,#0f172a);
+    }
+
+    .stage-spend__item dd {
+      margin: 0;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .stage-spend__empty {
+      margin: 0;
+      font-size: .82rem;
+      color: var(--muted,#64748b);
     }
 
     .controller-metrics {
@@ -1128,6 +1292,15 @@
           <div><strong>Total:</strong> <span id="totalCost">$0.00</span></div>
           <p id="survivorSummary">—</p>
         </section>
+        <section class="budget-control" aria-live="polite">
+          <label for="budgetInput">Budget guardrail (USD)</label>
+          <div class="budget-control__input">
+            <span>$</span>
+            <input type="number" id="budgetInput" min="0" step="50" value="0" />
+          </div>
+          <p class="budget-control__help">Workers pause automatically once actual spend meets or exceeds this cap.</p>
+          <p class="budget-delta" id="budgetDelta">No budget guardrail set.</p>
+        </section>
         <section class="status-log">
           <h3>Launch status</h3>
           <pre id="statusLog">Ready when you are.</pre>
@@ -1161,12 +1334,52 @@
           <span>Stop requested</span>
           <strong id="runStopText">—</strong>
         </div>
+        <div class="run-meta__stat">
+          <span>Budget</span>
+          <strong id="runBudgetValue">—</strong>
+        </div>
+        <div class="run-meta__stat">
+          <span>Spend to date</span>
+          <strong id="runSpendValue">—</strong>
+        </div>
+        <div class="run-meta__stat" id="runRemainingStat">
+          <span>Remaining</span>
+          <strong id="runRemainingValue">—</strong>
+        </div>
         <div class="run-meta__actions">
           <button type="button" class="btn-danger" id="stopRunBtn">Request stop</button>
           <button type="button" class="btn-secondary" id="resumeRunBtn">Resume run</button>
         </div>
       </div>
       <div class="run-meta__status" id="runMetaStatus">Select a run to manage stop requests.</div>
+
+      <section class="stage-spend" id="stageSpendSection" hidden>
+        <header>
+          <h3>Stage spend</h3>
+          <span id="stageSpendTotal">—</span>
+        </header>
+        <div
+          class="stage-spend__chart"
+          id="stageSpendChart"
+          role="list"
+          aria-label="Stage spend to date"
+        ></div>
+        <dl class="stage-spend__legend">
+          <div class="stage-spend__item">
+            <dt>Stage 1 · Triage</dt>
+            <dd id="stageSpendStage1">—</dd>
+          </div>
+          <div class="stage-spend__item">
+            <dt>Stage 2 · Scoring</dt>
+            <dd id="stageSpendStage2">—</dd>
+          </div>
+          <div class="stage-spend__item">
+            <dt>Stage 3 · Deep dive</dt>
+            <dd id="stageSpendStage3">—</dd>
+          </div>
+        </dl>
+        <p class="stage-spend__empty" id="stageSpendEmpty">No stage spend recorded yet.</p>
+      </section>
 
       <dl class="controller-metrics" aria-live="polite" aria-label="Stage one progress metrics">
         <div class="controller-metrics__item">

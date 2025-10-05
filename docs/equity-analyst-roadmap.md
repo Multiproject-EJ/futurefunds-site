@@ -63,9 +63,9 @@ incrementally.
 - [x] Add shareable permalink for members (respect Supabase Auth).
 
 ## 8. Cost Governance (Week 5)
-- [ ] Store `runs.budget_usd` and show in planner alongside actual cost-to-date.
-- [ ] Auto-stop runs when spend >= budget or when `stop_requested` is true.
-- [ ] Add sparkline / bar chart for stage-level spend (client-side or lightweight chart lib).
+- [x] Store `runs.budget_usd` and show in planner alongside actual cost-to-date.
+- [x] Auto-stop runs when spend >= budget or when `stop_requested` is true.
+- [x] Add sparkline / bar chart for stage-level spend (client-side or lightweight chart lib).
 
 ## 9. Automation Loop (Week 6)
 - [ ] `/api/runs/continue` endpoint to sequentially trigger Stage 1 → 3 until batch limit / stop.
