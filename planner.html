@@ -873,26 +873,81 @@
         <span id="stage2Status" role="status" aria-live="polite"></span>
       </div>
 
-      <section class="recent-results" aria-live="polite">
-        <h3>Latest Stage 2 insights</h3>
-        <table class="recent-table">
-          <thead>
-            <tr>
-              <th scope="col">Ticker</th>
-              <th scope="col">Go deep?</th>
-              <th scope="col">Summary</th>
-              <th scope="col">Updated</th>
-            </tr>
-          </thead>
-          <tbody id="stage2RecentBody">
-            <tr>
-              <td colspan="4" class="recent-empty">No Stage 2 calls yet.</td>
-            </tr>
-          </tbody>
-        </table>
-      </section>
+    <section class="recent-results" aria-live="polite">
+      <h3>Latest Stage 2 insights</h3>
+      <table class="recent-table">
+        <thead>
+          <tr>
+            <th scope="col">Ticker</th>
+            <th scope="col">Go deep?</th>
+            <th scope="col">Summary</th>
+            <th scope="col">Updated</th>
+          </tr>
+        </thead>
+        <tbody id="stage2RecentBody">
+          <tr>
+            <td colspan="4" class="recent-empty">No Stage 2 calls yet.</td>
+          </tr>
+        </tbody>
+      </table>
     </section>
-  </main>
+  </section>
+
+  <section class="panel controller-panel" id="stage3Panel">
+    <header>
+      <h2>Stage 3 — Deep-dive reports</h2>
+      <p>Generate research-grade narratives with GPT-5 for the finalists flagged by Stage 2. Monitor completions and rerun batches as fresh data arrives.</p>
+    </header>
+
+    <dl class="controller-metrics" aria-live="polite" aria-label="Stage three progress metrics">
+      <div class="controller-metrics__item">
+        <dt>Finalists</dt>
+        <dd id="stage3Finalists">—</dd>
+      </div>
+      <div class="controller-metrics__item">
+        <dt>Pending deep dives</dt>
+        <dd id="stage3Pending">—</dd>
+      </div>
+      <div class="controller-metrics__item">
+        <dt>Completed reports</dt>
+        <dd id="stage3Completed">—</dd>
+      </div>
+      <div class="controller-metrics__item">
+        <dt>Deep-dive spend</dt>
+        <dd id="stage3Spend">—</dd>
+      </div>
+      <div class="controller-metrics__item">
+        <dt>Failed</dt>
+        <dd id="stage3Failed">—</dd>
+      </div>
+    </dl>
+
+    <div class="controller-actions">
+      <button class="btn-primary" type="button" id="processStage3Btn">Process Stage 3 batch</button>
+      <button class="btn-secondary" type="button" id="refreshStage3Btn">Refresh status</button>
+      <span id="stage3Status" role="status" aria-live="polite"></span>
+    </div>
+
+    <section class="recent-results" aria-live="polite">
+      <h3>Latest deep-dive reports</h3>
+      <table class="recent-table">
+        <thead>
+          <tr>
+            <th scope="col">Ticker</th>
+            <th scope="col">Verdict</th>
+            <th scope="col">Thesis highlight</th>
+            <th scope="col">Updated</th>
+          </tr>
+        </thead>
+        <tbody id="stage3RecentBody">
+          <tr>
+            <td colspan="4" class="recent-empty">No deep dives yet.</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+  </section>
+</main>
 
   <script type="module" src="/assets/planner.js"></script>
   <script src="/assets/app.js" defer></script>

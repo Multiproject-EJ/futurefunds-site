@@ -66,6 +66,15 @@ const inputs = {
   stage2Failed: $('stage2Failed'),
   stage2GoDeep: $('stage2GoDeep'),
   stage2RecentBody: $('stage2RecentBody'),
+  stage3Btn: $('processStage3Btn'),
+  stage3RefreshBtn: $('refreshStage3Btn'),
+  stage3Status: $('stage3Status'),
+  stage3Finalists: $('stage3Finalists'),
+  stage3Pending: $('stage3Pending'),
+  stage3Completed: $('stage3Completed'),
+  stage3Spend: $('stage3Spend'),
+  stage3Failed: $('stage3Failed'),
+  stage3RecentBody: $('stage3RecentBody'),
   sectorNotesList: $('sectorNotesList'),
   sectorNotesEmpty: $('sectorNotesEmpty')
 };
@@ -74,6 +83,7 @@ const FUNCTIONS_BASE = SUPABASE_URL.replace(/\.supabase\.co$/, '.functions.supab
 const RUNS_CREATE_ENDPOINT = `${FUNCTIONS_BASE}/runs-create`;
 const STAGE1_CONSUME_ENDPOINT = `${FUNCTIONS_BASE}/stage1-consume`;
 const STAGE2_CONSUME_ENDPOINT = `${FUNCTIONS_BASE}/stage2-consume`;
+const STAGE3_CONSUME_ENDPOINT = `${FUNCTIONS_BASE}/stage3-consume`;
 const RUNS_STOP_ENDPOINT = `${FUNCTIONS_BASE}/runs-stop`;
 const RUN_STORAGE_KEY = 'ff-active-run-id';
 
@@ -91,6 +101,7 @@ let currentRunMeta = null;
 let runChannel = null;
 let stage1RefreshTimer = null;
 let stage2RefreshTimer = null;
+let stage3RefreshTimer = null;
 let sectorNotesChannel = null;
 let sectorNotesReady = false;
 
@@ -250,9 +261,35 @@ function scheduleStage2Refresh({ immediate = false } = {}) {
   }, 500);
 }
 
+function clearStage3RefreshTimer() {
+  if (stage3RefreshTimer) {
+    clearTimeout(stage3RefreshTimer);
+    stage3RefreshTimer = null;
+  }
+}
+
+function scheduleStage3Refresh({ immediate = false } = {}) {
+  clearStage3RefreshTimer();
+  if (!activeRunId) return;
+  if (immediate) {
+    fetchStage3Summary({ silent: true }).catch((error) => {
+      console.error('Stage 3 auto refresh failed', error);
+    });
+    return;
+  }
+
+  stage3RefreshTimer = window.setTimeout(() => {
+    stage3RefreshTimer = null;
+    fetchStage3Summary({ silent: true }).catch((error) => {
+      console.error('Stage 3 auto refresh failed', error);
+    });
+  }, 650);
+}
+
 function unsubscribeFromRunChannel() {
   clearStage1RefreshTimer();
   clearStage2RefreshTimer();
+  clearStage3RefreshTimer();
   if (runChannel) {
     try {
       supabase.removeChannel(runChannel);
@@ -272,10 +309,12 @@ function subscribeToRunChannel(runId) {
     .on('postgres_changes', { event: '*', schema: 'public', table: 'run_items', filter: `run_id=eq.${runId}` }, () => {
       scheduleStage1Refresh();
       scheduleStage2Refresh();
+      scheduleStage3Refresh();
     })
     .on('postgres_changes', { event: '*', schema: 'public', table: 'answers', filter: `run_id=eq.${runId}` }, () => {
       scheduleStage1Refresh();
       scheduleStage2Refresh();
+      scheduleStage3Refresh();
     })
     .on('postgres_changes', { event: '*', schema: 'public', table: 'runs', filter: `id=eq.${runId}` }, () => {
       fetchRunMeta({ silent: true }).catch((error) => {
@@ -286,6 +325,7 @@ function subscribeToRunChannel(runId) {
       if (status === 'SUBSCRIBED') {
         scheduleStage1Refresh({ immediate: true });
         scheduleStage2Refresh({ immediate: true });
+        scheduleStage3Refresh({ immediate: true });
         fetchRunMeta({ silent: true }).catch((error) => {
           console.error('Initial run meta load failed', error);
         });
@@ -496,6 +536,52 @@ function renderStage2Insights(entries = []) {
   });
 }
 
+function updateStage3Metrics(metrics = null) {
+  const formatter = (value) => {
+    if (value == null || Number.isNaN(value)) return '—';
+    return Number(value).toLocaleString();
+  };
+
+  if (inputs.stage3Finalists) inputs.stage3Finalists.textContent = formatter(metrics?.finalists);
+  if (inputs.stage3Pending) inputs.stage3Pending.textContent = formatter(metrics?.pending);
+  if (inputs.stage3Completed) inputs.stage3Completed.textContent = formatter(metrics?.completed);
+  if (inputs.stage3Spend) {
+    const spend = metrics?.spend;
+    inputs.stage3Spend.textContent = spend == null || Number.isNaN(spend) ? '—' : formatCurrency(Number(spend));
+  }
+  if (inputs.stage3Failed) inputs.stage3Failed.textContent = formatter(metrics?.failed);
+}
+
+function renderStage3Reports(entries = []) {
+  const body = inputs.stage3RecentBody;
+  if (!body) return;
+
+  body.innerHTML = '';
+
+  if (!entries.length) {
+    const row = document.createElement('tr');
+    row.innerHTML = '<td colspan="4" class="recent-empty">No deep-dive reports yet.</td>';
+    body.appendChild(row);
+    return;
+  }
+
+  entries.forEach((entry) => {
+    const row = document.createElement('tr');
+    const verdict = entry.verdict ? String(entry.verdict) : '—';
+    const thesis = entry.summary ?? entry.answer_text ?? '—';
+    const updated = entry.updated_at
+      ? new Date(entry.updated_at).toLocaleString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+      : '—';
+    row.innerHTML = `
+      <td>${entry.ticker ?? '—'}</td>
+      <td data-label>${verdict}</td>
+      <td>${thesis}</td>
+      <td>${updated}</td>
+    `;
+    body.appendChild(row);
+  });
+}
+
 async function fetchStage1Summary({ silent = false } = {}) {
   if (!inputs.stage1Status) return;
 
@@ -654,6 +740,83 @@ async function fetchStage2Summary({ silent = false } = {}) {
   }
 }
 
+async function fetchStage3Summary({ silent = false } = {}) {
+  if (!inputs.stage3Status) return;
+
+  if (!activeRunId) {
+    updateStage3Metrics();
+    renderStage3Reports([]);
+    if (!silent) inputs.stage3Status.textContent = 'Set a run ID to monitor Stage 3 deep dives.';
+    return;
+  }
+
+  if (!silent) inputs.stage3Status.textContent = 'Fetching Stage 3 progress…';
+
+  try {
+    const [summaryResult, answersResult, costResult] = await Promise.all([
+      supabase.rpc('run_stage3_summary', { p_run_id: activeRunId }).maybeSingle(),
+      supabase
+        .from('answers')
+        .select('ticker, answer_json, answer_text, question_group, created_at')
+        .eq('run_id', activeRunId)
+        .eq('stage', 3)
+        .order('created_at', { ascending: false })
+        .limit(10),
+      supabase.rpc('run_cost_breakdown', { p_run_id: activeRunId })
+    ]);
+
+    if (summaryResult.error) throw summaryResult.error;
+    if (answersResult.error) throw answersResult.error;
+    if (costResult.error) throw costResult.error;
+
+    const summary = summaryResult.data ?? null;
+    const metrics = {
+      finalists: summary ? Number(summary.total_finalists ?? summary.finalists ?? 0) : 0,
+      pending: summary ? Number(summary.pending ?? 0) : 0,
+      completed: summary ? Number(summary.completed ?? 0) : 0,
+      failed: summary ? Number(summary.failed ?? 0) : 0,
+      spend: 0
+    };
+
+    const breakdown = Array.isArray(costResult.data) ? costResult.data : [];
+    const stage3Spend = breakdown
+      .filter((row) => Number(row.stage) === 3)
+      .reduce((acc, row) => acc + Number(row.cost_usd ?? 0), 0);
+    metrics.spend = stage3Spend;
+
+    updateStage3Metrics(metrics);
+
+    const reports = (answersResult.data ?? [])
+      .filter((row) => (row.question_group ?? '').toLowerCase() === 'summary')
+      .map((row) => {
+        const answer = row.answer_json ?? {};
+        const verdict = answer.verdict ?? answer.rating ?? answer.recommendation ?? null;
+        const summaryText =
+          answer.thesis ??
+          answer.summary ??
+          answer.narrative ??
+          (Array.isArray(answer.takeaways) && answer.takeaways.length ? answer.takeaways[0] : null) ??
+          row.answer_text ??
+          '—';
+        return {
+          ticker: row.ticker,
+          verdict,
+          summary: summaryText,
+          answer_text: row.answer_text ?? null,
+          updated_at: row.created_at
+        };
+      });
+
+    renderStage3Reports(reports);
+
+    const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    inputs.stage3Status.textContent = `Last updated ${timestamp}`;
+  } catch (error) {
+    console.error('Failed to load Stage 3 summary', error);
+    inputs.stage3Status.textContent = 'Failed to load Stage 3 progress.';
+  }
+}
+
 function setActiveRunId(value, { announce = true, silent = false } = {}) {
   const normalized = typeof value === 'string' ? value.trim() : '';
   if (normalized && !isValidUuid(normalized)) {
@@ -681,9 +844,12 @@ function setActiveRunId(value, { announce = true, silent = false } = {}) {
     renderRecentClassifications([]);
     updateStage2Metrics();
     renderStage2Insights([]);
+    updateStage3Metrics();
+    renderStage3Reports([]);
     if (announce && inputs.stage1Status) inputs.stage1Status.textContent = 'Active run cleared. Set a run ID to continue.';
     if (announce) logStatus('Active run cleared.');
     if (inputs.stage2Status) inputs.stage2Status.textContent = 'Active run cleared.';
+    if (inputs.stage3Status) inputs.stage3Status.textContent = 'Active run cleared.';
     return changed;
   }
 
@@ -697,6 +863,7 @@ function setActiveRunId(value, { announce = true, silent = false } = {}) {
     const message = `Active run set to ${activeRunId}`;
     if (inputs.stage1Status) inputs.stage1Status.textContent = message;
     if (inputs.stage2Status) inputs.stage2Status.textContent = 'Loading Stage 2 progress…';
+    if (inputs.stage3Status) inputs.stage3Status.textContent = 'Loading Stage 3 progress…';
     logStatus(message);
   }
 
@@ -708,6 +875,11 @@ function setActiveRunId(value, { announce = true, silent = false } = {}) {
   fetchStage2Summary({ silent }).catch((error) => {
     console.error('Failed to refresh Stage 2 summary', error);
     if (inputs.stage2Status) inputs.stage2Status.textContent = 'Failed to load Stage 2 progress.';
+  });
+
+  fetchStage3Summary({ silent }).catch((error) => {
+    console.error('Failed to refresh Stage 3 summary', error);
+    if (inputs.stage3Status) inputs.stage3Status.textContent = 'Failed to load Stage 3 progress.';
   });
 
   return changed;
@@ -896,6 +1068,96 @@ async function processStage2Batch() {
   }
 }
 
+async function processStage3Batch() {
+  if (!inputs.stage3Btn) return;
+
+  if (!activeRunId) {
+    if (inputs.stage3Status) inputs.stage3Status.textContent = 'Assign a run ID before processing deep dives.';
+    return;
+  }
+
+  if (currentRunMeta?.stop_requested) {
+    if (inputs.stage3Status) inputs.stage3Status.textContent = 'Run flagged to stop. Clear the stop request to continue.';
+    return;
+  }
+
+  await syncAccess({ preserveStatus: true });
+  if (!authContext.isAdmin) {
+    if (inputs.stage3Status) inputs.stage3Status.textContent = 'Admin access required for Stage 3.';
+    return;
+  }
+  if (!authContext.token) {
+    if (inputs.stage3Status) inputs.stage3Status.textContent = 'Session expired. Refresh and try again.';
+    return;
+  }
+
+  inputs.stage3Btn.disabled = true;
+  if (inputs.stage3Status) inputs.stage3Status.textContent = 'Processing Stage 3 batch…';
+
+  try {
+    const response = await fetch(STAGE3_CONSUME_ENDPOINT, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${authContext.token}`
+      },
+      body: JSON.stringify({
+        run_id: activeRunId,
+        limit: 2,
+        client_meta: {
+          origin: window.location.origin,
+          triggered_at: new Date().toISOString()
+        }
+      })
+    });
+
+    const raw = await response.text();
+    let payload = {};
+    if (raw) {
+      try {
+        payload = JSON.parse(raw);
+      } catch (error) {
+        console.warn('Unable to parse Stage 3 response JSON', error);
+      }
+    }
+
+    if (!response.ok) {
+      const message = payload?.error || `Stage 3 endpoint responded ${response.status}`;
+      throw new Error(message);
+    }
+
+    const reports = Array.isArray(payload.results) ? payload.results : [];
+    if (reports.length) {
+      renderStage3Reports(reports);
+    }
+
+    if (payload.metrics) {
+      updateStage3Metrics({
+        finalists: Number(payload.metrics.total_finalists ?? payload.metrics.finalists ?? payload.metrics.total ?? 0),
+        pending: Number(payload.metrics.pending ?? 0),
+        completed: Number(payload.metrics.completed ?? 0),
+        failed: Number(payload.metrics.failed ?? 0),
+        spend: Number(payload.metrics.spend ?? payload.metrics.total_spend ?? 0)
+      });
+    }
+
+    const message = payload.message || `Processed ${reports.length} finalist${reports.length === 1 ? '' : 's'}.`;
+    if (inputs.stage3Status) inputs.stage3Status.textContent = message;
+    logStatus(`[Stage 3] ${message}`);
+  } catch (error) {
+    console.error('Stage 3 batch error', error);
+    if (inputs.stage3Status) inputs.stage3Status.textContent = `Stage 3 failed: ${error.message}`;
+    logStatus(`Stage 3 batch failed: ${error.message}`);
+  } finally {
+    try {
+      await fetchStage3Summary({ silent: true });
+    } catch (error) {
+      console.error('Failed to refresh Stage 3 summary after batch', error);
+    }
+    applyAccessState({ preserveStatus: true });
+  }
+}
+
 function stageCost(n, inTok, outTok, modelKey) {
   const model = PRICES[modelKey];
   if (!model || !n) return { total: 0, inCost: 0, outCost: 0 };
@@ -1071,6 +1333,15 @@ function applyAccessState({ preserveStatus = false } = {}) {
 
   if (inputs.stage2RefreshBtn) {
     inputs.stage2RefreshBtn.disabled = !activeRunId;
+  }
+
+  if (inputs.stage3Btn) {
+    inputs.stage3Btn.disabled =
+      state !== 'admin-ok' || !activeRunId || (currentRunMeta?.stop_requested ?? false);
+  }
+
+  if (inputs.stage3RefreshBtn) {
+    inputs.stage3RefreshBtn.disabled = !activeRunId;
   }
 
   if (inputs.stopRunBtn) {
@@ -1283,6 +1554,8 @@ function bindEvents() {
   inputs.stage1RefreshBtn?.addEventListener('click', () => fetchStage1Summary());
   inputs.stage2Btn?.addEventListener('click', processStage2Batch);
   inputs.stage2RefreshBtn?.addEventListener('click', () => fetchStage2Summary());
+  inputs.stage3Btn?.addEventListener('click', processStage3Batch);
+  inputs.stage3RefreshBtn?.addEventListener('click', () => fetchStage3Summary());
   inputs.stopRunBtn?.addEventListener('click', () => toggleRunStop(true));
   inputs.resumeRunBtn?.addEventListener('click', () => toggleRunStop(false));
   inputs.applyRunIdBtn?.addEventListener('click', () => {
@@ -1325,6 +1598,9 @@ async function bootstrap() {
     updateStage2Metrics();
     renderStage2Insights([]);
     if (inputs.stage2Status) inputs.stage2Status.textContent = 'No active run selected.';
+    updateStage3Metrics();
+    renderStage3Reports([]);
+    if (inputs.stage3Status) inputs.stage3Status.textContent = 'No active run selected.';
   }
 
   await syncAccess();

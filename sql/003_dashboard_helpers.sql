@@ -122,3 +122,31 @@ as $$
     from filtered;
 $$;
 
+create or replace function public.run_stage3_summary(p_run_id uuid)
+returns table(
+  total_finalists bigint,
+  pending bigint,
+  completed bigint,
+  failed bigint
+)
+language sql
+stable
+as $$
+  with finalists as (
+    select run_id,
+           ticker,
+           stage,
+           status,
+           coalesce(stage2_go_deep, false) as stage2_go_deep
+      from public.run_items
+     where run_id = p_run_id
+       and status <> 'skipped'
+       and coalesce(stage2_go_deep, false)
+  )
+  select count(*)::bigint as total_finalists,
+         count(*) filter (where stage < 3 and status = 'ok')::bigint as pending,
+         count(*) filter (where stage >= 3 and status = 'ok')::bigint as completed,
+         count(*) filter (where stage >= 3 and status = 'failed')::bigint as failed
+    from finalists;
+$$;
+

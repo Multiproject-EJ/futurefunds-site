@@ -41,11 +41,11 @@ incrementally.
 - [x] Surface sector notes summary inside planner to remind analysts what heuristics are in play.
 
 ## 6. Stage 3 – Deep Dive Reports (Week 4)
-- [ ] `/api/stage3/consume`: for tickers with `go_deep=true`, orchestrate 4–6 grouped prompts using
-      GPT-5, injecting retrieved RAG facts (from `doc_chunks`).
-- [ ] Store each grouped response in `answers`; synthesise a long-form narrative into
+- [x] `/api/stage3/consume`: for tickers with `go_deep=true`, orchestrate grouped GPT-5 prompts with
+      document excerpts from `doc_chunks`.
+- [x] Store each grouped response in `answers`; synthesise a long-form narrative into
       `answer_text`.
-- [ ] Planner UI: **Process Stage 3 batch** and highlight total deep-dive spend.
+- [x] Planner UI: **Process Stage 3 batch**, surface latest reports, and track deep-dive spend.
 
 ## 7. Universe & Report Views (Week 4–5)
 - [ ] `web/universe.html`: searchable table summarising ticker, stage, label, scores, spend.
