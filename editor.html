@@ -255,12 +255,33 @@
     .modal__body--task{padding:0;overflow:auto;background:var(--panel-muted,#f8fafc)}
     .modal__dialog--automation{max-width:960px}
     .modal__body--automation{grid-template-columns:280px 1fr}
-    .automation-modal__sidebar{display:grid;gap:16px}
+    .automation-modal__sidebar{display:grid;gap:16px;position:relative}
     .automation-modal__sidebar h3{margin:0;font-size:1rem;font-weight:600;color:var(--text,#0f172a)}
     .automation-modal__sidebar p{margin:0;color:var(--muted,#475569);font-size:.88rem;line-height:1.45}
     .automation-modal__list{display:grid;gap:10px;margin-top:6px}
     .automation-modal__list li{display:flex;align-items:center;gap:8px;font-size:.82rem;color:var(--muted,#64748b)}
     .automation-modal__list li::before{content:"";width:6px;height:6px;border-radius:999px;background:var(--accent,#2563eb);flex-shrink:0}
+    .automation-question-map{display:grid;gap:8px}
+    .automation-question-map__trigger{justify-self:start}
+    .automation-question-panel{position:absolute;top:calc(100% + 12px);right:0;z-index:80;background:var(--panel,#fff);border:1px solid var(--border,#e5e7eb);border-radius:16px;box-shadow:0 18px 45px rgba(15,23,42,.25);padding:18px;display:grid;gap:16px;width:min(420px,calc(100vw - 48px));max-height:420px;overflow:auto}
+    .automation-question-panel[hidden]{display:none}
+    .automation-question-panel__head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+    .automation-question-panel__title{margin:0;font-size:1rem;font-weight:600;color:var(--text,#0f172a)}
+    .automation-question-panel__eyebrow{margin:0;font-size:.75rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted,#64748b)}
+    .automation-question-panel__intro{margin:0;font-size:.85rem;color:var(--muted,#475569)}
+    .automation-question-panel__section{display:grid;gap:8px}
+    .automation-question-panel__section h5{margin:0;font-size:.9rem;font-weight:600;color:var(--text,#0f172a)}
+    .automation-question-panel__section p{margin:0;font-size:.82rem;color:var(--muted,#64748b);line-height:1.45}
+    .automation-question-table__wrap{border:1px solid var(--border,#e5e7eb);border-radius:12px;overflow:auto;background:var(--panel-muted,#f8fafc)}
+    .automation-question-table{width:100%;border-collapse:collapse;font-size:.82rem;color:var(--text,#0f172a)}
+    .automation-question-table thead th{position:sticky;top:0;background:var(--panel,#fff);z-index:1}
+    .automation-question-table th,.automation-question-table td{padding:8px 6px;text-align:left;border-bottom:1px solid var(--border,#e5e7eb);vertical-align:top}
+    .automation-question-table tbody tr:last-child td{border-bottom:none}
+    .automation-question-table__slug{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;font-size:.78rem;color:var(--muted,#475569)}
+    .automation-question-panel__footer{margin:0;font-size:.75rem;color:var(--muted,#94a3b8)}
+    @media(max-width:960px){
+      .automation-question-panel{position:fixed;top:auto;bottom:20px;right:20px;left:20px;max-width:none;width:auto}
+    }
     .automation-form{display:grid;gap:18px}
     .automation-form__section{display:grid;gap:12px;padding:18px;border:1px solid var(--border,#e5e7eb);border-radius:16px;background:var(--panel,#fff);box-shadow:0 8px 18px rgba(15,23,42,.07)}
     .automation-form__section h4{margin:0;font-size:1rem;font-weight:600;color:var(--text,#0f172a)}
@@ -758,6 +779,61 @@
               <li>Chain multiple tasks together for full desk playbooks.</li>
               <li>Review recent error signals before enabling schedules.</li>
             </ul>
+            <div class="automation-question-map">
+              <button
+                type="button"
+                class="btn small ghost automation-question-map__trigger"
+                id="openAutomationQuestionPanel"
+                aria-expanded="false"
+                aria-controls="automationQuestionPanel"
+              >
+                View question registry
+              </button>
+              <div
+                class="automation-question-panel"
+                id="automationQuestionPanel"
+                role="dialog"
+                aria-modal="false"
+                aria-labelledby="automationQuestionPanelTitle"
+                hidden
+                tabindex="-1"
+              >
+                <div class="automation-question-panel__head">
+                  <div>
+                    <p class="automation-question-panel__eyebrow">Prompt coverage</p>
+                    <h4 class="automation-question-panel__title" id="automationQuestionPanelTitle">Automation question registry</h4>
+                  </div>
+                  <button type="button" class="btn small ghost" id="closeAutomationQuestionPanel">Close</button>
+                </div>
+                <p class="automation-question-panel__intro">Quick reference for which prompts fire in each automation stage so you can align instructions and expectations.</p>
+                <section class="automation-question-panel__section" aria-label="Stage 1 overview">
+                  <h5>Stage 1 · Intake &amp; triage</h5>
+                  <p>Grabs the latest filings, transcripts, and watchlist notes, then tags catalysts to decide which tickers should continue deeper into the run.</p>
+                </section>
+                <section class="automation-question-panel__section" aria-label="Stage 2 overview">
+                  <h5>Stage 2 · Thematic scoring</h5>
+                  <p>Uses Stage&nbsp;1 survivors to benchmark profitability, reinvestment, leverage, moat strength, and timing before deep dives unlock.</p>
+                </section>
+                <section class="automation-question-panel__section" aria-label="Stage 3 question bank">
+                  <h5>Stage 3 · Deep-dive prompts</h5>
+                  <p>These questions map to the verdict tables in the universe and ticker views. Dependencies show which answers must be ready first.</p>
+                  <div class="automation-question-table__wrap">
+                    <table class="automation-question-table" aria-describedby="automationQuestionPanelTitle">
+                      <thead>
+                        <tr>
+                          <th scope="col">Dimension</th>
+                          <th scope="col">Question slug</th>
+                          <th scope="col">Focus</th>
+                          <th scope="col">Depends on</th>
+                        </tr>
+                      </thead>
+                      <tbody id="automationQuestionTableBody"></tbody>
+                    </table>
+                  </div>
+                </section>
+                <p class="automation-question-panel__footer">Seeded via <code>sql/007_question_registry.sql</code>. Extend there to keep automations, dashboards, and the registry aligned.</p>
+              </div>
+            </div>
             <div
               class="automation-stats"
               data-scheduled="5"

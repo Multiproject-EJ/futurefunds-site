@@ -316,6 +316,10 @@ async function initEditor() {
   const automationSequenceGroup = document.getElementById('automationSequenceGroup');
   const automationModeInputs = Array.from(document.querySelectorAll('input[name="automationMode"]'));
   const automationStatsGroups = Array.from(document.querySelectorAll('.automation-stats[data-scheduled]'));
+  const automationQuestionPanel = document.getElementById('automationQuestionPanel');
+  const automationQuestionPanelOpenBtn = document.getElementById('openAutomationQuestionPanel');
+  const automationQuestionPanelCloseBtn = document.getElementById('closeAutomationQuestionPanel');
+  const automationQuestionTableBody = document.getElementById('automationQuestionTableBody');
   const costSnapshotButton = document.getElementById('openCostModal');
   const costSnapshotSummary = document.getElementById('costSnapshotSummary');
   const costModal = document.getElementById('costSnapshotModal');
@@ -440,6 +444,139 @@ async function initEditor() {
   let lastAutomationTrigger = null;
   syncTaskLaunchCards();
   const automationStatsDefaults = new Map();
+  const automationStage3QuestionRegistry = [
+    {
+      dimension: 'Financial Resilience',
+      slug: 'fin_core_liquidity',
+      focus: 'Liquidity, debt structure, covenant headroom, and credit perception.',
+      dependsOn: [],
+    },
+    {
+      dimension: 'Financial Resilience',
+      slug: 'fin_operating_shock',
+      focus: 'Operating leverage, working capital, and margin resilience under stress scenarios.',
+      dependsOn: ['fin_core_liquidity'],
+    },
+    {
+      dimension: 'Market Positioning',
+      slug: 'market_segments_competitors',
+      focus: 'Segment map, peer dynamics, and competitive posture.',
+      dependsOn: [],
+    },
+    {
+      dimension: 'Market Positioning',
+      slug: 'market_playbook_alignment',
+      focus: 'Go-to-market, pricing power, and customer stickiness signals.',
+      dependsOn: ['market_segments_competitors'],
+    },
+    {
+      dimension: 'Leadership & Governance',
+      slug: 'leadership_experience_vector',
+      focus: 'Leadership cadence, board oversight, and execution record.',
+      dependsOn: [],
+    },
+    {
+      dimension: 'Product & Innovation Fitness',
+      slug: 'product_innovation_pipeline',
+      focus: 'Roadmap velocity, adoption signals, and innovation moats.',
+      dependsOn: ['market_segments_competitors'],
+    },
+    {
+      dimension: 'Resilience & Macro Readiness',
+      slug: 'macro_risk_matrix',
+      focus: 'Macro, regulatory, and tail-risk exposure synthesis.',
+      dependsOn: ['fin_operating_shock', 'market_segments_competitors'],
+    },
+  ];
+  let automationQuestionPanelInitialized = false;
+  let automationQuestionPanelActive = false;
+  const automationQuestionOutsideHandler = (event) => {
+    if (!automationQuestionPanel || automationQuestionPanel.hidden) return;
+    const target = event.target;
+    if (
+      automationQuestionPanel.contains(target)
+      || automationQuestionPanelOpenBtn?.contains(target)
+    ) {
+      return;
+    }
+    closeAutomationQuestionPanel();
+  };
+  const automationQuestionKeydownHandler = (event) => {
+    if (event.key === 'Escape') {
+      closeAutomationQuestionPanel();
+      automationQuestionPanelOpenBtn?.focus();
+    }
+  };
+  const renderAutomationQuestionRegistry = () => {
+    if (!automationQuestionTableBody) return;
+    automationQuestionTableBody.textContent = '';
+    const fragment = document.createDocumentFragment();
+    automationStage3QuestionRegistry.forEach((entry) => {
+      const row = document.createElement('tr');
+      const dimensionCell = document.createElement('td');
+      dimensionCell.textContent = entry.dimension;
+      row.appendChild(dimensionCell);
+      const slugCell = document.createElement('td');
+      const slugCode = document.createElement('code');
+      slugCode.className = 'automation-question-table__slug';
+      slugCode.textContent = entry.slug;
+      slugCell.appendChild(slugCode);
+      row.appendChild(slugCell);
+      const focusCell = document.createElement('td');
+      focusCell.textContent = entry.focus;
+      row.appendChild(focusCell);
+      const dependsCell = document.createElement('td');
+      if (entry.dependsOn.length) {
+        dependsCell.textContent = entry.dependsOn.join(', ');
+      } else {
+        dependsCell.textContent = '—';
+      }
+      row.appendChild(dependsCell);
+      fragment.appendChild(row);
+    });
+    automationQuestionTableBody.appendChild(fragment);
+  };
+  const openAutomationQuestionPanel = () => {
+    if (!automationQuestionPanel) return;
+    if (!automationQuestionPanelInitialized) {
+      renderAutomationQuestionRegistry();
+      automationQuestionPanelInitialized = true;
+    }
+    automationQuestionPanel.hidden = false;
+    automationQuestionPanel.setAttribute('aria-hidden', 'false');
+    automationQuestionPanelOpenBtn?.setAttribute('aria-expanded', 'true');
+    automationQuestionPanel.focus({ preventScroll: true });
+    automationQuestionPanelActive = true;
+    document.addEventListener('pointerdown', automationQuestionOutsideHandler);
+    document.addEventListener('keydown', automationQuestionKeydownHandler);
+  };
+  function closeAutomationQuestionPanel() {
+    if (!automationQuestionPanel) return;
+    automationQuestionPanel.hidden = true;
+    automationQuestionPanel.setAttribute('aria-hidden', 'true');
+    automationQuestionPanelOpenBtn?.setAttribute('aria-expanded', 'false');
+    automationQuestionPanelActive = false;
+    document.removeEventListener('pointerdown', automationQuestionOutsideHandler);
+    document.removeEventListener('keydown', automationQuestionKeydownHandler);
+  }
+  if (automationQuestionPanelOpenBtn) {
+    automationQuestionPanelOpenBtn.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      if (automationQuestionPanelActive && !automationQuestionPanel?.hidden) {
+        closeAutomationQuestionPanel();
+      } else {
+        openAutomationQuestionPanel();
+      }
+    });
+  }
+  if (automationQuestionPanelCloseBtn) {
+    automationQuestionPanelCloseBtn.addEventListener('click', (event) => {
+      event.preventDefault();
+      closeAutomationQuestionPanel();
+      automationQuestionPanelOpenBtn?.focus();
+    });
+  }
 
   automationStatsGroups.forEach((group) => {
     const scheduledMetaEl = group.querySelector('[data-automation-field="scheduled-meta"]');
@@ -1119,6 +1256,7 @@ async function initEditor() {
 
   const closeAutomationModal = () => {
     if (!automationModal || automationModal.hidden) return;
+    closeAutomationQuestionPanel();
     automationModal.hidden = true;
     unlockBodyScroll();
     if (lastAutomationTrigger) {
