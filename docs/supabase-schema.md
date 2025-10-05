@@ -7,7 +7,7 @@ access rules.
 
 ## Overview
 
-The site ships seven application tables in the `public` schema:
+The site ships a core set of application tables in the `public` schema:
 
 | Table | Purpose |
 | --- | --- |
@@ -18,6 +18,41 @@ The site ships seven application tables in the `public` schema:
 | `editor_models` | Configurable AI model catalogue used by the editor UI. |
 | `editor_api_credentials` | Stores AI provider secrets the editor can retrieve at runtime. |
 | `stock_analysis_todo` | Tracks stock analysis coverage (company, status, type, and analysis date). |
+
+The automated equity analyst pipeline introduces an additional suite of tables that power
+multi-stage model runs and reporting:
+
+| Table | Purpose |
+| --- | --- |
+| `tickers` | Canonical universe of symbols the automation can draw from, one row per ticker. |
+| `sector_prompts` | Optional sector-specific prompt augmentations injected into Stage 2+. |
+| `runs` | High-level batch execution log for each analysis sweep (start time, status, budget flags). |
+| `run_items` | Per-ticker processing state tracking the current stage, label, and spend. |
+| `answers` | Stores structured and narrative outputs produced at each stage of the pipeline. |
+| `cost_ledger` | Aggregated token usage and USD cost per stage/run for budget monitoring. |
+| `doc_chunks` | Optional retrieval corpus of text snippets (10-Ks, transcripts, etc.) used for RAG. |
+| `analysis_dimensions` | Registry of scoring dimensions (financial resilience, leadership, etc.) with color/weight metadata. |
+| `analysis_questions` | Question bank powering Stage&nbsp;3 prompts, dependency graphing, and verdict schemas. |
+| `analysis_question_results` | Per-question outputs (verdict, score, tags) stored per run/ticker for browser caching. |
+| `analysis_dimension_scores` | Aggregated dimension verdicts and weights derived from question results for dashboards. |
+
+The analyst dashboard queries a handful of helper functions to avoid shipping large
+payloads to the browser:
+
+| Function | Purpose |
+| --- | --- |
+| `run_stage_status_counts(run_id uuid)` | Aggregates `run_items` into stage/status buckets for progress bars and totals. |
+| `run_stage1_labels(run_id uuid)` | Returns the Stage&nbsp;1 label distribution for survivors (e.g., uninvestible / consider). |
+| `run_stage2_summary(run_id uuid)` | Summarises Stage&nbsp;2 survivors, pending queue, completions, failures, and go-deep approvals. |
+| `run_stage3_summary(run_id uuid)` | Aggregates Stage&nbsp;3 finalists, pending deep dives, completed reports, and failures. |
+| `run_cost_breakdown(run_id uuid)` | Summarises `cost_ledger` spend by stage/model for budget monitoring. |
+| `run_cost_summary(run_id uuid)` | Provides overall spend and token totals for a run. |
+| `run_latest_activity(run_id uuid, limit int)` | Streams the latest answers (stage, ticker, summary) for the activity feed. |
+| `run_universe_rows(run_id uuid, ...)` | Paginates ticker-level snapshots (stage, label, spend, Stage 1–3 JSON) for the universe dashboard. |
+| `run_universe_facets(run_id uuid, ...)` | Returns stage/label/sector counts that power the filter badges in `/universe.html`. |
+| `run_ticker_details(run_id uuid, ticker text)` | Fetches the full dossier (Stage 1–3 outputs) for the ticker drilldown page. |
+
+Apply `sql/003_dashboard_helpers.sql` and `sql/005_universe_snapshot.sql` to provision or update these functions.
 
 The tables rely on three helper routines:
 
@@ -343,3 +378,181 @@ When altering the schema or policies:
 1. Update this reference file alongside any SQL migrations.
 2. Ensure the frontend code still aligns with column names, types, and access rules described above.
 3. Re-run the membership gating scenarios in `/assets/universe.js` and `/assets/editor.js` after deploying database updates.
+
+## Automated equity analyst tables
+
+Keep the following schemas in sync with `/sql/001_core.sql` when running migrations.
+
+### `tickers`
+
+*Primary key*: `ticker text`.
+
+| Column | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `ticker` | `text` | — | Upper-case trading symbol (e.g., `AAPL`). |
+| `name` | `text` | `null` | Company name used in prompts and UI. |
+| `exchange` | `text` | `null` | Listing exchange (NASDAQ, LSE, etc.). |
+| `country` | `text` | `null` | Country code or descriptor. |
+| `sector` | `text` | `null` | High-level sector grouping. |
+| `industry` | `text` | `null` | Optional finer industry classification. |
+| `created_at` | `timestamptz` | `now()` | Auto timestamp. |
+| `updated_at` | `timestamptz` | `now()` | Maintain with trigger or app logic when editing. |
+
+Seed the table with `/sql/002_seed.sql` for local development when you need sample data.
+
+### `sector_prompts`
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `sector` | `text` (PK) | Sector label aligned with `tickers.sector`. |
+| `notes` | `text` | Free-form guidance injected into Stage 2 prompts. |
+
+### `runs`
+
+*Primary key*: `id uuid` generated with `gen_random_uuid()`.
+
+| Column | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `id` | `uuid` | `gen_random_uuid()` | Identifier returned to the UI when a run starts. |
+| `created_at` | `timestamptz` | `now()` | Creation timestamp. |
+| `status` | `text` | `'queued'` | Allowed values: `queued`, `running`, `done`, `failed`. |
+| `notes` | `text` | `null` | Optional metadata (e.g., user, budget). |
+| `stop_requested` | `boolean` | `false` | Workers should check this before processing the next batch. |
+
+### `run_items`
+
+Composite primary key: `(run_id, ticker)`.
+
+| Column | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `run_id` | `uuid` | — | References `runs(id)`. |
+| `ticker` | `text` | — | References `tickers(ticker)`. |
+| `stage` | `int` | `0` | Highest completed stage (0=not started, 1=triage, 2=medium, 3=deep). |
+| `label` | `text` | `null` | Outcome label from the last completed stage. |
+| `stage2_go_deep` | `boolean` | `null` | Stage&nbsp;2 verdict flag recorded when the thematic scoring worker runs. |
+| `status` | `text` | `'pending'` | `pending`, `ok`, `skipped`, or `failed`. |
+| `spend_est_usd` | `numeric(12,4)` | `0` | Running total of estimated spend for this ticker. |
+| `updated_at` | `timestamptz` | `now()` | Touch on each stage completion. |
+
+### `answers`
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | `bigserial` | Primary key. |
+| `run_id` | `uuid` | Foreign key → `runs`. |
+| `ticker` | `text` | Foreign key → `tickers`. |
+| `stage` | `int` | Stage indicator for the response. |
+| `question_group` | `text` | Thematic grouping (triage, medium, moat, etc.). |
+| `answer_json` | `jsonb` | Structured payload (scores, flags, etc.). |
+| `answer_text` | `text` | Optional narrative for final reports. |
+| `tokens_in` | `int` | Prompt token usage from OpenAI API. |
+| `tokens_out` | `int` | Completion token usage. |
+| `cost_usd` | `numeric(12,4)` | USD spend for the call. |
+| `created_at` | `timestamptz` | Timestamp for the response. |
+
+### `cost_ledger`
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | `bigserial` | Primary key. |
+| `run_id` | `uuid` | Batch identifier. |
+| `stage` | `int` | Stage number the cost corresponds to. |
+| `model` | `text` | Model identifier (e.g., `gpt-4o-mini`). |
+| `tokens_in` | `bigint` | Prompt tokens (aggregated per log entry). |
+| `tokens_out` | `bigint` | Completion tokens. |
+| `cost_usd` | `numeric(12,4)` | USD spend at logging time. |
+| `created_at` | `timestamptz` | Timestamp of the ledger entry. |
+
+### `doc_chunks`
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | `bigserial` | Primary key. |
+| `ticker` | `text` | References `tickers`. |
+| `source` | `text` | Describes the document source (10-K 2024, investor letter, etc.). |
+| `chunk` | `text` | Plain-text snippet used for retrieval-augmented prompts. |
+
+When enabling pgvector for semantic search, add an `embedding vector` column via a follow-up migration.
+
+### `analysis_dimensions`
+
+*Primary key*: `id uuid` generated with `gen_random_uuid()`.
+
+| Column | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `slug` | `text` | — | Unique identifier (e.g., `financial_resilience`). Used in prompts and dashboards. |
+| `name` | `text` | — | Human-readable label displayed in scorecards. |
+| `description` | `text` | `null` | Optional blurb describing what the dimension captures. |
+| `stage` | `int` | `3` | Stage the dimension applies to (defaults to Stage&nbsp;3 deep dives). |
+| `order_index` | `int` | `0` | Ordering key for scorecards. |
+| `weight` | `numeric(8,4)` | `1` | Weight applied when averaging question scores. |
+| `color_bad` / `color_neutral` / `color_good` | `text` | Palette hex codes used for UI badges. |
+| `is_active` | `boolean` | `true` | Toggle to deactivate a dimension without removing history. |
+| `metadata` | `jsonb` | `'{}'` | Free-form JSON for downstream tuning (e.g., signal hints). |
+| `created_at` / `updated_at` | `timestamptz` | `now()` | Managed timestamps. |
+
+Seed and maintain this table via `/sql/007_question_registry.sql` so serverless workers and dashboards stay aligned.
+
+### `analysis_questions`
+
+*Primary key*: `id uuid`.
+
+| Column | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `dimension_id` | `uuid` | — | References `analysis_dimensions(id)`. |
+| `slug` | `text` | — | Stable question identifier (e.g., `fin_core_liquidity`). |
+| `stage` | `int` | `3` | Stage the question executes in. |
+| `order_index` | `int` | `0` | Controls execution order (dependencies should come later). |
+| `prompt` | `text` | — | Primary instruction block injected into Stage&nbsp;3 prompts. |
+| `guidance` | `text` | `null` | Optional extra heuristics appended below the prompt. |
+| `weight` | `numeric(8,4)` | `1` | Contribution to weighted averages. |
+| `answer_schema` | `jsonb` | default schema | Expected JSON structure returned by the model. Workers stringify this in the prompt. |
+| `depends_on` | `text[]` | `{}` | Array of prerequisite question slugs; used to feed dependency notes back to the model. |
+| `tags` | `text[]` | `{}` | Category hints (e.g., `['debt','liquidity']`). |
+| `is_active` | `boolean` | `true` | Toggle without deleting history. |
+| `metadata` | `jsonb` | `'{}'` | Optional extras (model hints, thresholds). |
+| `created_at` / `updated_at` | `timestamptz` | `now()` | Managed timestamps. |
+
+### `analysis_question_results`
+
+Composite primary key: `(run_id, ticker, question_id)`.
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `run_id` | `uuid` | References `runs`. |
+| `ticker` | `text` | References `tickers`. |
+| `question_id` | `uuid` | References `analysis_questions`. |
+| `question_slug` | `text` | Convenience copy for fast lookups. |
+| `dimension_id` | `uuid` | References `analysis_dimensions`. |
+| `stage` | `int` | Stage executed (normally 3). |
+| `verdict` | `text` | Normalised verdict string (`bad`, `neutral`, `good`). |
+| `score` | `numeric(8,4)` | 0–100 scale when provided by the model. |
+| `weight` | `numeric(8,4)` | Question weight at execution time. |
+| `color` | `text` | Color applied in the UI (mirrors dimension palette). |
+| `summary` | `text` | Short rationale summarising the answer. |
+| `answer` | `jsonb` | Raw structured output returned by the model. |
+| `tags` | `text[]` | Normalised tag list from the response. |
+| `dependencies` | `text[]` | Dependency slugs referenced when generating the prompt. |
+| `created_at` / `updated_at` | `timestamptz` | Timestamped at execution. |
+
+Workers upsert into this table so the browser can build dependency graphs without re-querying the model.
+
+### `analysis_dimension_scores`
+
+Composite primary key: `(run_id, ticker, dimension_id)`.
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `run_id` | `uuid` | References `runs`. |
+| `ticker` | `text` | References `tickers`. |
+| `dimension_id` | `uuid` | References `analysis_dimensions`. |
+| `verdict` | `text` | Weighted verdict computed across question results. |
+| `score` | `numeric(8,4)` | Weighted average score (0–100) when available. |
+| `weight` | `numeric(8,4)` | Total weight aggregated for the dimension. |
+| `color` | `text` | Tone used in dashboards (defaults to the dimension palette). |
+| `summary` | `text` | Concise roll-up summarising the dimension. |
+| `tags` | `text[]` | Union of tags from contributing questions. |
+| `details` | `jsonb` | Array of question-level metadata (verdict, score, answer snapshot). |
+| `created_at` / `updated_at` | `timestamptz` | Timestamped at aggregation time. |
+
+The Universe and ticker dashboards read from this table to render color-coded scorecards without parsing raw answer blobs.
