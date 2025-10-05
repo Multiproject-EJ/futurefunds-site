@@ -1,0 +1,40 @@
+# Supabase migration playbook
+
+This project keeps its database schema under the `/sql` directory. Each file is a
+Supabase-compatible migration that can be applied with `supabase db push`, `supabase
+migration up`, or any PostgreSQL client that runs the statements in order.
+
+## When to run migrations
+
+- **Fresh environment** — run all scripts sequentially (`supabase db reset` is the
+  quickest way) so the base tables, helper functions, and seeds exist.
+- **After pulling new SQL changes** — apply only the migrations that changed in your
+  diff. Every file is idempotent, so re-running one you already applied is safe.
+- **Local testing of seeds** — if you tweak the seeded data, re-run that specific
+  migration to load the latest values.
+
+## Recent changes
+
+- `sql/006_ai_registry.sql` now keeps its `ON CONFLICT` clause attached to the seeded
+  `INSERT` statement. Re-run it only if you want the corrected upsert logic in your
+  database.
+- `sql/007_question_registry.sql` replaced Python-style `[...]` literals with
+  `jsonb_build_array(...)` calls inside the dimension metadata seeds. Apply the
+  migration if you have not run it since that fix.
+
+## Suggested commands
+
+```
+# reset the full schema (drops and recreates everything)
+supabase db reset
+
+# apply migrations that have not been run yet
+supabase db migration up
+
+# run an individual script
+psql "$SUPABASE_DB_URL" -f sql/007_question_registry.sql
+```
+
+> **Tip:** the seeds in `006` and `007` are idempotent. If you need to rerun them,
+> simply execute the files again; the `ON CONFLICT` clauses keep data up to date without
+> creating duplicates.

@@ -8,6 +8,8 @@ universe, and internal tooling.
 
 - [Supabase database reference](docs/supabase-schema.md) — canonical contract for the
   tables, policies, and triggers the frontend expects.
+- [Migration playbook](docs/migration-playbook.md) — when to re-run the SQL files and
+  the commands we use in Supabase.
 - [Automated equity analyst roadmap](docs/equity-analyst-roadmap.md) — phased build plan for the
   multi-stage research system and associated UI.
 - [Sector prompt library](sectors.html) — admin console to curate Stage 2 heuristics synced to the planner.

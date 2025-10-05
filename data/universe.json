@@ -12,6 +12,31 @@
     ],
     "visual_table_md": "|Scenario|Rev CAGR|EBIT Margin|Value|\n|--|--|--|--|\n|Bear|3%|3%|€15|\n|Base|6%|7%|€24|\n|Bull|9%|9%|€35|",
     "conclusion": "HelloFresh trades slightly below base case DCF; upside exists if margins hold.",
-    "tags": ["DCF","Consumer","Europe"]
+    "tags": [
+      "DCF",
+      "Consumer",
+      "Europe"
+    ]
+  },
+  {
+    "date": "2025-01-16",
+    "topic": "Quality & Valuation Review — Agilent Technologies (NYSE: A)",
+    "prompt_used": "Analyze Agilent Technologies using the FutureFunds quality factors, recent operating performance, and valuation multiples relative to peers.",
+    "key_findings": [
+      "Mid-cycle revenue growth tracking 6% CAGR supported by biopharma demand",
+      "Operating margin resilient at ~23% despite Chinese weakness",
+      "Balance sheet net leverage under 1x EBITDA with ample buyback capacity",
+      "Shares trade at ~22x forward EPS vs 20x long-term median",
+      "Upside hinges on instrument replacement cycle stabilizing in FY2025"
+    ],
+    "visual_table_md": "|Metric|Agilent|Peer Median|Commentary|\n|--|--|--|--|\n|Revenue CAGR (3y)|7%|5%|Outperforming via services mix|\n|Operating Margin|23%|19%|Margin discipline and software attach|\n|FCF Conversion|104%|92%|Light capex, recurring consumables|\n|Forward P/E|22x|20x|Slight premium for quality|",
+    "conclusion": "Agilent maintains high-quality fundamentals and balance sheet flexibility, but valuation already discounts a 2025 recovery. We would wait for a better entry unless growth re-accelerates sooner.",
+    "tags": [
+      "Quality",
+      "Healthcare",
+      "USA",
+      "NYSE",
+      "Letter-A"
+    ]
   }
 ]
