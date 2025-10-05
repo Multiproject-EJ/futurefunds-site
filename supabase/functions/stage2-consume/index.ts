@@ -4,7 +4,8 @@ import {
   resolveModel,
   resolveCredential,
   computeUsageCost,
-  requestChatCompletion
+  requestChatCompletion,
+  requestEmbedding
 } from '../_shared/ai.ts';
 
 type JsonRecord = Record<string, unknown>;
@@ -15,6 +16,10 @@ type Stage2Result = {
   summary: string;
   updated_at: string;
   status: 'ok' | 'failed';
+  retrieval?: {
+    hits: number;
+    citations: RetrievedCitation[];
+  };
 };
 
 type Stage2Metrics = {
@@ -23,6 +28,26 @@ type Stage2Metrics = {
   completed: number;
   failed: number;
   go_deep: number;
+};
+
+type RetrievedSnippet = {
+  ref: string;
+  chunk: string;
+  source_type: string | null;
+  title: string | null;
+  published_at: string | null;
+  source_url: string | null;
+  similarity: number | null;
+  token_length: number;
+};
+
+type RetrievedCitation = {
+  ref: string;
+  title: string | null;
+  source_type: string | null;
+  published_at: string | null;
+  source_url: string | null;
+  similarity: number | null;
 };
 
 const corsHeaders = {
@@ -38,6 +63,9 @@ const jsonHeaders = {
 };
 
 const DEFAULT_STAGE2_MODEL = 'openrouter/gpt-5-mini';
+
+const EMBEDDING_MODEL_SLUG = 'openai/text-embedding-3-small';
+const MAX_RETRIEVAL_SNIPPETS = 6;
 
 const SURVIVOR_LABELS = new Set(['consider', 'borderline']);
 
@@ -194,11 +222,111 @@ async function fetchStage1Answer(client: ReturnType<typeof createClient>, runId:
   return (data?.answer_json ?? null) as JsonRecord | null;
 }
 
-function buildUserPrompt(
+function buildRetrievalQuery(
   ticker: string,
   meta: Record<string, unknown>,
   stage1: JsonRecord | null,
   sectorNotes: string | null
+) {
+  const lines: string[] = [];
+  lines.push(`Ticker: ${ticker}`);
+  if (meta.name) lines.push(`Name: ${String(meta.name)}`);
+  if (meta.exchange) lines.push(`Exchange: ${String(meta.exchange)}`);
+  if (meta.country) lines.push(`Country: ${String(meta.country)}`);
+  if (meta.sector) lines.push(`Sector: ${String(meta.sector)}`);
+  if (meta.industry) lines.push(`Industry: ${String(meta.industry)}`);
+
+  const label = stage1?.label ?? stage1?.classification ?? null;
+  if (label) lines.push(`Stage 1 label: ${String(label)}`);
+
+  const reasons = Array.isArray(stage1?.reasons)
+    ? (stage1?.reasons as unknown[]).slice(0, 4).map((reason) => String(reason))
+    : [];
+  if (reasons.length) {
+    lines.push(`Stage 1 reasons: ${reasons.join('; ')}`);
+  }
+
+  if (stage1?.summary && typeof stage1.summary === 'string') {
+    lines.push(`Stage 1 summary: ${stage1.summary}`);
+  }
+
+  if (sectorNotes) {
+    lines.push(`Sector heuristics: ${sectorNotes}`);
+  }
+
+  return lines.join('\n');
+}
+
+function snippetsToCitations(snippets: RetrievedSnippet[]): RetrievedCitation[] {
+  return snippets.map((snippet) => ({
+    ref: snippet.ref,
+    title: snippet.title,
+    source_type: snippet.source_type,
+    published_at: snippet.published_at,
+    source_url: snippet.source_url,
+    similarity: snippet.similarity
+  }));
+}
+
+async function fetchRetrievedSnippets(
+  client: ReturnType<typeof createClient>,
+  ticker: string,
+  query: string,
+  options: {
+    model: Awaited<ReturnType<typeof resolveModel>> | null;
+    credential: Awaited<ReturnType<typeof resolveCredential>> | null;
+    limit?: number;
+  }
+): Promise<{ snippets: RetrievedSnippet[]; citations: RetrievedCitation[]; tokens: number }> {
+  if (!query || !query.trim() || !options.model || !options.credential) {
+    return { snippets: [], citations: [], tokens: 0 };
+  }
+
+  const embeddingResponse = await requestEmbedding(options.model, options.credential, query.slice(0, 6_000));
+  const vector = embeddingResponse?.data?.[0]?.embedding as number[] | undefined;
+  if (!vector) {
+    return { snippets: [], citations: [], tokens: 0 };
+  }
+
+  const { data, error } = await client.rpc('match_doc_chunks', {
+    query_embedding: vector,
+    query_ticker: ticker || null,
+    match_limit: Math.max(1, Math.min(options.limit ?? MAX_RETRIEVAL_SNIPPETS, 12))
+  });
+  if (error) throw error;
+
+  const rows = Array.isArray(data) ? data : [];
+  const snippets: RetrievedSnippet[] = rows.map((row: Record<string, unknown>, index: number) => {
+    const text = String(row.chunk ?? '').trim();
+    const truncated = text.length > 900 ? `${text.slice(0, 900)}…` : text;
+    return {
+      ref: `D${index + 1}`,
+      chunk: truncated,
+      source_type: (row.source_type ?? row.source ?? null) as string | null,
+      title: (row.title ?? null) as string | null,
+      published_at: (row.published_at ?? null) as string | null,
+      source_url: (row.source_url ?? null) as string | null,
+      similarity: row.similarity != null ? Number(row.similarity) : null,
+      token_length: Number(row.token_length ?? 0)
+    };
+  });
+
+  const usage = (embeddingResponse?.usage ?? {}) as Record<string, unknown>;
+  const tokens = Number(usage.total_tokens ?? usage.prompt_tokens ?? 0);
+
+  return {
+    snippets,
+    citations: snippetsToCitations(snippets),
+    tokens: Number.isFinite(tokens) ? tokens : 0
+  };
+}
+
+function buildUserPrompt(
+  ticker: string,
+  meta: Record<string, unknown>,
+  stage1: JsonRecord | null,
+  sectorNotes: string | null,
+  retrieved: RetrievedSnippet[]
 ) {
   const lines: string[] = [];
   lines.push(`Ticker: ${ticker}`);
@@ -243,7 +371,27 @@ function buildUserPrompt(
   }
 
   lines.push('');
-  lines.push('Deliver mid-depth scoring with crisp rationales tied to these facts.');
+  if (retrieved.length) {
+    lines.push('Retrieved context (cite facts using [D1], [D2], etc.):');
+    retrieved.forEach((snippet) => {
+      lines.push(`[${snippet.ref}] ${snippet.chunk}`);
+      const parts: string[] = [];
+      if (snippet.title) parts.push(snippet.title);
+      if (snippet.source_type) parts.push(snippet.source_type);
+      if (snippet.published_at) parts.push(new Date(snippet.published_at).toISOString().slice(0, 10));
+      const sourceLine = parts.length ? parts.join(' · ') : 'Source metadata unavailable';
+      lines.push(`Source: ${sourceLine}`);
+      if (snippet.source_url) {
+        lines.push(`URL: ${snippet.source_url}`);
+      }
+      lines.push('');
+    });
+  } else {
+    lines.push('No retrieval snippets available for this ticker. Cite fundamental context only.');
+  }
+
+  lines.push('');
+  lines.push('Deliver mid-depth scoring with crisp rationales tied to these facts and cite supporting snippets as [D#].');
   return lines.join('\n');
 }
 
@@ -411,6 +559,29 @@ serve(async (req) => {
     });
   }
 
+  let embeddingModelRecord: Awaited<ReturnType<typeof resolveModel>> | null = null;
+  let embeddingCredentialRecord: Awaited<ReturnType<typeof resolveCredential>> | null = null;
+  try {
+    embeddingModelRecord = await resolveModel(supabaseAdmin, EMBEDDING_MODEL_SLUG, EMBEDDING_MODEL_SLUG);
+  } catch (error) {
+    console.warn('Stage 2 retrieval embedding model unavailable', error);
+  }
+
+  if (embeddingModelRecord) {
+    try {
+      embeddingCredentialRecord = await resolveCredential(supabaseAdmin, {
+        credentialId: null,
+        provider: embeddingModelRecord.provider,
+        preferScopes: ['automation', 'rag', 'editor'],
+        allowEnvFallback: true,
+        envKeys: ['OPENAI_API_KEY']
+      });
+    } catch (error) {
+      console.warn('Stage 2 retrieval embedding credential unavailable', error);
+      embeddingCredentialRecord = null;
+    }
+  }
+
   const { data: pending, error: pendingError } = await survivorFilter(
     supabaseAdmin
       .from('run_items')
@@ -446,6 +617,8 @@ serve(async (req) => {
   const results: Stage2Result[] = [];
   let processed = 0;
   let failures = 0;
+  let totalRetrievalHits = 0;
+  let totalEmbeddingTokens = 0;
 
   for (const item of items) {
     const ticker = item.ticker as string;
@@ -456,6 +629,15 @@ serve(async (req) => {
       const sector = typeof meta?.sector === 'string' ? (meta.sector as string) : null;
       const sectorNotes = await fetchSectorNotes(supabaseAdmin, sector);
       const stage1Answer = await fetchStage1Answer(supabaseAdmin, runRow.id, ticker);
+
+      const retrievalQuery = buildRetrievalQuery(ticker, meta ?? {}, stage1Answer, sectorNotes);
+      const retrieval = await fetchRetrievedSnippets(supabaseAdmin, ticker, retrievalQuery, {
+        model: embeddingModelRecord,
+        credential: embeddingCredentialRecord,
+        limit: MAX_RETRIEVAL_SNIPPETS
+      });
+      totalRetrievalHits += retrieval.snippets.length;
+      totalEmbeddingTokens += retrieval.tokens;
 
       if (!SURVIVOR_LABELS.has(normalizeLabel(item.label))) {
         results.push({
@@ -479,7 +661,10 @@ serve(async (req) => {
         response_format: { type: 'json_object' },
         messages: [
           { role: 'system', content: SYSTEM_PROMPT },
-          { role: 'user', content: buildUserPrompt(ticker, meta, stage1Answer, sectorNotes) }
+          {
+            role: 'user',
+            content: buildUserPrompt(ticker, meta, stage1Answer, sectorNotes, retrieval.snippets)
+          }
         ]
       });
 
@@ -496,12 +681,17 @@ serve(async (req) => {
       const verdict = (parsed?.verdict ?? null) as JsonRecord | null;
       const goDeep = Boolean(verdict?.go_deep);
 
+      const enrichedAnswer: JsonRecord = {
+        ...parsed,
+        context_citations: retrieval.citations
+      };
+
       await supabaseAdmin.from('answers').insert({
         run_id: runRow.id,
         ticker,
         stage: 2,
         question_group: 'medium',
-        answer_json: parsed,
+        answer_json: enrichedAnswer,
         tokens_in: promptTokens,
         tokens_out: completionTokens,
         cost_usd: cost,
@@ -533,9 +723,13 @@ serve(async (req) => {
       results.push({
         ticker,
         go_deep: goDeep,
-        summary: extractSummary(parsed),
+        summary: extractSummary(enrichedAnswer),
         updated_at: startedAt,
-        status: 'ok'
+        status: 'ok',
+        retrieval: {
+          hits: retrieval.snippets.length,
+          citations: retrieval.citations
+        }
       });
       processed += 1;
     } catch (error) {
@@ -571,6 +765,10 @@ serve(async (req) => {
     metrics,
     results,
     model: modelRecord.slug,
-    message
+    message,
+    retrieval: {
+      total_hits: totalRetrievalHits,
+      embedding_tokens: totalEmbeddingTokens
+    }
   });
 });

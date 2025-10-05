@@ -301,3 +301,26 @@ export async function requestChatCompletion(
   }
   return await response.json();
 }
+
+export async function requestEmbedding(
+  model: AIModel,
+  credential: AICredential,
+  input: string | string[]
+) {
+  const baseUrl = mergedBaseUrl(model, credential);
+  const url = `${baseUrl}/embeddings`;
+  const payload = {
+    model: model.model_name,
+    input: Array.isArray(input) ? input : [input]
+  };
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: buildHeaders(model, credential),
+    body: JSON.stringify(payload)
+  });
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`Embedding request failed (${response.status}): ${text}`);
+  }
+  return await response.json();
+}

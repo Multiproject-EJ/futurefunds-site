@@ -626,6 +626,52 @@
       gap: 12px;
       align-items: center;
     }
+
+    .auto-continue {
+      border: 1px solid rgba(37,99,235,.18);
+      background: rgba(37,99,235,.05);
+      border-radius: 16px;
+      padding: 14px 16px;
+      display: grid;
+      gap: 8px;
+    }
+
+    .auto-continue__controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .auto-continue__label {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-weight: 600;
+      font-size: .92rem;
+      color: var(--text,#0f172a);
+    }
+
+    .auto-continue__label input[type="checkbox"] {
+      width: 18px;
+      height: 18px;
+    }
+
+    .auto-continue select {
+      height: 34px;
+      border-radius: 10px;
+      border: 1px solid var(--border,#cbd5f5);
+      background: rgba(255,255,255,.92);
+      font: inherit;
+      padding: 0 12px;
+      color: var(--text,#0f172a);
+    }
+
+    .auto-continue__status {
+      margin: 0;
+      font-size: .85rem;
+      color: var(--muted,#475569);
+    }
     .sector-notes {
       border: 1px solid rgba(37,99,235,.18);
       background: rgba(37,99,235,.05);
@@ -1429,7 +1475,7 @@
     </nav>
   </header>
 
-  <main class="planner-shell planner-wrap">
+  <main class="planner-shell planner-wrap" data-gated="member">
     <header class="planner-headline">
       <a class="inline-link" href="/equity_analyst.html">← Back to analyst blueprint</a>
       <h1>Market Scan Planner & Cost Estimator</h1>
@@ -1692,6 +1738,24 @@
         <span id="stage1Status" role="status" aria-live="polite"></span>
       </div>
 
+      <section class="auto-continue" aria-label="Automation controls">
+        <div class="auto-continue__controls">
+          <label class="auto-continue__label" for="autoContinueToggle">
+            <input type="checkbox" id="autoContinueToggle" />
+            <span>Auto continue</span>
+          </label>
+          <label class="sr-only" for="autoContinueInterval">Auto continue interval</label>
+          <select id="autoContinueInterval">
+            <option value="15">Every 15 seconds</option>
+            <option value="30" selected>Every 30 seconds</option>
+            <option value="60">Every 60 seconds</option>
+          </select>
+        </div>
+        <p class="auto-continue__status" id="autoContinueStatus" role="status" aria-live="polite">
+          Auto continue idle.
+        </p>
+      </section>
+
       <section class="recent-results" aria-live="polite">
         <h3>Latest classifications</h3>
         <table class="recent-table">
@@ -1737,6 +1801,14 @@
         <div class="controller-metrics__item">
           <dt>Failed</dt>
           <dd id="stage2Failed">—</dd>
+        </div>
+        <div class="controller-metrics__item">
+          <dt>Retrieved snippets</dt>
+          <dd id="stage2ContextHits">—</dd>
+        </div>
+        <div class="controller-metrics__item">
+          <dt>Embedding tokens</dt>
+          <dd id="stage2ContextTokens">—</dd>
         </div>
       </dl>
 
@@ -1801,6 +1873,14 @@
       <div class="controller-metrics__item">
         <dt>Failed</dt>
         <dd id="stage3Failed">—</dd>
+      </div>
+      <div class="controller-metrics__item">
+        <dt>Retrieved snippets</dt>
+        <dd id="stage3ContextHits">—</dd>
+      </div>
+      <div class="controller-metrics__item">
+        <dt>Embedding tokens</dt>
+        <dd id="stage3ContextTokens">—</dd>
       </div>
     </dl>
 
@@ -1941,7 +2021,20 @@
       </div>
     </div>
   </div>
-</main>
+
+    <div class="gate-cta">
+      <div class="gate-cta__inner">
+        <div>
+          <strong>Members only</strong>
+          <p>Join FutureFunds.ai or sign in to run automated analyst sweeps.</p>
+        </div>
+        <div class="gate-cta__actions">
+          <button class="btn primary" type="button" data-open-auth="signup">Join membership</button>
+          <button class="btn" type="button" data-open-auth="signin">Sign in</button>
+        </div>
+      </div>
+    </div>
+  </main>
 
 <button type="button" class="guided-fab" id="guidedFab" aria-label="Start guided walkthrough">
   <strong>Need a tour?</strong>
