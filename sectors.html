@@ -1,0 +1,351 @@
+<!doctype html>
+<html lang="en" data-lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>FutureFunds — Sector Prompt Library</title>
+  <link rel="stylesheet" href="/assets/styles.css" />
+  <style>
+    :root {
+      color-scheme: light dark;
+    }
+    body {
+      font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      margin: 0;
+      background: var(--page,#f8fafc);
+      color: var(--text,#0f172a);
+    }
+    main {
+      max-width: 1040px;
+      margin: 0 auto;
+      padding: 32px 20px 96px;
+      display: grid;
+      gap: 28px;
+    }
+    .hero {
+      display: grid;
+      gap: 10px;
+    }
+    .hero h1 {
+      margin: 0;
+      font-size: clamp(1.85rem, 3vw, 2.6rem);
+      font-weight: 700;
+    }
+    .hero p {
+      margin: 0;
+      max-width: 720px;
+      font-size: 1rem;
+      color: var(--muted,#475569);
+    }
+    .grid {
+      display: grid;
+      gap: 22px;
+    }
+    @media (min-width: 920px) {
+      .grid-two {
+        grid-template-columns: minmax(0,0.46fr) minmax(0,0.54fr);
+        align-items: start;
+      }
+    }
+    .panel {
+      border: 1px solid var(--border,#e2e8f0);
+      border-radius: 20px;
+      background: var(--panel,#fff);
+      box-shadow: 0 18px 36px rgba(15,23,42,.08);
+      padding: 24px;
+      display: grid;
+      gap: 18px;
+    }
+    .panel h2 {
+      margin: 0;
+      font-size: 1.32rem;
+      font-weight: 600;
+    }
+    .panel p {
+      margin: 0;
+      font-size: .95rem;
+      color: var(--muted,#475569);
+    }
+    .field {
+      display: grid;
+      gap: 6px;
+    }
+    .field label {
+      font-size: .85rem;
+      font-weight: 600;
+      color: var(--text,#0f172a);
+    }
+    input[type="text"],
+    textarea {
+      font: inherit;
+      border: 1px solid var(--border,#cbd5f5);
+      border-radius: 12px;
+      padding: 10px 12px;
+      background: rgba(255,255,255,.96);
+      transition: border-color .18s ease, box-shadow .18s ease;
+    }
+    textarea {
+      min-height: 160px;
+      resize: vertical;
+      line-height: 1.5;
+    }
+    input[type="text"]:focus,
+    textarea:focus {
+      outline: none;
+      border-color: var(--accent,#2563eb);
+      box-shadow: 0 0 0 3px rgba(37,99,235,.2);
+    }
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: center;
+    }
+    button {
+      border: none;
+      border-radius: 999px;
+      padding: 10px 20px;
+      font-weight: 600;
+      cursor: pointer;
+      font-size: .9rem;
+    }
+    .btn-primary {
+      background: linear-gradient(120deg, #2563eb, #4338ca);
+      color: #fff;
+      display: inline-flex;
+      gap: 8px;
+      align-items: center;
+      justify-content: center;
+    }
+    .btn-secondary {
+      background: rgba(226,232,240,.8);
+      color: var(--text,#0f172a);
+      border: 1px solid rgba(148,163,184,.6);
+    }
+    .status {
+      font-size: .82rem;
+      color: var(--muted,#475569);
+    }
+    .prompt-list {
+      display: grid;
+      gap: 18px;
+    }
+    .prompt-card {
+      border: 1px solid rgba(37,99,235,.22);
+      border-radius: 18px;
+      padding: 18px;
+      background: rgba(37,99,235,.05);
+      display: grid;
+      gap: 14px;
+    }
+    .prompt-card header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 12px;
+    }
+    .prompt-card h3 {
+      margin: 0;
+      font-size: 1.05rem;
+      font-weight: 600;
+      color: var(--accent,#2563eb);
+    }
+    .prompt-card .meta {
+      font-size: .78rem;
+      color: var(--muted,#475569);
+    }
+    .prompt-card textarea {
+      min-height: 120px;
+    }
+    .prompt-card footer {
+      display: flex;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+    }
+    .prompt-card footer .status {
+      font-size: .78rem;
+    }
+    .empty-state {
+      text-align: center;
+      padding: 36px 18px;
+      border: 1px dashed rgba(148,163,184,.4);
+      border-radius: 16px;
+      color: var(--muted,#475569);
+      font-size: .95rem;
+    }
+    .access-warning {
+      border: 1px solid rgba(248,113,113,.4);
+      background: rgba(248,113,113,.08);
+      color: #b91c1c;
+      padding: 18px;
+      border-radius: 16px;
+      font-weight: 600;
+    }
+    .search-bar {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    .search-bar input[type="search"] {
+      flex: 1;
+      min-width: 180px;
+      font: inherit;
+      border: 1px solid var(--border,#cbd5f5);
+      border-radius: 12px;
+      padding: 9px 12px;
+      background: rgba(255,255,255,.96);
+    }
+    .search-bar input[type="search"]:focus {
+      outline: none;
+      border-color: var(--accent,#2563eb);
+      box-shadow: 0 0 0 3px rgba(37,99,235,.2);
+    }
+  </style>
+</head>
+<body>
+  <header class="site-header">
+    <a class="brand" href="/">
+      <img src="/images/logo.webp" alt="FutureFunds.ai logo" class="logo" />
+      <span>FutureFunds.ai</span>
+    </a>
+
+    <button class="nav-toggle" id="navToggle" type="button" aria-expanded="false" aria-controls="siteNav">
+      <span class="sr-only">Menu</span>
+      <span class="nav-toggle__bar"></span>
+    </button>
+
+    <nav class="nav" id="siteNav" aria-label="Primary navigation">
+      <div class="nav-links">
+        <div class="nav-item nav-item--team">
+          <a href="/team.html" class="nav-link" data-i18n="nav.team">Experiment</a>
+        </div>
+        <div class="nav-item nav-item--has-panel nav-item--tools">
+          <a href="/tools.html" class="nav-link" data-i18n="nav.investmentTools">Investment Tools</a>
+          <div class="nav-panel nav-panel--tools" role="group" aria-label="Investment tools">
+            <div class="nav-panel__header">
+              <span class="nav-panel__title">Featured tools</span>
+              <a class="nav-panel__cta" href="/tools.html">Explore tools →</a>
+            </div>
+            <div class="nav-panel__content nav-panel__content--tools">
+              <a class="nav-tool" href="/tool.html?id=ff-pms">
+                <span class="chip membership">Member</span>
+                <h4>Portfolio OS</h4>
+                <p>Run strategies end-to-end with sheets + AI copilots.</p>
+              </a>
+              <a class="nav-tool" href="/tool.html?id=stockalpha-journal">
+                <span class="chip free">Free</span>
+                <h4>StockAlpha Journal</h4>
+                <p>Track theses, catalysts, and behavioral loops.</p>
+              </a>
+              <a class="nav-tool" href="/tool.html?id=valuebot">
+                <span class="chip paid">Paid</span>
+                <h4>ValueBot Valuation</h4>
+                <p>Get sourced, step-by-step valuations on demand.</p>
+              </a>
+            </div>
+          </div>
+        </div>
+        <div class="nav-item nav-item--has-panel nav-item--ai">
+          <a href="/ai-economy.html" class="nav-link" data-i18n="nav.aiEconomy">The AI Economy</a>
+          <div class="nav-panel nav-panel--ai" role="group" aria-label="AI economy preview">
+            <div class="nav-panel__header">
+              <span class="nav-panel__title">AI economy brief</span>
+              <a class="nav-panel__cta" href="/ai-economy.html">Dive in →</a>
+            </div>
+            <div class="nav-ai">
+              <p class="nav-ai__pitch">Weekly signals on how automation, capital, and policy collide. Built from filings, expert transcripts, and on-chain data.</p>
+              <form class="nav-ai__signup newsletter-form" action="/ai-economy.html#newsletter" method="get">
+                <label class="sr-only" for="nav-ai-email">Email address</label>
+                <input id="nav-ai-email" type="email" name="email" placeholder="you@example.com" autocomplete="email" />
+                <button type="submit" class="btn primary">Get the brief</button>
+                <p class="nav-ai__status newsletter-status muted" aria-live="polite"></p>
+              </form>
+            </div>
+          </div>
+        </div>
+        <div class="nav-item nav-item--has-panel nav-item--blog">
+          <a href="/blog.html" class="nav-link" data-i18n="nav.blog">Blog</a>
+          <div class="nav-panel nav-panel--blog" role="group" aria-label="Latest articles">
+            <div class="nav-panel__header">
+              <span class="nav-panel__title">Latest updates</span>
+              <a class="nav-panel__cta" href="/blog.html">See all posts →</a>
+            </div>
+            <div class="nav-panel__content nav-panel__content--blog">
+              <a class="nav-article" href="/ai-article.html">
+                <span class="chip free">Free</span>
+                <h4>Can AI run your investment process?</h4>
+                <p>Dispatches from the FutureFunds lab.</p>
+              </a>
+              <a class="nav-article" href="/ai-economy.html">
+                <span class="chip membership">Member</span>
+                <h4>AI & macro weekly brief</h4>
+                <p>Macro playbooks, automation vectors, regime maps.</p>
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="nav-cta">
+        <a class="btn secondary" href="/login.html">Sign in</a>
+      </div>
+    </nav>
+  </header>
+
+  <main>
+    <section class="hero">
+      <p class="chip" style="width:fit-content;background:rgba(37,99,235,.12);color:#1d4ed8;padding:6px 12px;border-radius:999px;font-weight:600;">Analyst ops</p>
+      <h1>Sector prompt library</h1>
+      <p>Capture repeatable heuristics for each sector so Stage&nbsp;2 scoring can emphasise the correct playbook. Notes auto-sync with the planner and Stage&nbsp;2 worker.</p>
+    </section>
+
+    <section class="grid grid-two">
+      <article class="panel" aria-labelledby="createPromptTitle">
+        <div>
+          <h2 id="createPromptTitle">Add or update a sector</h2>
+          <p>Start with the sectors you cover most often. Notes should focus on the key quality, risk, and timing heuristics you want the analyst agents to respect.</p>
+        </div>
+        <form id="createForm" class="grid" autocomplete="off">
+          <div class="field">
+            <label for="sectorInput">Sector name</label>
+            <input id="sectorInput" name="sector" type="text" list="sectorSuggestions" placeholder="e.g. Technology" required />
+            <datalist id="sectorSuggestions"></datalist>
+          </div>
+          <div class="field">
+            <label for="notesInput">Guidance for Stage 2</label>
+            <textarea id="notesInput" name="notes" placeholder="Outline the heuristics, red flags, and what qualifies for a deep dive…" required></textarea>
+          </div>
+          <div class="actions">
+            <button type="submit" class="btn-primary" id="createBtn">Save sector guidance</button>
+            <span class="status" id="createStatus" aria-live="polite">Draft</span>
+          </div>
+        </form>
+      </article>
+
+      <article class="panel" aria-labelledby="searchTitle">
+        <div>
+          <h2 id="searchTitle">Browse existing guidance</h2>
+          <p>Search, edit, or remove sector prompts. Changes save instantly for all operators.</p>
+        </div>
+        <div class="search-bar">
+          <input id="searchInput" type="search" placeholder="Search sectors…" aria-label="Search sectors" />
+          <button type="button" class="btn-secondary" id="refreshBtn">Refresh</button>
+        </div>
+        <div id="listContainer">
+          <div class="empty-state" id="emptyState">No sector guidance saved yet. Add your first notes to power Stage&nbsp;2 insights.</div>
+          <div class="prompt-list" id="promptList" hidden></div>
+        </div>
+      </article>
+    </section>
+
+    <section id="accessNotice" class="access-warning" hidden>
+      Admin access required. Sign in with an administrator account to manage sector guidance.
+    </section>
+  </main>
+
+  <script src="/assets/site-nav.js" defer></script>
+  <script type="module" src="/assets/sectors.js"></script>
+</body>
+</html>
