@@ -645,6 +645,190 @@
         right: 10px;
       }
     }
+    body.guided-active {
+      overflow: hidden;
+    }
+    .guided-fab {
+      position: fixed;
+      right: 24px;
+      bottom: 24px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 14px 18px;
+      border: none;
+      border-radius: 999px;
+      background: #2563eb;
+      color: #fff;
+      font-weight: 700;
+      cursor: pointer;
+      box-shadow: 0 24px 65px rgba(37,99,235,.32);
+      z-index: 1800;
+      transition: transform .18s ease, box-shadow .18s ease;
+    }
+    .guided-fab span {
+      font-size: .82rem;
+      font-weight: 500;
+      opacity: .9;
+    }
+    .guided-fab:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 32px 80px rgba(37,99,235,.36);
+    }
+    .guided-fab:focus-visible {
+      outline: 2px solid rgba(255,255,255,.8);
+      outline-offset: 3px;
+    }
+    .guided-fab.hidden {
+      display: none;
+    }
+    .guided-overlay {
+      position: fixed;
+      inset: 0;
+      display: none;
+      z-index: 2000;
+    }
+    .guided-overlay.active {
+      display: block;
+    }
+    .guided-overlay::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      background: rgba(15,23,42,.55);
+      backdrop-filter: blur(3px);
+    }
+    .guided-panel {
+      position: fixed;
+      right: 24px;
+      bottom: 24px;
+      max-width: 360px;
+      width: calc(100% - 48px);
+      background: var(--panel,#fff);
+      border-radius: 22px;
+      border: 1px solid var(--border,#e5e7eb);
+      box-shadow: 0 28px 95px rgba(15,23,42,.28);
+      padding: 22px;
+      display: grid;
+      gap: 14px;
+      z-index: 2200;
+    }
+    .guided-close {
+      position: absolute;
+      top: 14px;
+      right: 14px;
+      border: none;
+      background: transparent;
+      color: var(--muted,#475569);
+      font-size: 1.2rem;
+      cursor: pointer;
+    }
+    .guided-progress {
+      font-size: .7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .12em;
+      color: var(--muted,#475569);
+    }
+    .guided-panel h2 {
+      margin: 0;
+      font-size: 1.45rem;
+      color: var(--text,#0f172a);
+    }
+    .guided-body {
+      font-size: .9rem;
+      color: var(--muted,#475569);
+      line-height: 1.55;
+    }
+    .guided-actions {
+      display: flex;
+      gap: 10px;
+    }
+    .guided-actions button {
+      flex: 1;
+      padding: 10px 14px;
+      border-radius: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      border: 1px solid var(--border,#e5e7eb);
+      background: var(--panel,#fff);
+      color: var(--text,#0f172a);
+      transition: background .18s ease, transform .18s ease;
+    }
+    .guided-actions button:hover {
+      background: rgba(37,99,235,.08);
+      transform: translateY(-1px);
+    }
+    .guided-actions button.primary {
+      background: #2563eb;
+      color: #fff;
+      border-color: #2563eb;
+    }
+    .guided-actions button.primary:disabled {
+      opacity: .6;
+      cursor: not-allowed;
+      transform: none;
+    }
+    .guided-focus {
+      position: relative;
+      z-index: 2100 !important;
+      box-shadow: 0 0 0 4px rgba(37,99,235,.35), 0 18px 55px rgba(15,23,42,.24);
+      border-radius: 18px;
+      transition: box-shadow .2s ease;
+    }
+    .guided-summary {
+      display: grid;
+      gap: 10px;
+      font-size: .88rem;
+      color: var(--muted,#475569);
+    }
+    .guided-summary label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-weight: 600;
+      color: var(--text,#0f172a);
+    }
+    .guided-email-row {
+      display: flex;
+      gap: 8px;
+    }
+    .guided-email-row input {
+      flex: 1;
+      padding: 10px 12px;
+      border-radius: 12px;
+      border: 1px solid var(--border,#e5e7eb);
+    }
+    .guided-email-row button {
+      padding: 10px 14px;
+      border-radius: 12px;
+      border: 1px solid #2563eb;
+      background: #2563eb;
+      color: #fff;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .guided-email-row button:disabled {
+      opacity: .6;
+      cursor: not-allowed;
+    }
+    .guided-email-hint {
+      font-size: .78rem;
+      color: var(--muted,#475569);
+    }
+    @media (max-width: 640px) {
+      .guided-fab {
+        left: 16px;
+        right: 16px;
+        width: calc(100% - 32px);
+        justify-content: center;
+      }
+      .guided-panel {
+        left: 24px;
+        right: 24px;
+        width: auto;
+      }
+    }
   </style>
 </head>
 <body>
@@ -752,7 +936,7 @@
     </header>
 
     <section class="planner-grid">
-      <article class="panel">
+      <article class="panel" id="plannerConfigPanel">
         <div class="planner-form" id="plannerForm">
           <div class="field">
             <label for="universeInput">Universe size (tickers)</label>
@@ -1116,6 +1300,36 @@
   </div>
 </main>
 
+<button type="button" class="guided-fab" id="guidedFab" aria-label="Start guided walkthrough">
+  <strong>Need a tour?</strong>
+  <span>Walk through the planner</span>
+</button>
+
+<div class="guided-overlay" id="guidedOverlay" aria-hidden="true">
+  <div class="guided-panel" role="dialog" aria-modal="true" aria-labelledby="guidedTitle">
+    <button class="guided-close" id="guidedClose" aria-label="Close guided helper">×</button>
+    <div class="guided-progress" id="guidedProgress">Step 1 of 1</div>
+    <h2 id="guidedTitle">Guided planner setup</h2>
+    <div class="guided-body" id="guidedBody">We'll walk through calibrating the market scan planner before you launch the analyst.</div>
+    <div class="guided-summary" id="guidedSummary" hidden>
+      <p><strong>Planner ready!</strong> Launch your next market scan, then open the <a href="/equity_analyst.html">equity analyst dashboard</a> to monitor progress.</p>
+      <label>
+        <input type="checkbox" id="guidedUpdates" />
+        Keep me updated with daily run reports via email.
+      </label>
+      <div class="guided-email-row" id="guidedEmailRow" hidden>
+        <input type="email" id="guidedEmail" placeholder="you@example.com" autocomplete="email" />
+        <button type="button" id="guidedEmailSave">Save</button>
+      </div>
+      <p class="guided-email-hint" id="guidedEmailHint">We only store this preference in your browser so you stay in control.</p>
+    </div>
+    <div class="guided-actions">
+      <button type="button" id="guidedPrev">Back</button>
+      <button type="button" id="guidedNext" class="primary">Next</button>
+    </div>
+  </div>
+</div>
+
 <footer class="site-footer">
   <div class="footer-inner">
     <div class="footer-col footer-about">
@@ -1174,6 +1388,195 @@
 <script src="/assets/paywall.js" defer></script>
 <script type="module" src="/assets/auth.js"></script>
 <script type="module" src="/assets/planner.js"></script>
+<script>
+  (() => {
+    const doc = document;
+    const body = doc.body;
+    const fab = doc.getElementById('guidedFab');
+    const overlay = doc.getElementById('guidedOverlay');
+    const closeBtn = doc.getElementById('guidedClose');
+    const nextBtn = doc.getElementById('guidedNext');
+    const prevBtn = doc.getElementById('guidedPrev');
+    const titleEl = doc.getElementById('guidedTitle');
+    const bodyEl = doc.getElementById('guidedBody');
+    const progressEl = doc.getElementById('guidedProgress');
+    const summaryEl = doc.getElementById('guidedSummary');
+    const updatesToggle = doc.getElementById('guidedUpdates');
+    const emailRow = doc.getElementById('guidedEmailRow');
+    const emailInput = doc.getElementById('guidedEmail');
+    const emailSave = doc.getElementById('guidedEmailSave');
+    const emailHint = doc.getElementById('guidedEmailHint');
+    const highlightClass = 'guided-focus';
+
+    const steps = [
+      {
+        title: 'Set your coverage universe',
+        body: 'Adjust the <strong>Universe size</strong> and slider targets so the funnel matches your run goals. The planner saves locally so you can keep iterating.',
+        target: '#plannerConfigPanel'
+      },
+      {
+        title: 'Dial in stage budgets',
+        body: 'Review each stage card to pick the right models, credentials, and token allowances for this batch.',
+        target: '.stage-grid'
+      },
+      {
+        title: 'Queue the run',
+        body: 'Use the primary controls to launch automation, reset defaults, or refresh model and credential registries.',
+        target: '.planner-actions'
+      },
+      {
+        title: 'Check the live cost estimate',
+        body: 'As you tweak the funnel, the cost summary updates instantly so you know the projected spend before committing.',
+        target: '#costOutput'
+      },
+      {
+        title: 'Manage Stage 1 execution',
+        body: 'Paste a run ID to resume existing scans, request stop or resume, and monitor triage throughput right from here.',
+        target: '#stage1Panel'
+      },
+      {
+        title: 'Layer in sector guidance',
+        body: 'Open the sector prompt library to align Stage 2 scoring with your heuristics, then watch approvals roll in.',
+        target: '#stage2Panel'
+      },
+      {
+        title: 'Plan deep-dive output',
+        body: 'Keep an eye on Stage 3 completions, spend, and thesis summaries before you jump into the analyst dashboard.',
+        target: '#stage3Panel'
+      }
+    ];
+
+    let stepIndex = 0;
+    let previousTarget = null;
+
+    const focusTarget = selector => {
+      if (previousTarget) {
+        previousTarget.classList.remove(highlightClass);
+      }
+      previousTarget = null;
+      if (!selector) return;
+      const el = doc.querySelector(selector);
+      if (el) {
+        el.classList.add(highlightClass);
+        previousTarget = el;
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    };
+
+    const renderStep = () => {
+      const total = steps.length;
+      const step = steps[stepIndex];
+      progressEl.textContent = `Step ${stepIndex + 1} of ${total}`;
+      titleEl.textContent = step.title;
+      bodyEl.innerHTML = step.body;
+      summaryEl.hidden = true;
+      nextBtn.textContent = stepIndex + 1 === total ? 'Finish' : 'Next';
+      prevBtn.disabled = stepIndex === 0;
+      focusTarget(step.target);
+    };
+
+    const renderSummary = () => {
+      progressEl.textContent = 'Complete';
+      titleEl.textContent = 'Planner walkthrough complete';
+      bodyEl.innerHTML = 'Great work! Launch your run from here and then keep the equity analyst dashboard open for telemetry updates.';
+      summaryEl.hidden = false;
+      focusTarget(null);
+      nextBtn.textContent = 'Close';
+      prevBtn.disabled = false;
+    };
+
+    const openOverlay = () => {
+      overlay.classList.add('active');
+      overlay.setAttribute('aria-hidden', 'false');
+      fab.classList.add('hidden');
+      body.classList.add('guided-active');
+      stepIndex = 0;
+      renderStep();
+    };
+
+    const closeOverlay = () => {
+      overlay.classList.remove('active');
+      overlay.setAttribute('aria-hidden', 'true');
+      fab.classList.remove('hidden');
+      body.classList.remove('guided-active');
+      focusTarget(null);
+    };
+
+    fab?.addEventListener('click', openOverlay);
+    closeBtn?.addEventListener('click', closeOverlay);
+    overlay?.addEventListener('click', evt => {
+      if (evt.target === overlay) closeOverlay();
+    });
+    doc.addEventListener('keydown', evt => {
+      if (evt.key === 'Escape' && overlay.classList.contains('active')) {
+        closeOverlay();
+      }
+    });
+
+    nextBtn?.addEventListener('click', () => {
+      if (summaryEl.hidden) {
+        if (stepIndex + 1 < steps.length) {
+          stepIndex += 1;
+          renderStep();
+        } else {
+          renderSummary();
+        }
+      } else {
+        closeOverlay();
+      }
+    });
+
+    prevBtn?.addEventListener('click', () => {
+      if (!summaryEl.hidden) {
+        summaryEl.hidden = true;
+        renderStep();
+        return;
+      }
+      if (stepIndex > 0) {
+        stepIndex -= 1;
+        renderStep();
+      }
+    });
+
+    updatesToggle?.addEventListener('change', () => {
+      const enabled = updatesToggle.checked;
+      emailRow.hidden = !enabled;
+      if (enabled) {
+        emailInput.focus();
+      }
+    });
+
+    const EMAIL_KEY = 'ff-guided-daily-email';
+    const savedEmail = window.localStorage?.getItem(EMAIL_KEY);
+    if (savedEmail) {
+      updatesToggle.checked = true;
+      emailRow.hidden = false;
+      emailInput.value = savedEmail;
+      emailHint.textContent = 'We\'ll send a reminder each morning. You can remove it anytime via this helper.';
+    }
+
+    const validateEmail = value => /.+@.+\..+/.test(value.trim());
+
+    emailSave?.addEventListener('click', () => {
+      const value = emailInput.value.trim();
+      if (!validateEmail(value)) {
+        emailHint.textContent = 'Enter a valid email to enable daily run reports.';
+        emailHint.style.color = '#b91c1c';
+        return;
+      }
+      window.localStorage?.setItem(EMAIL_KEY, value);
+      emailHint.textContent = 'Saved! We\'ll send daily run highlights when available.';
+      emailHint.style.color = 'var(--muted,#475569)';
+    });
+
+    emailInput?.addEventListener('input', () => {
+      emailHint.textContent = updatesToggle.checked && window.localStorage?.getItem(EMAIL_KEY)
+        ? 'Update your email and hit save to refresh notifications.'
+        : 'We only store this preference in your browser so you stay in control.';
+      emailHint.style.color = 'var(--muted,#475569)';
+    });
+  })();
+</script>
 <script type="module">
   const manageLink = document.querySelector('.sector-notes__manage');
   const modal = document.getElementById('sectorModal');
