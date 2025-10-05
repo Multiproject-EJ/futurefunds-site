@@ -626,6 +626,52 @@
       gap: 12px;
       align-items: center;
     }
+
+    .auto-continue {
+      border: 1px solid rgba(37,99,235,.18);
+      background: rgba(37,99,235,.05);
+      border-radius: 16px;
+      padding: 14px 16px;
+      display: grid;
+      gap: 8px;
+    }
+
+    .auto-continue__controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .auto-continue__label {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-weight: 600;
+      font-size: .92rem;
+      color: var(--text,#0f172a);
+    }
+
+    .auto-continue__label input[type="checkbox"] {
+      width: 18px;
+      height: 18px;
+    }
+
+    .auto-continue select {
+      height: 34px;
+      border-radius: 10px;
+      border: 1px solid var(--border,#cbd5f5);
+      background: rgba(255,255,255,.92);
+      font: inherit;
+      padding: 0 12px;
+      color: var(--text,#0f172a);
+    }
+
+    .auto-continue__status {
+      margin: 0;
+      font-size: .85rem;
+      color: var(--muted,#475569);
+    }
     .sector-notes {
       border: 1px solid rgba(37,99,235,.18);
       background: rgba(37,99,235,.05);
@@ -1691,6 +1737,24 @@
         <button class="btn-secondary" type="button" id="refreshStage1Btn">Refresh status</button>
         <span id="stage1Status" role="status" aria-live="polite"></span>
       </div>
+
+      <section class="auto-continue" aria-label="Automation controls">
+        <div class="auto-continue__controls">
+          <label class="auto-continue__label" for="autoContinueToggle">
+            <input type="checkbox" id="autoContinueToggle" />
+            <span>Auto continue</span>
+          </label>
+          <label class="sr-only" for="autoContinueInterval">Auto continue interval</label>
+          <select id="autoContinueInterval">
+            <option value="15">Every 15 seconds</option>
+            <option value="30" selected>Every 30 seconds</option>
+            <option value="60">Every 60 seconds</option>
+          </select>
+        </div>
+        <p class="auto-continue__status" id="autoContinueStatus" role="status" aria-live="polite">
+          Auto continue idle.
+        </p>
+      </section>
 
       <section class="recent-results" aria-live="polite">
         <h3>Latest classifications</h3>
