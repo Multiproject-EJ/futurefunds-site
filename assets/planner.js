@@ -17,7 +17,8 @@ const defaults = {
   surviveStage3: 12,
   stage1: { model: DEFAULT_STAGE_MODELS.stage1, credentialId: null, inTokens: 3000, outTokens: 600 },
   stage2: { model: DEFAULT_STAGE_MODELS.stage2, credentialId: null, inTokens: 30000, outTokens: 6000 },
-  stage3: { model: DEFAULT_STAGE_MODELS.stage3, credentialId: null, inTokens: 100000, outTokens: 20000 }
+  stage3: { model: DEFAULT_STAGE_MODELS.stage3, credentialId: null, inTokens: 100000, outTokens: 20000 },
+  budgetUsd: 0
 };
 
 const $ = (id) => document.getElementById(id);
@@ -43,6 +44,8 @@ const inputs = {
   costOut: $('costOutput'),
   totalCost: $('totalCost'),
   survivorSummary: $('survivorSummary'),
+  budgetInput: $('budgetInput'),
+  budgetDelta: $('budgetDelta'),
   stage2Value: $('stage2Value'),
   stage3Value: $('stage3Value'),
   startBtn: $('startRunBtn'),
@@ -53,7 +56,18 @@ const inputs = {
   runIdDisplay: $('runIdDisplay'),
   runStatusText: $('runStatusText'),
   runStopText: $('runStopText'),
+  runBudget: $('runBudgetValue'),
+  runSpend: $('runSpendValue'),
+  runRemaining: $('runRemainingValue'),
+  runRemainingStat: $('runRemainingStat'),
   runMetaStatus: $('runMetaStatus'),
+  stageSpendSection: $('stageSpendSection'),
+  stageSpendChart: $('stageSpendChart'),
+  stageSpendTotal: $('stageSpendTotal'),
+  stageSpendStage1: $('stageSpendStage1'),
+  stageSpendStage2: $('stageSpendStage2'),
+  stageSpendStage3: $('stageSpendStage3'),
+  stageSpendEmpty: $('stageSpendEmpty'),
   stopRunBtn: $('stopRunBtn'),
   resumeRunBtn: $('resumeRunBtn'),
   stage1Btn: $('processStage1Btn'),
@@ -123,6 +137,11 @@ let priceMap = new Map();
 let credentialOptions = [];
 let credentialMap = new Map();
 let modelFallbackActive = false;
+const STAGE_LABELS = {
+  1: 'Stage 1 · Triage',
+  2: 'Stage 2 · Scoring',
+  3: 'Stage 3 · Deep dive'
+};
 
 function loadSettings() {
   try {
@@ -134,7 +153,8 @@ function loadSettings() {
       surviveStage3: Number(saved.surviveStage3) || defaults.surviveStage3,
       stage1: { ...defaults.stage1, ...saved.stage1 },
       stage2: { ...defaults.stage2, ...saved.stage2 },
-      stage3: { ...defaults.stage3, ...saved.stage3 }
+      stage3: { ...defaults.stage3, ...saved.stage3 },
+      budgetUsd: Number(saved.budgetUsd ?? saved.budget_usd) || defaults.budgetUsd
     };
   } catch (error) {
     console.warn('Unable to parse saved planner settings', error);
@@ -165,6 +185,22 @@ function normalizeCredentialId(value) {
   if (typeof value !== 'string') return null;
   const trimmed = value.trim();
   return trimmed ? trimmed : null;
+}
+
+function parseRunNotes(raw) {
+  if (!raw) return {};
+  if (typeof raw === 'string') {
+    try {
+      return JSON.parse(raw);
+    } catch (error) {
+      console.warn('Failed to parse run notes JSON', error);
+      return {};
+    }
+  }
+  if (typeof raw === 'object') {
+    return raw ?? {};
+  }
+  return {};
 }
 
 function populateModelSelect(select, stageKey) {
@@ -373,7 +409,8 @@ function getSettingsFromInputs() {
       credentialId: stage3Credential,
       inTokens: Number(inputs.stage3In?.value) || 0,
       outTokens: Number(inputs.stage3Out?.value) || 0
-    }
+    },
+    budgetUsd: Math.max(0, Number(inputs.budgetInput?.value) || 0)
   };
 }
 
@@ -425,6 +462,10 @@ function applySettings(settings) {
   if (inputs.stage3Credential) {
     inputs.stage3Credential.value = settings.stage3.credentialId ?? '';
   }
+  const budgetValue = Math.max(0, Number(settings.budgetUsd ?? defaults.budgetUsd) || 0);
+  if (inputs.budgetInput) {
+    inputs.budgetInput.value = budgetValue ? String(budgetValue) : '0';
+  }
 }
 
 function isValidUuid(value) {
@@ -441,8 +482,119 @@ function updateRunDisplay() {
   }
 }
 
-function updateRunMeta(meta = null, { message } = {}) {
-  currentRunMeta = meta ?? null;
+function updateStageSpendChart(breakdown = []) {
+  const section = inputs.stageSpendSection;
+  const chart = inputs.stageSpendChart;
+  const totalEl = inputs.stageSpendTotal;
+  const emptyEl = inputs.stageSpendEmpty;
+  const stageEls = {
+    1: inputs.stageSpendStage1,
+    2: inputs.stageSpendStage2,
+    3: inputs.stageSpendStage3
+  };
+
+  if (!section || !chart || !totalEl) {
+    return;
+  }
+
+  if (!activeRunId) {
+    section.hidden = true;
+    chart.innerHTML = '';
+    totalEl.textContent = '—';
+    Object.values(stageEls).forEach((el) => {
+      if (el) el.textContent = '—';
+    });
+    if (emptyEl) emptyEl.hidden = true;
+    return;
+  }
+
+  section.hidden = false;
+
+  const stageTotals = [1, 2, 3].map((stage) => {
+    const total = breakdown
+      .filter((row) => Number(row.stage) === stage)
+      .reduce((acc, row) => acc + Number(row.cost_usd ?? 0), 0);
+    return { stage, total: total > 0 ? total : 0 };
+  });
+
+  const totalSpend = stageTotals.reduce((acc, item) => acc + item.total, 0);
+  const hasSpend = stageTotals.some((item) => item.total > 0.0005);
+  const maxSpend = stageTotals.reduce((max, item) => (item.total > max ? item.total : max), 0);
+
+  totalEl.textContent = hasSpend ? formatCurrency(totalSpend) : '—';
+
+  stageTotals.forEach(({ stage, total }) => {
+    const target = stageEls[stage];
+    if (target) {
+      target.textContent = total > 0 ? formatCurrency(total) : '—';
+    }
+  });
+
+  if (emptyEl) {
+    emptyEl.hidden = hasSpend;
+  }
+
+  chart.innerHTML = '';
+  chart.setAttribute('aria-hidden', hasSpend ? 'false' : 'true');
+
+  stageTotals.forEach(({ stage, total }) => {
+    const bar = document.createElement('div');
+    bar.className = 'stage-spend__bar';
+    bar.dataset.stage = String(stage);
+    bar.setAttribute('role', 'listitem');
+
+    const ratio = maxSpend > 0 ? total / maxSpend : 0;
+    const height = hasSpend ? Math.max(12, Math.round(ratio * 56)) : 6;
+    bar.style.height = `${height}px`;
+
+    const label = `${STAGE_LABELS[stage] ?? `Stage ${stage}`} — ${total > 0 ? formatCurrency(total) : 'No spend yet'}`;
+    bar.setAttribute('aria-label', label);
+
+    chart.appendChild(bar);
+  });
+}
+
+function updateRunMeta(meta = null, { message, totalCost = null, budgetUsd = null, budgetExceeded = null, breakdown = null } = {}) {
+  const previousMeta = currentRunMeta;
+
+  let resolvedBudget = Number.isFinite(budgetUsd) && budgetUsd > 0 ? Number(budgetUsd) : null;
+  let resolvedSpend = Number.isFinite(totalCost) ? Math.max(Number(totalCost), 0) : null;
+  let estimatedTotal = null;
+
+  if (meta) {
+    const metaBudget = Number(meta?.budget_usd ?? meta?.budgetUsd ?? NaN);
+    if (!resolvedBudget && Number.isFinite(metaBudget) && metaBudget > 0) {
+      resolvedBudget = metaBudget;
+    }
+
+    const notes = parseRunNotes(meta.notes ?? null);
+    const notesBudget = Number(notes?.budget_usd ?? notes?.planner?.budgetUsd ?? NaN);
+    if (!resolvedBudget && Number.isFinite(notesBudget) && notesBudget > 0) {
+      resolvedBudget = notesBudget;
+    }
+    const estimatedFromNotes = Number(notes?.estimated_cost?.total ?? notes?.estimated_cost?.total_cost ?? NaN);
+    if (Number.isFinite(estimatedFromNotes)) {
+      estimatedTotal = Math.max(0, estimatedFromNotes);
+    }
+  }
+
+  if (resolvedSpend === null && previousMeta && previousMeta.id === meta?.id && Number.isFinite(previousMeta.total_cost)) {
+    resolvedSpend = Number(previousMeta.total_cost);
+  }
+
+  const budgetHit = typeof budgetExceeded === 'boolean'
+    ? budgetExceeded
+    : resolvedBudget !== null && resolvedSpend !== null && resolvedSpend >= resolvedBudget - 0.0005;
+
+  currentRunMeta = meta
+    ? {
+        ...meta,
+        budget_usd: resolvedBudget,
+        total_cost: resolvedSpend,
+        budget_exhausted: budgetHit,
+        estimated_total_cost: estimatedTotal
+      }
+    : null;
 
   const statusText = meta?.status ? String(meta.status).replace(/_/g, ' ') : null;
   const stopText = meta ? (meta.stop_requested ? 'Yes' : 'No') : null;
@@ -455,16 +607,47 @@ function updateRunMeta(meta = null, { message } = {}) {
     inputs.runStopText.textContent = stopText ?? '—';
   }
 
+  if (inputs.runBudget) {
+    inputs.runBudget.textContent = resolvedBudget !== null ? formatCurrency(resolvedBudget) : '—';
+  }
+
+  if (inputs.runSpend) {
+    inputs.runSpend.textContent = resolvedSpend !== null ? formatCurrency(resolvedSpend) : '—';
+  }
+
+  if (inputs.runRemaining) {
+    if (resolvedBudget !== null && resolvedSpend !== null) {
+      const diffRaw = resolvedBudget - resolvedSpend;
+      const diff = Math.abs(diffRaw) < 0.005 ? 0 : diffRaw;
+      const formatted = formatCurrency(Math.abs(diff));
+      inputs.runRemaining.textContent = diff >= 0 ? formatted : `-${formatted}`;
+      if (inputs.runRemainingStat) {
+        inputs.runRemainingStat.classList.toggle('run-meta__stat--alert', diff < 0);
+      }
+    } else {
+      inputs.runRemaining.textContent = '—';
+      inputs.runRemainingStat?.classList.remove('run-meta__stat--alert');
+    }
+  }
+
   const defaultMessage = !activeRunId
     ? 'Select a run to manage stop requests.'
     : meta
-      ? meta.stop_requested
-        ? 'Run flagged to stop. Workers finish the active batch and halt new processing.'
-        : 'Run active. Flag a stop request to pause new work after current batches.'
+      ? budgetHit
+        ? 'Budget reached. Increase the guardrail or adjust costs before resuming.'
+        : meta.stop_requested
+          ? 'Run flagged to stop. Workers finish the active batch and halt new processing.'
+          : 'Run active. Flag a stop request to pause new work after current batches.'
       : 'Loading run details…';
 
   if (inputs.runMetaStatus) {
     inputs.runMetaStatus.textContent = message || defaultMessage;
+  }
+
+  if (breakdown !== undefined && breakdown !== null) {
+    updateStageSpendChart(Array.isArray(breakdown) ? breakdown : []);
+  } else if (!meta) {
+    updateStageSpendChart([]);
   }
 
   applyAccessState({ preserveStatus: true });
@@ -603,16 +786,41 @@ async function fetchRunMeta({ silent = false } = {}) {
   }
 
   try {
-    const { data, error } = await supabase
-      .from('runs')
-      .select('id, created_at, status, stop_requested, notes')
-      .eq('id', activeRunId)
-      .maybeSingle();
+    const [runResult, costResult, breakdownResult] = await Promise.all([
+      supabase
+        .from('runs')
+        .select('id, created_at, status, stop_requested, notes, budget_usd')
+        .eq('id', activeRunId)
+        .maybeSingle(),
+      supabase.rpc('run_cost_summary', { p_run_id: activeRunId }).maybeSingle(),
+      supabase.rpc('run_cost_breakdown', { p_run_id: activeRunId })
+    ]);
 
-    if (error) throw error;
+    if (runResult.error) throw runResult.error;
 
-    updateRunMeta(data ?? null);
-    return data ?? null;
+    if (costResult.error) {
+      console.warn('Failed to load cost summary for run meta', costResult.error);
+    }
+
+    if (breakdownResult.error) {
+      console.warn('Failed to load stage spend breakdown for run meta', breakdownResult.error);
+    }
+
+    const runData = runResult.data ?? null;
+    const totalCost = costResult.error ? null : Number(costResult.data?.total_cost ?? 0);
+    const budgetUsd = Number(runData?.budget_usd ?? NaN);
+    const budgetExceeded =
+      !costResult.error && Number.isFinite(budgetUsd) && budgetUsd > 0 && totalCost !== null && totalCost >= budgetUsd - 0.0005;
+
+    const breakdownData = breakdownResult.error ? [] : Array.isArray(breakdownResult.data) ? breakdownResult.data : [];
+
+    updateRunMeta(runData, {
+      totalCost,
+      budgetUsd: Number.isFinite(budgetUsd) && budgetUsd > 0 ? budgetUsd : null,
+      budgetExceeded,
+      breakdown: breakdownData
+    });
+    return runData;
   } catch (error) {
     console.error('Failed to load run details', error);
     updateRunMeta(null, { message: 'Unable to load run details. Try refreshing.' });
@@ -1043,6 +1251,8 @@ async function fetchStage3Summary({ silent = false } = {}) {
       .reduce((acc, row) => acc + Number(row.cost_usd ?? 0), 0);
     metrics.spend = stage3Spend;
 
+    updateStageSpendChart(breakdown);
+
     updateStage3Metrics(metrics);
 
     const reports = (answersResult.data ?? [])
@@ -1157,6 +1367,11 @@ async function processStage1Batch() {
     return;
   }
 
+  if (currentRunMeta?.budget_exhausted) {
+    if (inputs.stage1Status) inputs.stage1Status.textContent = 'Run budget reached. Increase the guardrail before processing more triage batches.';
+    return;
+  }
+
   await syncAccess({ preserveStatus: true });
 
   if (!authContext.user) {
@@ -1233,6 +1448,11 @@ async function processStage1Batch() {
     } catch (error) {
       console.error('Failed to refresh Stage 2 summary after Stage 1 batch', error);
     }
+    try {
+      await fetchRunMeta({ silent: true });
+    } catch (error) {
+      console.error('Failed to refresh run meta after Stage 1 batch', error);
+    }
     applyAccessState({ preserveStatus: true });
   }
 }
@@ -1247,6 +1467,11 @@ async function processStage2Batch() {
 
   if (currentRunMeta?.stop_requested) {
     if (inputs.stage2Status) inputs.stage2Status.textContent = 'Run flagged to stop. Clear the stop request to continue processing.';
+    return;
+  }
+
+  if (currentRunMeta?.budget_exhausted) {
+    if (inputs.stage2Status) inputs.stage2Status.textContent = 'Run budget reached. Increase the guardrail before scoring additional survivors.';
     return;
   }
 
@@ -1323,6 +1548,11 @@ async function processStage2Batch() {
     } catch (error) {
       console.error('Failed to refresh Stage 2 summary after batch', error);
     }
+    try {
+      await fetchRunMeta({ silent: true });
+    } catch (error) {
+      console.error('Failed to refresh run meta after Stage 2 batch', error);
+    }
     applyAccessState({ preserveStatus: true });
   }
 }
@@ -1337,6 +1567,11 @@ async function processStage3Batch() {
 
   if (currentRunMeta?.stop_requested) {
     if (inputs.stage3Status) inputs.stage3Status.textContent = 'Run flagged to stop. Clear the stop request to continue.';
+    return;
+  }
+
+  if (currentRunMeta?.budget_exhausted) {
+    if (inputs.stage3Status) inputs.stage3Status.textContent = 'Run budget reached. Increase the guardrail before running more deep dives.';
     return;
   }
 
@@ -1413,6 +1648,11 @@ async function processStage3Batch() {
     } catch (error) {
       console.error('Failed to refresh Stage 3 summary after batch', error);
     }
+    try {
+      await fetchRunMeta({ silent: true });
+    } catch (error) {
+      console.error('Failed to refresh run meta after Stage 3 batch', error);
+    }
     applyAccessState({ preserveStatus: true });
   }
 }
@@ -1435,6 +1675,10 @@ function updateCostOutput() {
   const settings = getSettingsFromInputs();
   persistSettings(settings);
 
+  if (inputs.budgetInput) {
+    inputs.budgetInput.value = settings.budgetUsd ? String(settings.budgetUsd) : '0';
+  }
+
   const survivorsStage2 = Math.round(settings.universe * (settings.surviveStage2 / 100));
   const survivorsStage3 = Math.round(survivorsStage2 * (settings.surviveStage3 / 100));
 
@@ -1450,6 +1694,24 @@ function updateCostOutput() {
   if (rows[2]) rows[2].lastElementChild.textContent = formatCurrency(s3.total);
   inputs.totalCost.textContent = formatCurrency(total);
   inputs.survivorSummary.textContent = `Stage 2 survivors: ${survivorsStage2.toLocaleString()} • Stage 3 finalists: ${survivorsStage3.toLocaleString()}`;
+
+  if (inputs.budgetDelta) {
+    const budgetUsd = Math.max(0, Number(settings.budgetUsd ?? 0) || 0);
+    if (budgetUsd > 0) {
+      const diffRaw = budgetUsd - total;
+      const diff = Math.abs(diffRaw) < 0.005 ? 0 : diffRaw;
+      if (diff >= 0) {
+        inputs.budgetDelta.textContent = `Budget cushion: ${formatCurrency(diff)} remaining`;
+        inputs.budgetDelta.classList.remove('over');
+      } else {
+        inputs.budgetDelta.textContent = `Over budget by ${formatCurrency(Math.abs(diff))}`;
+        inputs.budgetDelta.classList.add('over');
+      }
+    } else {
+      inputs.budgetDelta.textContent = 'No budget guardrail set.';
+      inputs.budgetDelta.classList.remove('over');
+    }
+  }
 }
 
 function logStatus(message) {
@@ -1564,6 +1826,8 @@ function applyAccessState({ preserveStatus = false } = {}) {
       ? 'admin-ok'
       : 'no-admin';
 
+  const haltRequested = (currentRunMeta?.stop_requested ?? false) || (currentRunMeta?.budget_exhausted ?? false);
+
   if (state === 'admin-ok' && previousState !== 'admin-ok') {
     subscribeSectorNotes();
     refreshSectorNotes({ silent: true });
@@ -1579,7 +1843,7 @@ function applyAccessState({ preserveStatus = false } = {}) {
   }
 
   if (inputs.stage1Btn) {
-    inputs.stage1Btn.disabled = state !== 'admin-ok' || !activeRunId || (currentRunMeta?.stop_requested ?? false);
+    inputs.stage1Btn.disabled = state !== 'admin-ok' || !activeRunId || haltRequested;
   }
 
   if (inputs.stage1RefreshBtn) {
@@ -1587,8 +1851,7 @@ function applyAccessState({ preserveStatus = false } = {}) {
   }
 
   if (inputs.stage2Btn) {
-    inputs.stage2Btn.disabled =
-      state !== 'admin-ok' || !activeRunId || (currentRunMeta?.stop_requested ?? false);
+    inputs.stage2Btn.disabled = state !== 'admin-ok' || !activeRunId || haltRequested;
   }
 
   if (inputs.stage2RefreshBtn) {
@@ -1596,8 +1859,7 @@ function applyAccessState({ preserveStatus = false } = {}) {
   }
 
   if (inputs.stage3Btn) {
-    inputs.stage3Btn.disabled =
-      state !== 'admin-ok' || !activeRunId || (currentRunMeta?.stop_requested ?? false);
+    inputs.stage3Btn.disabled = state !== 'admin-ok' || !activeRunId || haltRequested;
   }
 
   if (inputs.stage3RefreshBtn) {
@@ -1609,7 +1871,8 @@ function applyAccessState({ preserveStatus = false } = {}) {
   }
 
   if (inputs.resumeRunBtn) {
-    inputs.resumeRunBtn.disabled = state !== 'admin-ok' || !activeRunId || !(currentRunMeta?.stop_requested ?? false);
+    inputs.resumeRunBtn.disabled =
+      state !== 'admin-ok' || !activeRunId || (!currentRunMeta?.stop_requested && !currentRunMeta?.budget_exhausted);
   }
 
   if (!inputs.status) {
@@ -1741,6 +2004,7 @@ async function startRun() {
       },
       body: JSON.stringify({
         planner: settings,
+        budget_usd: settings.budgetUsd,
         client_meta: {
           origin: window.location.origin,
           pathname: window.location.pathname,
@@ -1763,6 +2027,9 @@ async function startRun() {
     }
     const total = typeof data.total_items === 'number' ? data.total_items : 'n/a';
     logStatus(`Run created successfully with ${total} tickers queued.`);
+    if (typeof data.budget_usd === 'number' && data.budget_usd > 0) {
+      logStatus(`Budget guardrail set to ${formatCurrency(data.budget_usd)}.`);
+    }
   } catch (error) {
     console.error(error);
     inputs.status.textContent = 'Launch failed';
@@ -1790,7 +2057,8 @@ function bindEvents() {
     inputs.stage2In,
     inputs.stage2Out,
     inputs.stage3In,
-    inputs.stage3Out
+    inputs.stage3Out,
+    inputs.budgetInput
   ].filter(Boolean);
 
   const selectElements = [
