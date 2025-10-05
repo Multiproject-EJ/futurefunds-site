@@ -81,6 +81,9 @@ const systemPromptTemplate = loadPromptTemplate('stage2/system');
 const userPromptTemplate = loadPromptTemplate('stage2/user');
 const MAX_RETRIEVAL_SNIPPETS = 6;
 
+const EMBEDDING_MODEL_SLUG = 'openai/text-embedding-3-small';
+const MAX_RETRIEVAL_SNIPPETS = 6;
+
 const SURVIVOR_LABELS = new Set(['consider', 'borderline']);
 
 function jsonResponse(status: number, body: JsonRecord) {
