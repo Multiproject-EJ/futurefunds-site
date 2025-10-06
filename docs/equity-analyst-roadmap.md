@@ -82,18 +82,29 @@ incrementally.
 - [x] Track per-user quotas (e.g., runs per day) using Supabase policies or server logic.
 - [x] Post-run feedback widget so members can trigger manual follow-up questions (optional).
 
-## 12. Observability & Safety (Week 8)
+## 12. Watchlists & Universe Maintenance (Week 8)
+- [x] Provision `watchlists`, `watchlist_entries`, and `ticker_events` tables plus
+      RLS policies so admins can curate multiple scopes while members view
+      shared lists.
+- [x] Extend `runs-create` to accept watchlist/custom scopes, auto-provision
+      missing tickers, and persist the selected watchlist on each run.
+- [x] Ship the `tickers-refresh` edge worker to ingest exchange rosters or CSV/JSON
+      payloads, mark inferred delistings, and emit audit events.
+- [x] Planner UI: allow admins to manage watchlists, switch run scopes, and
+      trigger roster refresh jobs (with read-only fallbacks for members).
+
+## 13. Observability & Safety (Week 8)
 - [x] `/api/health` endpoint (DB + OpenAI status) for uptime monitors.
 - [x] `error_logs` table + viewer UI capturing payloads, prompt ids, retry counts.
 - [x] Automated regression tests for prompt output schemas and JSON validators.
 
-## 13. Prompt & Model Registry (Week 8–9)
+## 14. Prompt & Model Registry (Week 8–9)
 - [x] Store prompt templates as markdown files with interpolation tokens.
 - [x] Central config (e.g., `config/models.json`) containing price per model, default temperature,
       cache policy, retry settings.
 - [x] Loader utility to compose prompts per sector & stage and to map usage -> cost ledger.
 
-## 14. Stretch Enhancements (Backlog)
+## 15. Stretch Enhancements (Backlog)
 - [ ] Cached context via OpenAI Responses API to reuse deterministic summaries.
 - [ ] Advanced scoring ensembles (blend LLM output with deterministic factors).
 - [ ] User-triggered “Focus questions” appended post Stage 3.

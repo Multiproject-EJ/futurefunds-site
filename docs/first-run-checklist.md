@@ -17,7 +17,8 @@ scheduler drive hourly batches on your Supabase project.
 ## 2. Configure environment secrets
 
 1. Copy `.env.example` to `.env` and populate each value with the credentials for
-   your Supabase project and model providers.
+   your Supabase project and model providers. If you plan to run the roster
+   refresher, also add `TICKER_FEED_URL` (and optionally `TICKER_FEED_API_KEY`).
 2. Run `supabase login` and authenticate with the same account that owns the
    project.
 3. Export the project reference for convenience when running CLI commands:
@@ -34,7 +35,8 @@ scheduler drive hourly batches on your Supabase project.
 - [ ] Run `npm run db:reset` (destroys and recreates everything) or
       `npm run db:push` to apply the SQL files under `/sql` in order. The core
       schema lives in `001_core.sql` and includes the tables consumed by the
-      edge workers.
+      edge workers. `013_watchlists.sql` adds the roster/watchlist tables used by
+      the new planner scope controls.
 - [ ] Confirm the seed data exists: `tickers`, `sector_prompts`, and the question
       registry should all contain rows once migrations finish.
 
@@ -46,7 +48,8 @@ scheduler drive hourly batches on your Supabase project.
 
 1. Run `npm run functions:deploy` to push the automation handlers to Supabase.
    This deploys `runs-create`, `runs-continue`, the stage consumers, scheduler,
-   feedback endpoints, health checks, and document ingest worker.
+   feedback endpoints, health checks, document ingest worker, and the new
+   `tickers-refresh` roster ingestion function.
 2. If you need to test locally, start them with `npm run functions:serve` and
    trigger requests from the planner UI or your own scripts.
 3. Verify the deployment by hitting the `/health` function—when it returns `ok`
@@ -58,8 +61,9 @@ scheduler drive hourly batches on your Supabase project.
       pipeline has content to embed.
 - [ ] Review the sector prompts and question registry to make sure the heuristics
       align with your investment process.
-- [ ] Create a run from the planner, select Stage 1–3 models, budget, and
-      cadence, then click **Start automated run**.
+- [ ] Create a run from the planner, select Stage 1–3 models, budget, scope
+      (universe, watchlist, or custom), and cadence, then click **Start automated
+      run**.
 
 ## 6. Enable unattended execution
 

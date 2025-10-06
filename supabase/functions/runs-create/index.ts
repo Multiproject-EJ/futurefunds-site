@@ -10,6 +10,8 @@ const DEFAULT_STAGE_MODELS = {
   stage3: 'openrouter/gpt-5-preview'
 };
 
+const MAX_TICKERS = 60000;
+
 const DAILY_RUN_LIMIT = (() => {
   const raw = Number(Deno.env.get('RUNS_DAILY_LIMIT') ?? '5');
   if (!Number.isFinite(raw)) return 5;
@@ -46,6 +48,18 @@ function normalizeCredentialId(value: unknown): string | null {
   if (typeof value !== 'string') return null;
   const trimmed = value.trim();
   return trimmed ? trimmed : null;
+}
+
+function parseBoolean(value: unknown, fallback = false) {
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'number') return value !== 0;
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+    if (!normalized) return fallback;
+    if (['true', 'yes', 'y', '1', 'on'].includes(normalized)) return true;
+    if (['false', 'no', 'n', '0', 'off'].includes(normalized)) return false;
+  }
+  return fallback;
 }
 
 function clamp(value: number, min: number, max: number) {
@@ -161,6 +175,78 @@ function sanitizePlanner(input: any) {
   };
 }
 
+function sanitizeScope(input: any) {
+  const modeRaw = typeof input?.mode === 'string' ? input.mode.trim().toLowerCase() : '';
+  let mode: 'universe' | 'watchlist' | 'custom' = 'universe';
+  if (modeRaw === 'watchlist' || modeRaw === 'custom') {
+    mode = modeRaw;
+  }
+
+  const watchlistId = typeof input?.watchlist_id === 'string' ? input.watchlist_id.trim() : null;
+  const watchlistSlug = typeof input?.watchlist_slug === 'string' ? input.watchlist_slug.trim() : null;
+  const exchange = typeof input?.exchange === 'string' && input.exchange.trim() ? input.exchange.trim().toUpperCase() : null;
+  const source = typeof input?.source === 'string' && input.source.trim() ? input.source.trim() : null;
+  const limitRaw = asNumber(input?.limit, 0);
+  const limit = Number.isFinite(limitRaw) && limitRaw > 0 ? limitRaw : null;
+  const includeDelisted = parseBoolean(input?.include_delisted ?? input?.includeInactive ?? input?.include_inactive, false);
+  const tickers = Array.isArray(input?.tickers)
+    ? Array.from(new Set(input.tickers.map(normalizeTicker).filter((value): value is string => Boolean(value))))
+    : [];
+
+  return {
+    mode,
+    watchlistId,
+    watchlistSlug,
+    exchange,
+    source,
+    limit,
+    includeDelisted,
+    tickers
+  };
+}
+
+async function ensureTickersExist(
+  client: ReturnType<typeof createClient>,
+  tickers: string[],
+  context: { exchange?: string | null; source?: string | null }
+) {
+  if (!tickers.length) {
+    return { created: [] as string[] };
+  }
+
+  const { data: existingRows, error: existingError } = await client
+    .from('tickers')
+    .select('ticker')
+    .in('ticker', tickers);
+
+  if (existingError) {
+    throw existingError;
+  }
+
+  const existingSet = new Set<string>((existingRows ?? []).map((row) => String(row.ticker)));
+  const missing = tickers.filter((ticker) => !existingSet.has(ticker));
+  if (!missing.length) {
+    return { created: [] as string[] };
+  }
+
+  const now = new Date().toISOString();
+  const rows = missing.map((ticker) => ({
+    ticker,
+    exchange: context.exchange ?? null,
+    status: 'unknown',
+    source: context.source ?? null,
+    last_seen_at: now,
+    updated_at: now
+  }));
+
+  const { error: upsertError } = await client.from('tickers').upsert(rows, { onConflict: 'ticker' });
+  if (upsertError) {
+    throw upsertError;
+  }
+
+  return { created: missing };
+}
+
 function estimateCost(
   planner: ReturnType<typeof sanitizePlanner>,
   stageModels: {
@@ -230,9 +316,10 @@ serve(async (req) => {
   const rawTickers = Array.isArray(payload?.tickers) ? payload.tickers : [];
   const normalizedTickers = Array.from(new Set(rawTickers.map(normalizeTicker).filter((value): value is string => Boolean(value))));
 
-  const requestedUniverse = planner.universe || normalizedTickers.length;
-  const MAX_TICKERS = 60000;
-  const targetCount = clamp(normalizedTickers.length > 0 ? normalizedTickers.length : requestedUniverse, 1, MAX_TICKERS);
+  let scope = sanitizeScope(payload?.scope ?? {});
+  if (normalizedTickers.length > 0) {
+    scope = { ...scope, mode: 'custom', tickers: normalizedTickers };
+  }
 
   const authHeader = req.headers.get('Authorization') ?? '';
   const tokenMatch = authHeader.match(/^Bearer\s+(.+)$/i);
@@ -324,29 +411,137 @@ serve(async (req) => {
   planner.stage2.model = stageModels.stage2.slug;
   planner.stage3.model = stageModels.stage3.slug;
 
-  let tickers = normalizedTickers;
-  if (tickers.length === 0) {
-    const { data, error } = await supabaseAdmin
-      .from('tickers')
-      .select('ticker')
-      .order('updated_at', { ascending: false, nullsLast: true })
-      .order('ticker', { ascending: true })
-      .limit(targetCount);
+  let watchlistMeta: { id: string; slug: string | null; name: string | null } | null = null;
+  let tickers: string[] = [];
 
-    if (error) {
-      console.error('Failed to load tickers', error);
-      return jsonResponse(500, { error: 'Failed to load tickers', details: error.message });
+  if (scope.mode === 'watchlist') {
+    const selector = scope.watchlistId ? { column: 'id', value: scope.watchlistId } : { column: 'slug', value: scope.watchlistSlug };
+    if (!selector.value) {
+      return jsonResponse(400, { error: 'Watchlist identifier required', details: 'Provide watchlist_id or watchlist_slug' });
     }
 
-    tickers = (data ?? [])
-      .map((row) => normalizeTicker(row.ticker))
-      .filter((value): value is string => Boolean(value));
-  } else if (tickers.length > targetCount) {
-    tickers = tickers.slice(0, targetCount);
+    let watchlistQuery = supabaseAdmin
+      .from('watchlists')
+      .select('id, slug, name')
+      .limit(1);
+    watchlistQuery = watchlistQuery.eq(selector.column, selector.value);
+
+    const { data: watchlistRow, error: watchlistError } = await watchlistQuery.maybeSingle();
+    if (watchlistError) {
+      console.error('Failed to resolve watchlist', watchlistError);
+      return jsonResponse(500, { error: 'Failed to resolve watchlist', details: watchlistError.message });
+    }
+    if (!watchlistRow) {
+      return jsonResponse(404, { error: 'Watchlist not found', details: selector.value });
+    }
+
+    watchlistMeta = {
+      id: String(watchlistRow.id),
+      slug: typeof watchlistRow.slug === 'string' ? watchlistRow.slug : null,
+      name: typeof watchlistRow.name === 'string' ? watchlistRow.name : null
+    };
+
+    const { data: entryRows, error: entryError } = await supabaseAdmin
+      .from('watchlist_entries')
+      .select('ticker')
+      .eq('watchlist_id', watchlistMeta.id)
+      .is('removed_at', null)
+      .order('rank', { ascending: true, nullsLast: true })
+      .order('ticker', { ascending: true });
+
+    if (entryError) {
+      console.error('Failed to load watchlist entries', entryError);
+      return jsonResponse(500, { error: 'Failed to load watchlist entries', details: entryError.message });
+    }
+
+    tickers = Array.from(
+      new Set(
+        (entryRows ?? [])
+          .map((row) => normalizeTicker(row.ticker))
+          .filter((value): value is string => Boolean(value))
+      )
+    );
+
+    if (!tickers.length) {
+      return jsonResponse(404, { error: 'Watchlist has no active tickers' });
+    }
+
+    const limit = scope.limit ? clamp(asNumber(scope.limit, tickers.length), 1, Math.min(MAX_TICKERS, tickers.length)) : Math.min(MAX_TICKERS, tickers.length);
+    tickers = tickers.slice(0, limit);
+    planner.universe = tickers.length;
+  } else if (scope.mode === 'custom') {
+    const candidates = scope.tickers.length ? scope.tickers : normalizedTickers;
+    tickers = Array.from(
+      new Set(
+        candidates
+          .map((ticker) => normalizeTicker(ticker))
+          .filter((value): value is string => Boolean(value))
+      )
+    );
+
+    if (!tickers.length) {
+      return jsonResponse(400, { error: 'No custom tickers provided' });
+    }
+
+    const limit = scope.limit ? clamp(asNumber(scope.limit, tickers.length), 1, Math.min(MAX_TICKERS, tickers.length)) : Math.min(MAX_TICKERS, tickers.length);
+    tickers = tickers.slice(0, limit);
+    planner.universe = tickers.length;
+  } else {
+    const limitBase = scope.limit ?? planner.universe || MAX_TICKERS;
+    const limit = clamp(asNumber(limitBase, planner.universe || MAX_TICKERS), 1, MAX_TICKERS);
+    let universeTickers = normalizedTickers.length
+      ? Array.from(new Set(normalizedTickers))
+      : [];
+
+    if (!universeTickers.length) {
+      let query = supabaseAdmin
+        .from('tickers')
+        .select('ticker')
+        .order('updated_at', { ascending: false, nullsLast: true })
+        .order('ticker', { ascending: true })
+        .limit(limit);
+
+      if (scope.exchange) {
+        query = query.eq('exchange', scope.exchange);
+      }
+      if (!scope.includeDelisted) {
+        query = query.neq('status', 'delisted');
+      }
+
+      const { data, error } = await query;
+      if (error) {
+        console.error('Failed to load tickers', error);
+        return jsonResponse(500, { error: 'Failed to load tickers', details: error.message });
+      }
+
+      universeTickers = (data ?? [])
+        .map((row) => normalizeTicker(row.ticker))
+        .filter((value): value is string => Boolean(value));
+    }
+
+    if (!universeTickers.length) {
+      return jsonResponse(404, { error: 'No tickers available to enqueue' });
+    }
+
+    tickers = universeTickers.slice(0, limit);
+    planner.universe = tickers.length;
   }
 
-  if (tickers.length === 0) {
-    return jsonResponse(404, { error: 'No tickers available to enqueue' });
+  let createdTickers: string[] = [];
+  try {
+    const ensured = await ensureTickersExist(supabaseAdmin, tickers, {
+      exchange: scope.exchange ?? null,
+      source:
+        scope.source ??
+        (watchlistMeta?.slug ? `watchlist:${watchlistMeta.slug}` : scope.mode === 'custom' ? 'planner:custom' : 'planner:universe')
+    });
+    createdTickers = ensured.created;
+  } catch (error) {
+    console.error('Failed to ensure ticker records', error);
+    return jsonResponse(500, {
+      error: 'Failed to provision tickers',
+      details: error instanceof Error ? error.message : String(error)
+    });
   }
 
   const estimatedCost = estimateCost(planner, stageModels);
@@ -377,8 +572,20 @@ serve(async (req) => {
         price_out: stageModels.stage3.price_out ?? 0
       }
     },
-    requested_tickers: normalizedTickers.length,
+    requested_tickers: scope.mode === 'custom' ? (scope.tickers.length || normalizedTickers.length) : normalizedTickers.length,
     resolved_tickers: tickers.length,
+    scope: {
+      mode: scope.mode,
+      watchlist: watchlistMeta
+        ? { id: watchlistMeta.id, slug: watchlistMeta.slug, name: watchlistMeta.name }
+        : null,
+      limit: scope.limit,
+      exchange: scope.exchange ?? null,
+      include_delisted: scope.includeDelisted,
+      source: scope.source ?? null,
+      created_tickers: createdTickers,
+      custom_preview: scope.mode === 'custom' ? tickers.slice(0, 20) : null
+    },
     created_at: new Date().toISOString(),
     created_by: userId,
     client_meta: payload?.client_meta ?? null,
@@ -394,7 +601,8 @@ serve(async (req) => {
       status: 'running',
       notes: JSON.stringify(runSummary),
       created_by: userId,
-      created_by_email: userEmail
+      created_by_email: userEmail,
+      watchlist_id: watchlistMeta?.id ?? null
     })
     .select('id')
     .single();
@@ -429,6 +637,8 @@ serve(async (req) => {
     total_items: runItems.length,
     planner,
     estimated_cost: runSummary.estimated_cost,
-    resolved_models: runSummary.resolved_models
+    resolved_models: runSummary.resolved_models,
+    scope: runSummary.scope,
+    created_tickers: createdTickers
   });
 });

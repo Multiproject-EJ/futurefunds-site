@@ -19,7 +19,8 @@ const defaults = {
   stage1: { model: DEFAULT_STAGE_MODELS.stage1, credentialId: null, inTokens: 3000, outTokens: 600 },
   stage2: { model: DEFAULT_STAGE_MODELS.stage2, credentialId: null, inTokens: 30000, outTokens: 6000 },
   stage3: { model: DEFAULT_STAGE_MODELS.stage3, credentialId: null, inTokens: 100000, outTokens: 20000 },
-  budgetUsd: 0
+  budgetUsd: 0,
+  scope: { mode: 'universe', watchlistId: null, watchlistSlug: null, watchlistCount: null, customTickers: [] }
 };
 
 const $ = (id) => document.getElementById(id);
@@ -65,6 +66,28 @@ const inputs = {
   autoContinueToggle: $('autoContinueToggle'),
   autoContinueInterval: $('autoContinueInterval'),
   autoContinueStatus: $('autoContinueStatus'),
+  scopeFieldset: $('runScopeFieldset'),
+  scopeStatus: $('scopeStatus'),
+  watchlistSelect: $('watchlistSelect'),
+  watchlistSummary: $('watchlistSummary'),
+  refreshWatchlistsBtn: $('refreshWatchlistsBtn'),
+  customTickers: $('customTickersInput'),
+  watchlistManager: $('watchlistManager'),
+  createWatchlistForm: $('createWatchlistForm'),
+  watchlistName: $('watchlistNameInput'),
+  watchlistSlug: $('watchlistSlugInput'),
+  watchlistDescription: $('watchlistDescriptionInput'),
+  createWatchlistStatus: $('createWatchlistStatus'),
+  addWatchlistTickerForm: $('addWatchlistTickerForm'),
+  watchlistTicker: $('watchlistTickerInput'),
+  watchlistTickerName: $('watchlistTickerNameInput'),
+  watchlistTickerExchange: $('watchlistTickerExchangeInput'),
+  watchlistTickerCountry: $('watchlistTickerCountryInput'),
+  watchlistTickerNotes: $('watchlistTickerNotesInput'),
+  addWatchlistTickerStatus: $('addWatchlistTickerStatus'),
+  watchlistEntriesBody: $('watchlistEntriesBody'),
+  refreshWatchlistEntriesBtn: $('refreshWatchlistEntriesBtn'),
+  watchlistSelectionLabel: $('watchlistSelectionLabel'),
   schedulerSection: $('schedulerSection'),
   schedulerEnabled: $('schedulerEnabled'),
   schedulerCadence: $('schedulerCadence'),
@@ -148,6 +171,8 @@ const notices = {
   credentialEmpty: $('credentialEmptyNotice')
 };
 
+const scopeRadios = Array.from(document.querySelectorAll('input[name="runScope"]'));
+
 const FUNCTIONS_BASE = SUPABASE_URL.replace(/\.supabase\.co$/, '.functions.supabase.co');
 const RUNS_CREATE_ENDPOINT = `${FUNCTIONS_BASE}/runs-create`;
 const STAGE1_CONSUME_ENDPOINT = `${FUNCTIONS_BASE}/stage1-consume`;
@@ -219,11 +244,26 @@ let schedulerToastTimer = null;
 let healthLoading = false;
 let errorLogLoading = false;
 let errorLogRows = [];
+let watchlists = [];
+let watchlistMap = new Map();
+let watchlistEntriesCache = new Map();
+let watchlistLoading = false;
+let watchlistEntriesLoading = false;
+let plannerScope = { ...defaults.scope };
 
 function loadSettings() {
   try {
     const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
     if (!saved) return { ...defaults };
+    const savedScope = saved.scope && typeof saved.scope === 'object' ? saved.scope : {};
+    const scope = {
+      ...defaults.scope,
+      ...savedScope,
+      watchlistCount: typeof savedScope.watchlistCount === 'number' ? savedScope.watchlistCount : null,
+      customTickers: Array.isArray(savedScope.customTickers)
+        ? savedScope.customTickers.filter((value) => typeof value === 'string' && value.trim()).map((value) => value.trim())
+        : []
+    };
     return {
       universe: Number(saved.universe) || defaults.universe,
       surviveStage2: Number(saved.surviveStage2) || defaults.surviveStage2,
@@ -231,12 +271,583 @@ function loadSettings() {
       stage1: { ...defaults.stage1, ...saved.stage1 },
       stage2: { ...defaults.stage2, ...saved.stage2 },
       stage3: { ...defaults.stage3, ...saved.stage3 },
-      budgetUsd: Number(saved.budgetUsd ?? saved.budget_usd) || defaults.budgetUsd
+      budgetUsd: Number(saved.budgetUsd ?? saved.budget_usd) || defaults.budgetUsd,
+      scope
     };
   } catch (error) {
     console.warn('Unable to parse saved planner settings', error);
     return { ...defaults };
   }
+}
+
+function normalizeTickerInput(value) {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim().toUpperCase();
+  if (!trimmed) return null;
+  if (!/^[A-Z0-9\-\.]+$/.test(trimmed)) return null;
+  return trimmed;
+}
+
+function parseCustomTickerInput(value) {
+  if (!value) return [];
+  return Array.from(
+    new Set(
+      String(value)
+        .split(/[\s,\n]+/)
+        .map((entry) => normalizeTickerInput(entry))
+        .filter((ticker) => Boolean(ticker))
+    )
+  );
+}
+
+function getSelectedScopeMode() {
+  const active = scopeRadios.find((radio) => radio.checked);
+  if (active && typeof active.value === 'string') {
+    return active.value;
+  }
+  return plannerScope.mode ?? defaults.scope.mode;
+}
+
+function getWatchlistById(id) {
+  if (!id) return null;
+  return watchlistMap.get(id) ?? null;
+}
+
+function collectScopeSettings() {
+  const mode = getSelectedScopeMode();
+  if (mode === 'watchlist') {
+    const watchlistId = inputs.watchlistSelect?.value ? String(inputs.watchlistSelect.value) : null;
+    const watchlist = getWatchlistById(watchlistId);
+    return {
+      mode: 'watchlist',
+      watchlistId,
+      watchlistSlug: watchlist?.slug ?? null,
+      watchlistCount: watchlist?.tickerCount ?? null,
+      customTickers: []
+    };
+  }
+
+  if (mode === 'custom') {
+    const tickers = parseCustomTickerInput(inputs.customTickers?.value ?? '');
+    return {
+      mode: 'custom',
+      watchlistId: null,
+      watchlistSlug: null,
+      watchlistCount: tickers.length,
+      customTickers: tickers
+    };
+  }
+
+  return {
+    mode: 'universe',
+    watchlistId: null,
+    watchlistSlug: null,
+    watchlistCount: null,
+    customTickers: []
+  };
+}
+
+function updateScopeStatusMessage(mode, watchlist = null, customTickers = []) {
+  if (!inputs.scopeStatus) return;
+  if (mode === 'watchlist') {
+    if (watchlist) {
+      const count = watchlist.tickerCount ?? 0;
+      inputs.scopeStatus.textContent = `${count.toLocaleString()} tickers in “${watchlist.name ?? watchlist.slug ?? watchlist.id}”.`;
+    } else {
+      inputs.scopeStatus.textContent = 'Select a watchlist to populate the run queue.';
+    }
+    return;
+  }
+
+  if (mode === 'custom') {
+    if (customTickers.length > 0) {
+      inputs.scopeStatus.textContent = `${customTickers.length.toLocaleString()} custom tickers ready (${customTickers.slice(0, 6).join(', ')}${customTickers.length > 6 ? '…' : ''}).`;
+    } else {
+      inputs.scopeStatus.textContent = 'Add at least one ticker symbol to launch a custom run.';
+    }
+    return;
+  }
+
+  const universeValue = Number(inputs.universe?.value || 0);
+  inputs.scopeStatus.textContent = `Processing top ${universeValue.toLocaleString()} tickers from the universe table.`;
+}
+
+function renderWatchlistOptions() {
+  if (!inputs.watchlistSelect) return;
+  const select = inputs.watchlistSelect;
+  const previous = select.value;
+  select.innerHTML = '';
+  const placeholder = document.createElement('option');
+  placeholder.value = '';
+  placeholder.textContent = watchlists.length ? 'Select watchlist…' : 'No watchlists available';
+  select.appendChild(placeholder);
+
+  watchlists.forEach((item) => {
+    const option = document.createElement('option');
+    option.value = item.id;
+    const count = item.tickerCount ?? 0;
+    option.textContent = `${item.name ?? item.slug ?? item.id} (${count})`;
+    select.appendChild(option);
+  });
+
+  if (plannerScope.watchlistId && watchlistMap.has(plannerScope.watchlistId)) {
+    select.value = plannerScope.watchlistId;
+  } else if (previous && watchlistMap.has(previous)) {
+    select.value = previous;
+    plannerScope.watchlistId = previous;
+  } else {
+    select.value = '';
+  }
+}
+
+function updateScopeUI({ fromSettings = false } = {}) {
+  const mode = plannerScope.mode;
+  const watchlist = plannerScope.watchlistId ? getWatchlistById(plannerScope.watchlistId) : null;
+
+  if (inputs.watchlistSelect) {
+    inputs.watchlistSelect.disabled = mode !== 'watchlist' || watchlistLoading;
+  }
+  if (inputs.refreshWatchlistsBtn) {
+    inputs.refreshWatchlistsBtn.disabled = watchlistLoading;
+  }
+  if (inputs.customTickers) {
+    inputs.customTickers.disabled = mode !== 'custom';
+  }
+
+  if (inputs.universe) {
+    if (mode === 'watchlist') {
+      const count = watchlist?.tickerCount ?? plannerScope.watchlistCount ?? Number(inputs.universe.value) || 0;
+      inputs.universe.value = count;
+      inputs.universe.disabled = true;
+    } else if (mode === 'custom') {
+      inputs.universe.value = plannerScope.customTickers.length;
+      inputs.universe.disabled = true;
+    } else {
+      inputs.universe.disabled = false;
+    }
+  }
+
+  if (inputs.watchlistSummary) {
+    if (mode === 'watchlist') {
+      if (watchlist) {
+        const count = watchlist.tickerCount ?? 0;
+        const visibility = watchlist.isPublic ? 'Public' : 'Private';
+        const description = watchlist.description ? ` — ${watchlist.description}` : '';
+        inputs.watchlistSummary.textContent = `${count.toLocaleString()} tickers • ${visibility}${description}`;
+      } else if (watchlists.length) {
+        inputs.watchlistSummary.textContent = 'Choose a watchlist to inspect its membership.';
+      } else {
+        inputs.watchlistSummary.textContent = 'Create your first watchlist to scope targeted runs.';
+      }
+    } else {
+      inputs.watchlistSummary.textContent = 'Watchlist selection inactive for this scope.';
+    }
+  }
+
+  updateScopeStatusMessage(mode, watchlist, plannerScope.customTickers);
+
+  if (!fromSettings && mode === 'watchlist' && plannerScope.watchlistId) {
+    if (!watchlistEntriesCache.has(plannerScope.watchlistId)) {
+      loadWatchlistEntries(plannerScope.watchlistId, { silent: true }).catch((error) => {
+        console.warn('Failed to preload watchlist entries', error);
+      });
+    } else {
+      renderWatchlistEntries(plannerScope.watchlistId, watchlistEntriesCache.get(plannerScope.watchlistId) ?? []);
+    }
+  }
+}
+
+function applyScopeSettings(scope, options = {}) {
+  plannerScope = { ...defaults.scope, ...scope };
+  scopeRadios.forEach((radio) => {
+    radio.checked = radio.value === plannerScope.mode;
+  });
+
+  if (plannerScope.mode === 'watchlist' && plannerScope.watchlistSlug && !plannerScope.watchlistId) {
+    const match = watchlists.find((item) => item.slug === plannerScope.watchlistSlug);
+    if (match) {
+      plannerScope.watchlistId = match.id;
+      plannerScope.watchlistCount = match.tickerCount ?? plannerScope.watchlistCount ?? null;
+    }
+  }
+
+  if (inputs.watchlistSelect) {
+    if (plannerScope.watchlistId && watchlistMap.has(plannerScope.watchlistId)) {
+      inputs.watchlistSelect.value = plannerScope.watchlistId;
+    } else {
+      inputs.watchlistSelect.value = '';
+    }
+  }
+
+  if (inputs.customTickers) {
+    inputs.customTickers.value = plannerScope.mode === 'custom' && plannerScope.customTickers.length
+      ? plannerScope.customTickers.join(', ')
+      : '';
+  }
+
+  updateScopeUI({ fromSettings: Boolean(options.fromSettings) });
+}
+
+async function loadWatchlists({ silent = false } = {}) {
+  if (!authContext.isAdmin) {
+    watchlists = [];
+    watchlistMap.clear();
+    renderWatchlistOptions();
+    updateScopeUI();
+    return;
+  }
+
+  if (watchlistLoading) return;
+  watchlistLoading = true;
+  if (!silent && inputs.watchlistSummary) {
+    inputs.watchlistSummary.textContent = 'Loading watchlists…';
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('watchlists')
+      .select('id, slug, name, description, is_system, is_public, watchlist_entries(count)')
+      .order('is_system', { ascending: false })
+      .order('name', { ascending: true });
+
+    if (error) throw error;
+
+    watchlists = (data ?? []).map((row) => ({
+      id: row.id,
+      slug: row.slug,
+      name: row.name,
+      description: row.description,
+      isSystem: Boolean(row.is_system),
+      isPublic: Boolean(row.is_public),
+      tickerCount: Array.isArray(row.watchlist_entries) && row.watchlist_entries.length
+        ? Number(row.watchlist_entries[0]?.count ?? 0)
+        : 0
+    }));
+    watchlistMap = new Map(watchlists.map((item) => [item.id, item]));
+
+    renderWatchlistOptions();
+
+    if (plannerScope.mode === 'watchlist') {
+      if (plannerScope.watchlistId && !watchlistMap.has(plannerScope.watchlistId)) {
+        const fallback = watchlists[0] ?? null;
+        if (fallback) {
+          plannerScope.watchlistId = fallback.id;
+          plannerScope.watchlistSlug = fallback.slug ?? null;
+          plannerScope.watchlistCount = fallback.tickerCount ?? null;
+          inputs.watchlistSelect.value = fallback.id;
+        } else {
+          plannerScope.watchlistId = null;
+          plannerScope.watchlistSlug = null;
+          plannerScope.watchlistCount = null;
+          if (inputs.watchlistSelect) inputs.watchlistSelect.value = '';
+        }
+      } else if (plannerScope.watchlistId) {
+        plannerScope.watchlistCount = watchlistMap.get(plannerScope.watchlistId)?.tickerCount ?? plannerScope.watchlistCount ?? null;
+      }
+    }
+
+    updateScopeUI({ fromSettings: true });
+
+    if (plannerScope.mode === 'watchlist' && plannerScope.watchlistId) {
+      loadWatchlistEntries(plannerScope.watchlistId, { silent: true }).catch((error) => {
+        console.warn('Failed to load watchlist entries after refresh', error);
+      });
+    }
+  } catch (error) {
+    console.error('Failed to load watchlists', error);
+    if (!silent && inputs.watchlistSummary) {
+      inputs.watchlistSummary.textContent = `Failed to load watchlists: ${error.message}`;
+    }
+  } finally {
+    watchlistLoading = false;
+    updateScopeUI({ fromSettings: true });
+  }
+}
+
+function renderWatchlistEntries(watchlistId, entries) {
+  if (!inputs.watchlistEntriesBody) return;
+  const body = inputs.watchlistEntriesBody;
+  body.innerHTML = '';
+
+  if (!entries || entries.length === 0) {
+    const row = document.createElement('tr');
+    const cell = document.createElement('td');
+    cell.colSpan = 5;
+    cell.className = 'muted';
+    cell.textContent = 'No tickers in this watchlist yet.';
+    row.appendChild(cell);
+    body.appendChild(row);
+    return;
+  }
+
+  entries.forEach((entry) => {
+    const row = document.createElement('tr');
+
+    const tickerCell = document.createElement('td');
+    tickerCell.textContent = entry.ticker;
+    row.appendChild(tickerCell);
+
+    const nameCell = document.createElement('td');
+    nameCell.textContent = entry.name || '—';
+    row.appendChild(nameCell);
+
+    const exchangeCell = document.createElement('td');
+    const exchangeParts = [entry.exchange, entry.country].filter(Boolean);
+    exchangeCell.textContent = exchangeParts.length ? exchangeParts.join(' • ') : '—';
+    row.appendChild(exchangeCell);
+
+    const lastSeenCell = document.createElement('td');
+    lastSeenCell.textContent = entry.last_seen_at ? formatRelativeTimestamp(entry.last_seen_at) : '—';
+    row.appendChild(lastSeenCell);
+
+    const actionsCell = document.createElement('td');
+    actionsCell.className = 'watchlist-entry__actions';
+    const removeBtn = document.createElement('button');
+    removeBtn.type = 'button';
+    removeBtn.className = 'watchlist-remove';
+    removeBtn.dataset.action = 'remove-watchlist-ticker';
+    removeBtn.dataset.ticker = entry.ticker;
+    removeBtn.textContent = 'Remove';
+    actionsCell.appendChild(removeBtn);
+    row.appendChild(actionsCell);
+
+    body.appendChild(row);
+  });
+}
+
+async function loadWatchlistEntries(watchlistId, { force = false, silent = false } = {}) {
+  if (!watchlistId) return;
+  if (watchlistEntriesLoading && !force) return;
+  watchlistEntriesLoading = true;
+
+  if (!silent && inputs.watchlistEntriesBody) {
+    inputs.watchlistEntriesBody.innerHTML = '<tr><td colspan="5" class="muted">Loading watchlist members…</td></tr>';
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('watchlist_entries')
+      .select('ticker, notes, added_at, tickers (name, exchange, country, status, last_seen_at)')
+      .eq('watchlist_id', watchlistId)
+      .is('removed_at', null)
+      .order('rank', { ascending: true, nullsLast: true })
+      .order('ticker', { ascending: true });
+
+    if (error) throw error;
+
+    const entries = (data ?? []).map((row) => ({
+      ticker: row.ticker,
+      notes: row.notes ?? null,
+      added_at: row.added_at ?? null,
+      name: row.tickers?.name ?? null,
+      exchange: row.tickers?.exchange ?? null,
+      country: row.tickers?.country ?? null,
+      status: row.tickers?.status ?? null,
+      last_seen_at: row.tickers?.last_seen_at ?? null
+    }));
+
+    watchlistEntriesCache.set(watchlistId, entries);
+    renderWatchlistEntries(watchlistId, entries);
+  } catch (error) {
+    console.error('Failed to load watchlist entries', error);
+    if (!silent && inputs.watchlistEntriesBody) {
+      inputs.watchlistEntriesBody.innerHTML = `<tr><td colspan="5" class="muted">Failed to load watchlist entries: ${error.message}</td></tr>`;
+    }
+  } finally {
+    watchlistEntriesLoading = false;
+  }
+}
+
+function handleWatchlistSelect() {
+  const settings = getSettingsFromInputs();
+  persistSettings(settings);
+  plannerScope = { ...defaults.scope, ...settings.scope };
+  updateScopeUI();
+  if (plannerScope.mode === 'watchlist' && plannerScope.watchlistId) {
+    loadWatchlistEntries(plannerScope.watchlistId, { silent: false }).catch((error) => {
+      console.warn('Watchlist entry refresh failed', error);
+    });
+  }
+  updateCostOutput();
+}
+
+function handleScopeChange() {
+  const mode = getSelectedScopeMode();
+  plannerScope.mode = mode;
+  if (mode === 'watchlist' && !plannerScope.watchlistId && watchlists.length) {
+    const first = watchlists[0];
+    plannerScope.watchlistId = first.id;
+    plannerScope.watchlistSlug = first.slug ?? null;
+    plannerScope.watchlistCount = first.tickerCount ?? null;
+  }
+  if (mode !== 'custom') {
+    plannerScope.customTickers = [];
+  } else {
+    plannerScope.customTickers = parseCustomTickerInput(inputs.customTickers?.value ?? '');
+  }
+  applyScopeSettings(plannerScope);
+  persistSettings(getSettingsFromInputs());
+  updateCostOutput();
+}
+
+function handleCustomTickerInput() {
+  if (plannerScope.mode !== 'custom') return;
+  plannerScope.customTickers = parseCustomTickerInput(inputs.customTickers?.value ?? '');
+  persistSettings(getSettingsFromInputs());
+  updateScopeUI();
+  updateCostOutput();
+}
+
+async function handleCreateWatchlist(event) {
+  event.preventDefault();
+  if (!authContext.isAdmin || !authContext.user) {
+    if (inputs.createWatchlistStatus) inputs.createWatchlistStatus.textContent = 'Admin session required.';
+    return;
+  }
+
+  const name = inputs.watchlistName?.value.trim();
+  const slug = inputs.watchlistSlug?.value.trim().toLowerCase();
+  const description = inputs.watchlistDescription?.value.trim() || null;
+
+  if (!name || !slug) {
+    if (inputs.createWatchlistStatus) inputs.createWatchlistStatus.textContent = 'Name and slug are required.';
+    return;
+  }
+
+  try {
+    if (inputs.createWatchlistStatus) inputs.createWatchlistStatus.textContent = 'Creating watchlist…';
+    const { error, data } = await supabase
+      .from('watchlists')
+      .insert({
+        name,
+        slug,
+        description,
+        created_by: authContext.user.id,
+        created_by_email: authContext.user.email ?? null
+      })
+      .select('id, slug, name')
+      .single();
+
+    if (error) throw error;
+
+    inputs.watchlistName.value = '';
+    inputs.watchlistSlug.value = '';
+    if (inputs.watchlistDescription) inputs.watchlistDescription.value = '';
+
+    await loadWatchlists({ silent: true });
+    if (data?.id) {
+      plannerScope.watchlistId = data.id;
+      plannerScope.watchlistSlug = data.slug ?? slug;
+      plannerScope.mode = 'watchlist';
+      applyScopeSettings(plannerScope);
+      persistSettings(getSettingsFromInputs());
+      loadWatchlistEntries(plannerScope.watchlistId, { silent: false }).catch((error) => {
+        console.warn('Failed to load entries for new watchlist', error);
+      });
+    }
+    if (inputs.createWatchlistStatus) inputs.createWatchlistStatus.textContent = 'Watchlist created.';
+  } catch (error) {
+    console.error('Failed to create watchlist', error);
+    if (inputs.createWatchlistStatus) inputs.createWatchlistStatus.textContent = `Error: ${error.message}`;
+  }
+}
+
+async function handleAddWatchlistTicker(event) {
+  event.preventDefault();
+  if (!authContext.isAdmin || !authContext.user) {
+    if (inputs.addWatchlistTickerStatus) inputs.addWatchlistTickerStatus.textContent = 'Admin session required.';
+    return;
+  }
+  const watchlistId = plannerScope.watchlistId;
+  if (!watchlistId) {
+    if (inputs.addWatchlistTickerStatus) inputs.addWatchlistTickerStatus.textContent = 'Select a watchlist first.';
+    return;
+  }
+
+  const ticker = normalizeTickerInput(inputs.watchlistTicker?.value ?? '');
+  if (!ticker) {
+    if (inputs.addWatchlistTickerStatus) inputs.addWatchlistTickerStatus.textContent = 'Enter a valid ticker symbol.';
+    return;
+  }
+
+  const name = inputs.watchlistTickerName?.value.trim() || null;
+  const exchange = inputs.watchlistTickerExchange?.value.trim().toUpperCase() || null;
+  const country = inputs.watchlistTickerCountry?.value.trim().toUpperCase() || null;
+  const notes = inputs.watchlistTickerNotes?.value.trim() || null;
+
+  try {
+    if (inputs.addWatchlistTickerStatus) inputs.addWatchlistTickerStatus.textContent = 'Saving ticker…';
+
+    const { error: tickerError } = await supabase
+      .from('tickers')
+      .upsert({
+        ticker,
+        name,
+        exchange,
+        country,
+        status: 'active',
+        source: 'planner:watchlist'
+      }, { onConflict: 'ticker' });
+
+    if (tickerError) throw tickerError;
+
+    const { error: entryError } = await supabase
+      .from('watchlist_entries')
+      .upsert({
+        watchlist_id: watchlistId,
+        ticker,
+        notes,
+        removed_at: null
+      });
+
+    if (entryError) throw entryError;
+
+    inputs.watchlistTicker.value = '';
+    if (inputs.watchlistTickerName) inputs.watchlistTickerName.value = '';
+    if (inputs.watchlistTickerExchange) inputs.watchlistTickerExchange.value = '';
+    if (inputs.watchlistTickerCountry) inputs.watchlistTickerCountry.value = '';
+    if (inputs.watchlistTickerNotes) inputs.watchlistTickerNotes.value = '';
+
+    watchlistEntriesCache.delete(watchlistId);
+    await loadWatchlistEntries(watchlistId, { force: true, silent: false });
+    await loadWatchlists({ silent: true });
+
+    if (inputs.addWatchlistTickerStatus) inputs.addWatchlistTickerStatus.textContent = 'Ticker added to watchlist.';
+  } catch (error) {
+    console.error('Failed to add ticker to watchlist', error);
+    if (inputs.addWatchlistTickerStatus) inputs.addWatchlistTickerStatus.textContent = `Error: ${error.message}`;
+  }
+}
+
+async function removeWatchlistTicker(watchlistId, ticker) {
+  try {
+    const { error } = await supabase
+      .from('watchlist_entries')
+      .update({ removed_at: new Date().toISOString() })
+      .eq('watchlist_id', watchlistId)
+      .eq('ticker', ticker);
+
+    if (error) throw error;
+
+    watchlistEntriesCache.delete(watchlistId);
+    await loadWatchlistEntries(watchlistId, { force: true, silent: true });
+    await loadWatchlists({ silent: true });
+  } catch (error) {
+    console.error('Failed to remove watchlist ticker', error);
+    if (inputs.scopeStatus) {
+      inputs.scopeStatus.textContent = `Failed to remove ${ticker}: ${error.message}`;
+    }
+  }
+}
+
+function handleWatchlistEntryClick(event) {
+  const target = event.target;
+  if (!target) return;
+  const button = target.closest('[data-action="remove-watchlist-ticker"]');
+  if (!button) return;
+  const ticker = button.dataset.ticker;
+  if (!ticker || !plannerScope.watchlistId) return;
+  removeWatchlistTicker(plannerScope.watchlistId, ticker);
 }
 
 function ensureModelSlug(stageKey, slug) {
@@ -993,8 +1604,18 @@ function getSettingsFromInputs() {
   const stage2Credential = normalizeCredentialId(inputs.stage2Credential?.value ?? null);
   const stage3Credential = normalizeCredentialId(inputs.stage3Credential?.value ?? null);
 
+  const scopeSettings = collectScopeSettings();
+  plannerScope = { ...defaults.scope, ...scopeSettings };
+
+  let universeValue = Number(inputs.universe?.value) || 0;
+  if (plannerScope.mode === 'watchlist' && typeof plannerScope.watchlistCount === 'number') {
+    universeValue = plannerScope.watchlistCount;
+  } else if (plannerScope.mode === 'custom') {
+    universeValue = plannerScope.customTickers.length;
+  }
+
   return {
-    universe: Number(inputs.universe?.value) || 0,
+    universe: universeValue,
     surviveStage2: Number(inputs.stage2Slider?.value) || 0,
     surviveStage3: Number(inputs.stage3Slider?.value) || 0,
     stage1: {
@@ -1015,7 +1636,8 @@ function getSettingsFromInputs() {
       inTokens: Number(inputs.stage3In?.value) || 0,
       outTokens: Number(inputs.stage3Out?.value) || 0
     },
-    budgetUsd: Math.max(0, Number(inputs.budgetInput?.value) || 0)
+    budgetUsd: Math.max(0, Number(inputs.budgetInput?.value) || 0),
+    scope: plannerScope
   };
 }
 
@@ -1027,6 +1649,20 @@ function applySettings(settings) {
   const stage1Credential = normalizeCredentialId(settings.stage1?.credentialId ?? null);
   const stage2Credential = normalizeCredentialId(settings.stage2?.credentialId ?? null);
   const stage3Credential = normalizeCredentialId(settings.stage3?.credentialId ?? null);
+
+  const scopeSettings = { ...defaults.scope, ...(settings.scope ?? {}) };
+  applyScopeSettings(scopeSettings, { fromSettings: true });
+
+  if (inputs.universe) {
+    if (plannerScope.mode === 'universe') {
+      inputs.universe.value = settings.universe;
+    } else if (plannerScope.mode === 'watchlist') {
+      const count = plannerScope.watchlistCount ?? settings.universe ?? 0;
+      inputs.universe.value = count;
+    } else if (plannerScope.mode === 'custom') {
+      inputs.universe.value = plannerScope.customTickers.length;
+    }
+  }
 
   settings.stage1 = {
     ...settings.stage1,
@@ -1043,8 +1679,6 @@ function applySettings(settings) {
     model: stage3Model,
     credentialId: stage3Credential && credentialMap.has(stage3Credential) ? stage3Credential : null
   };
-
-  inputs.universe.value = settings.universe;
   inputs.stage2Slider.value = settings.surviveStage2;
   inputs.stage3Slider.value = settings.surviveStage3;
   inputs.stage2Value.textContent = `${settings.surviveStage2}%`;
@@ -1632,6 +2266,1036 @@ function updateAutoContinueAvailability() {
       updateAutoContinueStatus('Auto continue halted — budget reached.');
     } else if (!autoContinueInFlight && (!inputs.autoContinueStatus || !inputs.autoContinueStatus.textContent)) {
       updateAutoContinueStatus('Auto continue idle.');
+    }
+  }
+}
+
+async function runAutoContinue() {
+  if (!autoContinueActive || autoContinueInFlight) return;
+
+  if (!activeRunId) {
+    disableAutoContinue('Select a run to enable auto continue.');
+    updateAutoContinueAvailability();
+    return;
+  }
+
+  if (!authContext.token) {
+    await syncAccess({ preserveStatus: true });
+  }
+
+  if (!authContext.token) {
+    disableAutoContinue('Session expired. Sign in again to continue.');
+    updateAutoContinueAvailability();
+    return;
+  }
+
+  autoContinueInFlight = true;
+  updateAutoContinueStatus('Auto continue running…');
+
+  try {
+    const response = await fetch(RUNS_CONTINUE_ENDPOINT, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${authContext.token}`
+      },
+      body: JSON.stringify({
+        run_id: activeRunId,
+        stage_limits: AUTO_CONTINUE_LIMITS,
+        cycles: 1,
+        client_meta: {
+          origin: window.location.origin,
+          triggered_at: new Date().toISOString()
+        }
+      })
+    });
+
+    const raw = await response.text();
+    let payload = {};
+    if (raw) {
+      try {
+        payload = JSON.parse(raw);
+      } catch (error) {
+        console.warn('Unable to parse runs-continue response JSON', error);
+        payload = {};
+      }
+    }
+
+    if (!response.ok) {
+      const message = payload?.error || `Auto continue failed (${response.status})`;
+      updateAutoContinueStatus(message);
+      logStatus(`[Auto] ${message}`);
+      disableAutoContinue('Auto continue stopped due to error.');
+      updateAutoContinueAvailability();
+      return;
+    }
+
+    const message = typeof payload?.message === 'string' ? payload.message : 'Auto continue cycle completed.';
+    updateAutoContinueStatus(message);
+    logStatus(`[Auto] ${message}`);
+
+    if (Array.isArray(payload?.operations)) {
+      payload.operations.forEach((operation) => {
+        if (!operation || typeof operation !== 'object') return;
+        const stageNumber = Number(operation.stage);
+        const stageLabel = STAGE_LABELS[stageNumber] ?? `Stage ${stageNumber}`;
+        const opMessage = operation.message || 'Stage call completed.';
+        logStatus(`[Auto] ${stageLabel}: ${opMessage}`);
+      });
+    }
+
+    if (payload?.halted) {
+      const haltMessage = typeof payload.halted.message === 'string'
+        ? payload.halted.message
+        : 'Auto continue halted.';
+      logStatus(`[Auto] ${haltMessage}`);
+      disableAutoContinue(haltMessage);
+    }
+
+    await Promise.all([
+      fetchStage1Summary({ silent: true }),
+      fetchStage2Summary({ silent: true }),
+      fetchStage3Summary({ silent: true }),
+      fetchRunMeta({ silent: true })
+    ]).catch((error) => {
+      console.error('Auto continue refresh failed', error);
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error('Auto continue error', error);
+    updateAutoContinueStatus(`Auto continue error: ${message}`);
+    logStatus(`Auto continue error: ${message}`);
+    disableAutoContinue('Auto continue stopped due to error.');
+  } finally {
+    autoContinueInFlight = false;
+    updateAutoContinueAvailability();
+    if (autoContinueActive) {
+      scheduleAutoContinue();
+    }
+  }
+}
+
+async function handleAutoContinueToggle(event) {
+  const checked = Boolean(event?.target?.checked);
+
+  if (checked) {
+    await syncAccess({ preserveStatus: true });
+
+    if (!authContext.user) {
+      updateAutoContinueStatus('Sign in to enable auto continue.');
+      if (inputs.autoContinueToggle) inputs.autoContinueToggle.checked = false;
+      updateAutoContinueAvailability();
+      return;
+    }
+
+    if (!authContext.isAdmin) {
+      updateAutoContinueStatus('Admin access required for auto continue.');
+      if (inputs.autoContinueToggle) inputs.autoContinueToggle.checked = false;
+      updateAutoContinueAvailability();
+      return;
+    }
+
+    if (!authContext.token) {
+      updateAutoContinueStatus('Session expired. Sign in again to continue.');
+      if (inputs.autoContinueToggle) inputs.autoContinueToggle.checked = false;
+      updateAutoContinueAvailability();
+      return;
+    }
+
+    if (!activeRunId) {
+      updateAutoContinueStatus('Select a run to enable auto continue.');
+      if (inputs.autoContinueToggle) inputs.autoContinueToggle.checked = false;
+      updateAutoContinueAvailability();
+      return;
+    }
+
+    if (currentRunMeta?.stop_requested) {
+      updateAutoContinueStatus('Auto continue halted — stop requested.');
+      if (inputs.autoContinueToggle) inputs.autoContinueToggle.checked = false;
+      updateAutoContinueAvailability();
+      return;
+    }
+
+    if (currentRunMeta?.budget_exhausted) {
+      updateAutoContinueStatus('Auto continue halted — budget reached.');
+      if (inputs.autoContinueToggle) inputs.autoContinueToggle.checked = false;
+      updateAutoContinueAvailability();
+      return;
+    }
+
+    autoContinueActive = true;
+    logStatus('Auto continue enabled.');
+    updateAutoContinueAvailability();
+    scheduleAutoContinue({ immediate: true });
+  } else {
+    disableAutoContinue('Auto continue paused.');
+    logStatus('Auto continue paused by operator.');
+    updateAutoContinueAvailability();
+  }
+}
+
+function formatSchedulerCadence(seconds) {
+  const value = Number(seconds);
+  if (!Number.isFinite(value) || value <= 0) return 'custom interval';
+  if (value % 3600 === 0) {
+    const hours = Math.round(value / 3600);
+    if (hours === 1) return '60 minutes';
+    return `${hours} hour${hours === 1 ? '' : 's'}`;
+  }
+  if (value % 60 === 0) {
+    const minutes = Math.round(value / 60);
+    return `${minutes} minute${minutes === 1 ? '' : 's'}`;
+  }
+  return `${value} seconds`;
+}
+
+function formatRelativeFutureTimestamp(value) {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  const delta = date.getTime() - Date.now();
+  if (delta <= 0) {
+    return formatRelativeTimestamp(value);
+  }
+  if (delta < 60_000) return 'in under a minute';
+  if (delta < 3_600_000) {
+    const minutes = Math.round(delta / 60_000);
+    return `in ${minutes} minute${minutes === 1 ? '' : 's'}`;
+  }
+  if (delta < 86_400_000) {
+    const hours = Math.round(delta / 3_600_000);
+    return `in ${hours} hour${hours === 1 ? '' : 's'}`;
+  }
+  const days = Math.round(delta / 86_400_000);
+  return `in ${days} day${days === 1 ? '' : 's'}`;
+}
+
+function markSchedulerDirty(message = 'Unsaved changes. Save schedule to update the background dispatcher.') {
+  schedulerDirty = true;
+  if (inputs.schedulerStatus) {
+    inputs.schedulerStatus.textContent = message;
+  }
+  hideSchedulerToast();
+}
+
+function applySchedulerUI(schedule, { cache = true } = {}) {
+  const sanitized = schedule ? { ...schedule } : null;
+  const scheduleData = sanitized;
+  currentSchedule = scheduleData;
+  if (cache && activeRunId) {
+    scheduleCache.set(activeRunId, scheduleData ? { ...scheduleData } : null);
+  }
+  schedulerDirty = false;
+
+  const toggle = inputs.schedulerEnabled;
+  const cadenceSelect = inputs.schedulerCadence;
+  const stage1Input = inputs.schedulerStage1;
+  const stage2Input = inputs.schedulerStage2;
+  const stage3Input = inputs.schedulerStage3;
+  const cyclesInput = inputs.schedulerCycles;
+
+  const cadenceSeconds = Number(scheduleData?.cadence_seconds ?? SCHEDULER_DEFAULTS.cadenceSeconds);
+  const stage1Limit = Number(scheduleData?.stage1_limit ?? SCHEDULER_DEFAULTS.stage1Limit);
+  const stage2Limit = Number(scheduleData?.stage2_limit ?? SCHEDULER_DEFAULTS.stage2Limit);
+  const stage3Limit = Number(scheduleData?.stage3_limit ?? SCHEDULER_DEFAULTS.stage3Limit);
+  const maxCycles = Number(scheduleData?.max_cycles ?? SCHEDULER_DEFAULTS.maxCycles);
+
+  if (toggle) toggle.checked = Boolean(scheduleData?.active);
+  if (cadenceSelect) cadenceSelect.value = String(cadenceSeconds);
+  if (stage1Input) stage1Input.value = String(stage1Limit);
+  if (stage2Input) stage2Input.value = String(stage2Limit);
+  if (stage3Input) stage3Input.value = String(stage3Limit);
+  if (cyclesInput) cyclesInput.value = String(maxCycles);
+
+  let summary;
+  if (!activeRunId) {
+    summary = 'Assign a run to enable background automation.';
+  } else if (!scheduleData) {
+    summary = 'No background schedule saved. Configure cadence and save to dispatch unattended batches.';
+  } else if (!scheduleData.active) {
+    summary = 'Background dispatcher disabled for this run.';
+  } else {
+    const cadenceLabel = formatSchedulerCadence(cadenceSeconds);
+    summary = `Dispatches every ${cadenceLabel} · Stage 1 ${stage1Limit}, Stage 2 ${stage2Limit}, Stage 3 ${stage3Limit}`;
+    if (maxCycles > 1) {
+      summary += ` · ${maxCycles} cycles per trigger`;
+    }
+
+    const descriptors = [];
+    if (scheduleData.next_trigger_at) {
+      const relative = formatRelativeFutureTimestamp(scheduleData.next_trigger_at);
+      const absolute = new Date(scheduleData.next_trigger_at).toLocaleString();
+      descriptors.push(`next run ${relative ?? 'soon'} (${absolute})`);
+    }
+    if (scheduleData.last_triggered_at) {
+      descriptors.push(`last triggered ${formatRelativeTimestamp(scheduleData.last_triggered_at)}`);
+    }
+    if (descriptors.length) {
+      summary += `. ${descriptors.join('; ')}.`;
+    } else {
+      summary += '.';
+    }
+  }
+
+  if (inputs.schedulerSummary) {
+    inputs.schedulerSummary.textContent = summary;
+  }
+
+  if (inputs.schedulerStatus) {
+    if (!scheduleData) {
+      inputs.schedulerStatus.textContent = '';
+    } else if (!scheduleData.active) {
+      inputs.schedulerStatus.textContent = 'Scheduler disabled for this run.';
+    } else {
+      const relative = formatRelativeFutureTimestamp(scheduleData.next_trigger_at);
+      inputs.schedulerStatus.textContent = relative ? `Scheduler enabled (${relative}).` : 'Scheduler enabled.';
+    }
+  }
+
+  applyAccessState({ preserveStatus: true });
+}
+
+function hideSchedulerToast() {
+  if (!inputs.schedulerToast) return;
+  if (schedulerToastTimer) {
+    clearTimeout(schedulerToastTimer);
+    schedulerToastTimer = null;
+  }
+  inputs.schedulerToast.hidden = true;
+  inputs.schedulerToast.textContent = '';
+  inputs.schedulerToast.classList.remove('is-success', 'is-error', 'is-info');
+}
+
+function showSchedulerToast(message, variant = 'info') {
+  if (!inputs.schedulerToast) return;
+  if (schedulerToastTimer) {
+    clearTimeout(schedulerToastTimer);
+    schedulerToastTimer = null;
+  }
+
+  const toast = inputs.schedulerToast;
+  const variantClass =
+    variant === 'error' ? 'is-error' : variant === 'success' ? 'is-success' : 'is-info';
+
+  toast.hidden = false;
+  toast.textContent = message;
+  toast.classList.remove('is-success', 'is-error', 'is-info');
+  toast.classList.add(variantClass);
+
+  schedulerToastTimer = window.setTimeout(() => {
+    toast.hidden = true;
+    toast.classList.remove(variantClass);
+    toast.textContent = '';
+    schedulerToastTimer = null;
+  }, 4000);
+}
+
+function readSchedulerNumber(input, { min, max, fallback }) {
+  if (!input) return fallback;
+  const raw = Number(input.value);
+  if (!Number.isFinite(raw)) {
+    input.value = String(fallback);
+    return fallback;
+  }
+  const clamped = Math.min(Math.max(Math.floor(raw), min), max);
+  input.value = String(clamped);
+  return clamped;
+}
+
+async function fetchRunSchedule({ silent = false } = {}) {
+  if (!inputs.schedulerSummary) return;
+  if (!silent) hideSchedulerToast();
+  if (!activeRunId) {
+    applySchedulerUI(null, { cache: false });
+    hideSchedulerToast();
+    if (!silent && inputs.schedulerStatus) {
+      inputs.schedulerStatus.textContent = 'Assign a run to configure background automation.';
+    }
+    return;
+  }
+
+  if (!authContext.token) {
+    if (!silent && inputs.schedulerStatus) {
+      inputs.schedulerStatus.textContent = 'Sign in to view the background scheduler.';
+    }
+    return;
+  }
+
+  if (schedulerLoading) return;
+  schedulerLoading = true;
+  applyAccessState({ preserveStatus: true });
+
+  if (!silent && inputs.schedulerStatus) {
+    inputs.schedulerStatus.textContent = 'Loading background schedule…';
+  }
+
+  try {
+    const response = await fetch(`${RUNS_SCHEDULE_ENDPOINT}?run_id=${activeRunId}`, {
+      headers: {
+        Authorization: `Bearer ${authContext.token}`
+      }
+    });
+
+    const raw = await response.text();
+    let payload = {};
+    if (raw) {
+      try {
+        payload = JSON.parse(raw);
+      } catch (error) {
+        console.warn('Unable to parse run schedule response', error);
+      }
+    }
+
+    if (!response.ok) {
+      const message = payload?.error || `Schedule endpoint responded ${response.status}`;
+      throw new Error(message);
+    }
+
+    applySchedulerUI(payload?.schedule ?? null);
+
+    if (!silent && inputs.schedulerStatus) {
+      if (payload?.schedule) {
+        inputs.schedulerStatus.textContent = payload.schedule.active
+          ? 'Background dispatcher enabled.'
+          : 'Background dispatcher disabled.';
+      } else {
+        inputs.schedulerStatus.textContent = 'No background schedule configured.';
+      }
+    }
+  } catch (error) {
+    console.error('Failed to fetch run schedule', error);
+    if (!silent && inputs.schedulerStatus) {
+      inputs.schedulerStatus.textContent = `Failed to load schedule: ${error.message}`;
+    }
+    if (!silent) {
+      showSchedulerToast(`Failed to load schedule: ${error.message}`, 'error');
+    }
+  } finally {
+    schedulerLoading = false;
+    applyAccessState({ preserveStatus: true });
+  }
+}
+
+async function saveRunSchedule() {
+  if (!inputs.schedulerStatus) return;
+
+  if (!activeRunId) {
+    inputs.schedulerStatus.textContent = 'Assign a run ID before saving the schedule.';
+    return;
+  }
+
+  await syncAccess({ preserveStatus: true });
+
+  if (!authContext.user) {
+    inputs.schedulerStatus.textContent = 'Sign in required to manage the scheduler.';
+    return;
+  }
+
+  if (!authContext.isAdmin) {
+    inputs.schedulerStatus.textContent = 'Admin access required to manage the scheduler.';
+    return;
+  }
+
+  if (!authContext.token) {
+    inputs.schedulerStatus.textContent = 'Session expired. Sign in again to continue.';
+    await syncAccess();
+    return;
+  }
+
+  const active = Boolean(inputs.schedulerEnabled?.checked);
+  const cadenceSeconds = readSchedulerNumber(inputs.schedulerCadence, {
+    min: 60,
+    max: 21_600,
+    fallback: SCHEDULER_DEFAULTS.cadenceSeconds
+  });
+  const stage1Limit = readSchedulerNumber(inputs.schedulerStage1, {
+    min: 1,
+    max: 25,
+    fallback: SCHEDULER_DEFAULTS.stage1Limit
+  });
+  const stage2Limit = readSchedulerNumber(inputs.schedulerStage2, {
+    min: 1,
+    max: 25,
+    fallback: SCHEDULER_DEFAULTS.stage2Limit
+  });
+  const stage3Limit = readSchedulerNumber(inputs.schedulerStage3, {
+    min: 1,
+    max: 25,
+    fallback: SCHEDULER_DEFAULTS.stage3Limit
+  });
+  const maxCycles = readSchedulerNumber(inputs.schedulerCycles, {
+    min: 1,
+    max: 10,
+    fallback: SCHEDULER_DEFAULTS.maxCycles
+  });
+
+  schedulerLoading = true;
+  applyAccessState({ preserveStatus: true });
+
+  hideSchedulerToast();
+  inputs.schedulerStatus.textContent = active ? 'Saving scheduler…' : 'Disabling scheduler…';
+
+  try {
+    const response = await fetch(RUNS_SCHEDULE_ENDPOINT, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${authContext.token}`
+      },
+      body: JSON.stringify({
+        run_id: activeRunId,
+        cadence_seconds: cadenceSeconds,
+        stage_limits: {
+          stage1: stage1Limit,
+          stage2: stage2Limit,
+          stage3: stage3Limit
+        },
+        max_cycles: maxCycles,
+        active
+      })
+    });
+
+    const raw = await response.text();
+    let payload = {};
+    if (raw) {
+      try {
+        payload = JSON.parse(raw);
+      } catch (error) {
+        console.warn('Unable to parse schedule save response', error);
+      }
+    }
+
+    if (!response.ok) {
+      const message = payload?.error || `Scheduler save failed (${response.status})`;
+      throw new Error(message);
+    }
+
+    applySchedulerUI(payload?.schedule ?? null);
+
+    if (inputs.schedulerStatus) {
+      if (payload?.schedule && payload.schedule.active) {
+        const cadenceLabel = formatSchedulerCadence(payload.schedule.cadence_seconds ?? cadenceSeconds);
+        inputs.schedulerStatus.textContent = `Background dispatcher enabled (${cadenceLabel}).`;
+      } else {
+        inputs.schedulerStatus.textContent = 'Background dispatcher saved.';
+      }
+    }
+
+      if (payload?.schedule?.active) {
+        const cadenceLabel = formatSchedulerCadence(payload.schedule.cadence_seconds ?? cadenceSeconds);
+        logStatus(`Background scheduler enabled: ${cadenceLabel} cadence.`);
+        showSchedulerToast(`Scheduler enabled · ${cadenceLabel} cadence`, 'success');
+      } else {
+        logStatus('Background scheduler disabled for this run.');
+        showSchedulerToast('Scheduler disabled for this run', 'info');
+      }
+    } catch (error) {
+      console.error('Failed to save run schedule', error);
+      inputs.schedulerStatus.textContent = `Failed to save schedule: ${error.message}`;
+      schedulerDirty = true;
+      showSchedulerToast(`Failed to save schedule: ${error.message}`, 'error');
+    } finally {
+      schedulerLoading = false;
+      applyAccessState({ preserveStatus: true });
+    }
+  }
+
+function updateStage1Metrics(metrics = null) {
+  const formatter = (value) => {
+    if (value == null || Number.isNaN(value)) return '—';
+    return Number(value).toLocaleString();
+  };
+
+  if (inputs.stage1Total) inputs.stage1Total.textContent = formatter(metrics?.total);
+  if (inputs.stage1Pending) inputs.stage1Pending.textContent = formatter(metrics?.pending);
+  if (inputs.stage1Completed) inputs.stage1Completed.textContent = formatter(metrics?.completed);
+  if (inputs.stage1Failed) inputs.stage1Failed.textContent = formatter(metrics?.failed);
+}
+
+function renderRecentClassifications(entries = []) {
+  const body = inputs.stage1RecentBody;
+  if (!body) return;
+
+  body.innerHTML = '';
+
+  if (!entries.length) {
+    const row = document.createElement('tr');
+    row.innerHTML = '<td colspan="4" class="recent-empty">No classifications yet.</td>';
+    body.appendChild(row);
+    return;
+  }
+
+  entries.forEach((entry) => {
+    const row = document.createElement('tr');
+    const safeSummary = entry.summary ? String(entry.summary) : '—';
+    const updated = entry.updated_at
+      ? new Date(entry.updated_at).toLocaleString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+      : '—';
+    row.innerHTML = `
+      <td>${entry.ticker ?? '—'}</td>
+      <td data-label>${entry.label ?? '—'}</td>
+      <td>${safeSummary}</td>
+      <td>${updated}</td>
+    `;
+    body.appendChild(row);
+  });
+}
+
+function updateStage2Metrics(metrics = null, retrieval = null) {
+  const formatter = (value) => {
+    if (value == null || Number.isNaN(value)) return '—';
+    return Number(value).toLocaleString();
+  };
+
+  if (inputs.stage2Total) inputs.stage2Total.textContent = formatter(metrics?.total);
+  if (inputs.stage2Pending) inputs.stage2Pending.textContent = formatter(metrics?.pending);
+  if (inputs.stage2Completed) inputs.stage2Completed.textContent = formatter(metrics?.completed);
+  if (inputs.stage2Failed) inputs.stage2Failed.textContent = formatter(metrics?.failed);
+  if (inputs.stage2GoDeep) inputs.stage2GoDeep.textContent = formatter(metrics?.goDeep);
+  if (inputs.stage2ContextHits) {
+    const hits = retrieval?.total_hits ?? retrieval?.hits ?? retrieval?.average_hits ?? null;
+    inputs.stage2ContextHits.textContent = formatter(hits);
+  }
+  if (inputs.stage2ContextTokens) {
+    const tokens = retrieval?.embedding_tokens ?? retrieval?.tokens ?? null;
+    inputs.stage2ContextTokens.textContent = formatter(tokens);
+  }
+}
+
+function renderStage2Insights(entries = []) {
+  const body = inputs.stage2RecentBody;
+  if (!body) return;
+
+  body.innerHTML = '';
+
+  if (!entries.length) {
+    const row = document.createElement('tr');
+    row.innerHTML = '<td colspan="4" class="recent-empty">No Stage 2 calls yet.</td>';
+    body.appendChild(row);
+    return;
+  }
+
+  entries.forEach((entry) => {
+    const row = document.createElement('tr');
+    const goDeep = entry.go_deep ? 'Yes' : entry.status === 'failed' ? 'Failed' : 'No';
+    const updated = entry.updated_at
+      ? new Date(entry.updated_at).toLocaleString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+      : '—';
+    row.innerHTML = `
+      <td>${entry.ticker ?? '—'}</td>
+      <td data-label>${goDeep}</td>
+      <td>${entry.summary ?? '—'}</td>
+      <td>${updated}</td>
+    `;
+    body.appendChild(row);
+  });
+}
+
+function updateStage3Metrics(metrics = null, retrieval = null) {
+  const formatter = (value) => {
+    if (value == null || Number.isNaN(value)) return '—';
+    return Number(value).toLocaleString();
+  };
+
+  if (inputs.stage3Finalists) inputs.stage3Finalists.textContent = formatter(metrics?.finalists);
+  if (inputs.stage3Pending) inputs.stage3Pending.textContent = formatter(metrics?.pending);
+  if (inputs.stage3Completed) inputs.stage3Completed.textContent = formatter(metrics?.completed);
+  if (inputs.stage3Spend) {
+    const spend = metrics?.spend;
+    inputs.stage3Spend.textContent = spend == null || Number.isNaN(spend) ? '—' : formatCurrency(Number(spend));
+  }
+  if (inputs.stage3Failed) inputs.stage3Failed.textContent = formatter(metrics?.failed);
+  if (inputs.stage3ContextHits) {
+    const hits = retrieval?.total_hits ?? retrieval?.hits ?? null;
+    inputs.stage3ContextHits.textContent = formatter(hits);
+  }
+  if (inputs.stage3ContextTokens) {
+    const tokens = retrieval?.embedding_tokens ?? retrieval?.tokens ?? null;
+    inputs.stage3ContextTokens.textContent = formatter(tokens);
+  }
+}
+
+function renderStage3Reports(entries = []) {
+  const body = inputs.stage3RecentBody;
+  if (!body) return;
+
+  body.innerHTML = '';
+
+  if (!entries.length) {
+    const row = document.createElement('tr');
+    row.innerHTML = '<td colspan="4" class="recent-empty">No deep-dive reports yet.</td>';
+    body.appendChild(row);
+    return;
+  }
+
+  entries.forEach((entry) => {
+    const row = document.createElement('tr');
+    const verdict = entry.verdict ? String(entry.verdict) : '—';
+    const thesis = entry.summary ?? entry.answer_text ?? '—';
+    const updated = entry.updated_at
+      ? new Date(entry.updated_at).toLocaleString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+      : '—';
+    row.innerHTML = `
+      <td>${entry.ticker ?? '—'}</td>
+      <td data-label>${verdict}</td>
+      <td>${thesis}</td>
+      <td>${updated}</td>
+    `;
+    body.appendChild(row);
+  });
+}
+
+function setFollowupStatus(message, tone = '') {
+  if (!inputs.followupStatus) return;
+  inputs.followupStatus.textContent = message || '';
+  if (tone) {
+    inputs.followupStatus.dataset.tone = tone;
+  } else {
+    delete inputs.followupStatus.dataset.tone;
+  }
+}
+
+function setFollowupPanelStatus(message) {
+  if (!inputs.followupPanelStatus) return;
+  inputs.followupPanelStatus.textContent = message || '';
+}
+
+function populateFollowupTickers(tickers) {
+  const select = inputs.followupTicker;
+  if (!select) return;
+
+  const previous = select.value;
+  select.innerHTML = '';
+
+  const defaultOption = document.createElement('option');
+  defaultOption.value = '';
+  defaultOption.textContent = 'General follow-up';
+  select.append(defaultOption);
+
+  followupTickers = Array.from(new Set((tickers ?? []).filter(Boolean))).sort();
+  followupTickers.forEach((ticker) => {
+    const option = document.createElement('option');
+    option.value = ticker;
+    option.textContent = ticker;
+    select.append(option);
+  });
+
+  if (previous && followupTickers.includes(previous)) {
+    select.value = previous;
+  } else {
+    select.value = '';
+  }
+}
+
+function renderFollowupTable(rows) {
+  const tbody = inputs.followupTableBody;
+  if (!tbody) return;
+
+  tbody.innerHTML = '';
+  const entries = Array.isArray(rows) ? rows : [];
+  const total = entries.length;
+
+  if (inputs.followupCount) {
+    inputs.followupCount.textContent = String(total);
+  }
+
+  if (!total) {
+    const emptyRow = document.createElement('tr');
+    const cell = document.createElement('td');
+    cell.colSpan = 5;
+    cell.textContent = 'No feedback logged yet. Start by submitting a question above.';
+    emptyRow.append(cell);
+    tbody.append(emptyRow);
+    return;
+  }
+
+  entries.forEach((entry) => {
+    const row = document.createElement('tr');
+
+    const createdCell = document.createElement('td');
+    if (entry.created_at) {
+      createdCell.textContent = formatRelativeTimestamp(entry.created_at);
+      createdCell.title = new Date(entry.created_at).toLocaleString();
+    } else {
+      createdCell.textContent = '—';
+    }
+    row.append(createdCell);
+
+    const tickerCell = document.createElement('td');
+    tickerCell.textContent = entry.ticker ?? '—';
+    row.append(tickerCell);
+
+    const questionCell = document.createElement('td');
+    const question = document.createElement('div');
+    question.className = 'followup-question';
+    question.textContent = entry.question_text ?? '—';
+    questionCell.append(question);
+    row.append(questionCell);
+
+    const statusCell = document.createElement('td');
+    const state = typeof entry.status === 'string' ? entry.status.toLowerCase() : 'pending';
+    const label = document.createElement('span');
+    label.className = 'followup-status-label';
+    label.dataset.state = state;
+    label.textContent = followupStatusLabels[state] ?? state.replace(/_/g, ' ');
+    statusCell.append(label);
+    row.append(statusCell);
+
+    const updatedCell = document.createElement('td');
+    const updatedAt = entry.updated_at ?? entry.created_at;
+    if (updatedAt) {
+      updatedCell.textContent = formatRelativeTimestamp(updatedAt);
+      updatedCell.title = new Date(updatedAt).toLocaleString();
+    } else {
+      updatedCell.textContent = '—';
+    }
+    row.append(updatedCell);
+
+    tbody.append(row);
+  });
+}
+
+async function refreshFollowupTickers({ silent = false } = {}) {
+  if (!inputs.followupTicker) return;
+
+  if (!activeRunId) {
+    populateFollowupTickers([]);
+    if (!silent) setFollowupPanelStatus('Select a run to view follow-up questions.');
+    return;
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('run_items')
+      .select('ticker')
+      .eq('run_id', activeRunId)
+      .order('ticker', { ascending: true });
+    if (error) throw error;
+    const tickers = (data ?? []).map((row) => (row?.ticker ? String(row.ticker).toUpperCase() : null)).filter(Boolean);
+    populateFollowupTickers(tickers);
+  } catch (error) {
+    console.warn('Failed to load follow-up tickers', error);
+  }
+}
+
+function clearFollowupRefreshTimer() {
+  if (followupRefreshTimer) {
+    clearTimeout(followupRefreshTimer);
+    followupRefreshTimer = null;
+  }
+}
+
+function scheduleFollowupRefresh({ immediate = false } = {}) {
+  if (immediate) {
+    clearFollowupRefreshTimer();
+    refreshFollowupList({ silent: true }).catch((error) => {
+      console.error('Follow-up refresh failed', error);
+    });
+    return;
+  }
+
+  if (followupRefreshTimer) return;
+  followupRefreshTimer = window.setTimeout(() => {
+    followupRefreshTimer = null;
+    refreshFollowupList({ silent: true }).catch((error) => {
+      console.error('Follow-up refresh failed', error);
+    });
+  }, 500);
+}
+
+function resetFollowupUI(message = '') {
+  populateFollowupTickers([]);
+  renderFollowupTable([]);
+  setFollowupPanelStatus(message);
+  if (!message) {
+    setFollowupStatus('');
+  }
+}
+
+async function refreshFollowupList({ silent = false } = {}) {
+  if (!inputs.followupTableBody) return;
+
+  if (!activeRunId) {
+    resetFollowupUI('Select a run to view follow-up questions.');
+    return;
+  }
+
+  if (!authContext.user) {
+    resetFollowupUI('Sign in to view follow-up questions.');
+    return;
+  }
+
+  if (!authContext.isAdmin && !authContext.membershipActive) {
+    resetFollowupUI('Membership required to view follow-up questions.');
+    return;
+  }
+
+  if (!authContext.token) {
+    if (!silent) setFollowupPanelStatus('Session expired. Refresh or sign in again to load follow-ups.');
+    return;
+  }
+
+  if (followupLoading) return;
+  followupLoading = true;
+
+  if (!silent) {
+    setFollowupPanelStatus('Loading follow-up requests…');
+  }
+
+  try {
+    const url = new URL(RUNS_FEEDBACK_ENDPOINT);
+    url.searchParams.set('run_id', activeRunId);
+    const response = await fetch(url.toString(), {
+      headers: {
+        Authorization: `Bearer ${authContext.token}`
+      }
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      const message = payload?.error || `Failed to load follow-up requests (${response.status})`;
+      throw new Error(message);
+    }
+    const items = Array.isArray(payload?.items) ? payload.items : [];
+    renderFollowupTable(items);
+    if (!silent) {
+      setFollowupPanelStatus(items.length ? '' : 'No follow-up questions yet.');
+    }
+  } catch (error) {
+    console.error('Failed to load follow-up requests', error);
+    setFollowupPanelStatus(error instanceof Error ? error.message : String(error));
+  } finally {
+    followupLoading = false;
+  }
+}
+
+function updateFollowupAccess() {
+  const hasRun = Boolean(activeRunId);
+  const signedIn = Boolean(authContext.user);
+  const hasMembership = authContext.isAdmin || authContext.membershipActive;
+  const canSubmit = hasRun && signedIn && hasMembership;
+
+  if (inputs.followupQuestion) {
+    inputs.followupQuestion.disabled = !canSubmit;
+  }
+  if (inputs.followupTicker) {
+    inputs.followupTicker.disabled = !canSubmit;
+  }
+  if (inputs.submitFollowupBtn) {
+    inputs.submitFollowupBtn.disabled = !canSubmit;
+  }
+
+  if (!signedIn) {
+    setFollowupStatus('Sign in to submit follow-up questions.', 'error');
+    setFollowupPanelStatus('Sign in to view follow-up questions.');
+    return;
+  }
+
+  if (!hasRun) {
+    setFollowupStatus('Select an active run to submit feedback.');
+    setFollowupPanelStatus('Select a run to view follow-up questions.');
+    return;
+  }
+
+  if (!hasMembership) {
+    setFollowupStatus('Activate a membership to send follow-up questions.', 'error');
+    setFollowupPanelStatus('Membership required to view follow-up questions.');
+    return;
+  }
+
+  if (inputs.followupStatus?.dataset.tone !== 'success') {
+    setFollowupStatus('');
+  }
+  setFollowupPanelStatus('');
+}
+
+async function submitFollowupRequest(event) {
+  event.preventDefault();
+
+  if (!activeRunId) {
+    setFollowupStatus('Select an active run first.', 'error');
+    return;
+  }
+
+  if (!authContext.user) {
+    setFollowupStatus('Sign in to submit follow-up questions.', 'error');
+    return;
+  }
+
+  if (!authContext.isAdmin && !authContext.membershipActive) {
+    setFollowupStatus('Membership required to submit follow-up questions.', 'error');
+    return;
+  }
+
+  if (!authContext.token) {
+    setFollowupStatus('Session expired. Refresh and try again.', 'error');
+    await syncAccess({ preserveStatus: true });
+    return;
+  }
+
+  const questionValue = (inputs.followupQuestion?.value ?? '').trim();
+  const tickerValue = (inputs.followupTicker?.value ?? '').trim();
+
+  if (questionValue.length < 8) {
+    setFollowupStatus('Follow-up question must be at least 8 characters.', 'error');
+    return;
+  }
+
+  if (inputs.submitFollowupBtn) {
+    inputs.submitFollowupBtn.disabled = true;
+  }
+  if (inputs.followupTicker) {
+    inputs.followupTicker.disabled = true;
+  }
+  if (inputs.followupQuestion) {
+    inputs.followupQuestion.disabled = true;
+  }
+
+  setFollowupStatus('Submitting follow-up…');
+
+  try {
+    const response = await fetch(RUNS_FEEDBACK_ENDPOINT, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${authContext.token}`
+      },
+      body: JSON.stringify({
+        run_id: activeRunId,
+        ticker: tickerValue || undefined,
+        question: questionValue,
+        context: {
+          origin: window.location.origin,
+          pathname: window.location.pathname,
+          submitted_at: new Date().toISOString()
+        }
+      })
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      const message = payload?.error || `Failed to submit follow-up (${response.status})`;
+      throw new Error(message);
+    }
+
+    setFollowupStatus('Follow-up logged. Check the table below for updates.', 'success');
+    if (inputs.followupQuestion) {
+      inputs.followupQuestion.value = '';
+    }
+    if (inputs.followupTicker) {
+      inputs.followupTicker.value = tickerValue && followupTickers.includes(tickerValue) ? tickerValue : '';
+    }
+    scheduleFollowupRefresh({ immediate: true });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    setFollowupStatus(message, 'error');
+  } finally {
+    if (inputs.submitFollowupBtn) {
+      inputs.submitFollowupBtn.disabled = false;
+    }
+    if (inputs.followupTicker) {
+      inputs.followupTicker.disabled = false;
+    }
+    if (inputs.followupQuestion) {
+      inputs.followupQuestion.disabled = false;
     }
   }
 }
@@ -3368,6 +5032,8 @@ function updateCostOutput() {
       inputs.budgetDelta.classList.remove('over');
     }
   }
+
+  updateScopeStatusMessage(plannerScope.mode, getWatchlistById(plannerScope.watchlistId), plannerScope.customTickers);
 }
 
 function logStatus(message) {
@@ -3569,6 +5235,15 @@ function applyAccessState({ preserveStatus = false } = {}) {
       state !== 'admin-ok' || !activeRunId || (!currentRunMeta?.stop_requested && !currentRunMeta?.budget_exhausted);
   }
 
+  if (inputs.watchlistManager) {
+    inputs.watchlistManager.hidden = state !== 'admin-ok';
+  }
+
+  if (state !== 'admin-ok' && plannerScope.mode === 'watchlist') {
+    plannerScope.mode = 'universe';
+    applyScopeSettings(plannerScope, { fromSettings: true });
+  }
+
   if (!inputs.status) {
     lastAccessState = state;
     return;
@@ -3665,6 +5340,17 @@ async function refreshAuthContext() {
 async function syncAccess(options = {}) {
   await refreshAuthContext();
   applyAccessState(options);
+  if (authContext.isAdmin) {
+    loadWatchlists({ silent: true }).catch((error) => {
+      console.error('Failed to refresh watchlists during access sync', error);
+    });
+  } else {
+    watchlists = [];
+    watchlistMap.clear();
+    watchlistEntriesCache.clear();
+    renderWatchlistOptions();
+    updateScopeUI({ fromSettings: true });
+  }
   if (activeRunId && authContext.user && (authContext.isAdmin || authContext.membershipActive)) {
     refreshFollowupTickers({ silent: true }).catch((error) => {
       console.warn('Failed to refresh follow-up tickers during access sync', error);
@@ -3703,6 +5389,20 @@ async function startRun() {
   inputs.status.textContent = 'Launching…';
   logStatus(`Submitting run to ${RUNS_CREATE_ENDPOINT}`);
 
+  if (settings.scope?.mode === 'watchlist' && !settings.scope.watchlistId) {
+    inputs.status.textContent = 'Choose a watchlist before launching.';
+    logStatus('Launch blocked: no watchlist selected.');
+    inputs.startBtn.disabled = false;
+    return;
+  }
+
+  if (settings.scope?.mode === 'custom' && (!settings.scope.customTickers || settings.scope.customTickers.length === 0)) {
+    inputs.status.textContent = 'Add at least one custom ticker before launching.';
+    logStatus('Launch blocked: custom ticker list empty.');
+    inputs.startBtn.disabled = false;
+    return;
+  }
+
   try {
     const response = await fetch(RUNS_CREATE_ENDPOINT, {
       method: 'POST',
@@ -3713,6 +5413,7 @@ async function startRun() {
       body: JSON.stringify({
         planner: settings,
         budget_usd: settings.budgetUsd,
+        scope: settings.scope,
         client_meta: {
           origin: window.location.origin,
           pathname: window.location.pathname,
@@ -4005,6 +5706,23 @@ function bindEvents() {
     logStatus('Registry refreshed.');
     inputs.status.textContent = 'Registry updated';
   });
+  scopeRadios.forEach((radio) => radio.addEventListener('change', handleScopeChange));
+  inputs.watchlistSelect?.addEventListener('change', handleWatchlistSelect);
+  inputs.customTickers?.addEventListener('input', handleCustomTickerInput);
+  inputs.refreshWatchlistsBtn?.addEventListener('click', () => {
+    loadWatchlists({ silent: false }).catch((error) => {
+      console.error('Failed to refresh watchlists', error);
+    });
+  });
+  inputs.createWatchlistForm?.addEventListener('submit', handleCreateWatchlist);
+  inputs.addWatchlistTickerForm?.addEventListener('submit', handleAddWatchlistTicker);
+  inputs.refreshWatchlistEntriesBtn?.addEventListener('click', () => {
+    if (!plannerScope.watchlistId) return;
+    loadWatchlistEntries(plannerScope.watchlistId, { force: true, silent: false }).catch((error) => {
+      console.error('Failed to refresh watchlist entries', error);
+    });
+  });
+  inputs.watchlistEntriesBody?.addEventListener('click', handleWatchlistEntryClick);
   inputs.refreshHealthBtn?.addEventListener('click', () => refreshHealthStatus());
   inputs.refreshErrorsBtn?.addEventListener('click', () => refreshErrorLogs());
   inputs.autoContinueToggle?.addEventListener('change', handleAutoContinueToggle);

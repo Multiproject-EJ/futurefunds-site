@@ -15,6 +15,9 @@ migration up`, or any PostgreSQL client that runs the statements in order.
 
 ## Recent changes
 
+- `sql/013_watchlists.sql` introduces watchlists, ticker events, and helper
+  functions/policies. Apply it before deploying the planner scope UI or the
+  `tickers-refresh` worker.
 - `sql/006_ai_registry.sql` now keeps its `ON CONFLICT` clause attached to the seeded
   `INSERT` statement. Re-run it only if you want the corrected upsert logic in your
   database.

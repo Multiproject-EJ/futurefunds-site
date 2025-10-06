@@ -25,6 +25,9 @@ multi-stage model runs and reporting:
 | Table | Purpose |
 | --- | --- |
 | `tickers` | Canonical universe of symbols the automation can draw from, one row per ticker. |
+| `watchlists` | Named collections of tickers that the planner can target. |
+| `watchlist_entries` | Join table linking watchlists to tickers with optional ordering. |
+| `ticker_events` | Audit log of roster changes emitted by ingestion jobs. |
 | `sector_prompts` | Optional sector-specific prompt augmentations injected into Stage 2+. |
 | `runs` | High-level batch execution log for each analysis sweep (start time, status, budget flags). |
 | `run_items` | Per-ticker processing state tracking the current stage, label, and spend. |
@@ -403,14 +406,92 @@ Keep the following schemas in sync with `/sql/001_core.sql` when running migrati
 | --- | --- | --- | --- |
 | `ticker` | `text` | — | Upper-case trading symbol (e.g., `AAPL`). |
 | `name` | `text` | `null` | Company name used in prompts and UI. |
-| `exchange` | `text` | `null` | Listing exchange (NASDAQ, LSE, etc.). |
+| `exchange` | `text` | `null` | Listing exchange (NASDAQ, LSE, HKEX, etc.). |
 | `country` | `text` | `null` | Country code or descriptor. |
 | `sector` | `text` | `null` | High-level sector grouping. |
 | `industry` | `text` | `null` | Optional finer industry classification. |
+| `status` | `text` | `'active'` | Lifecycle marker used by the automation (`active`, `inactive`, `delisted`, `pending`, `unknown`). |
+| `listed_at` | `date` | `null` | Optional IPO/listing date used for bookkeeping. |
+| `delisted_at` | `date` | `null` | Populated when the roster maintenance job infers a delisting. |
+| `aliases` | `text[]` | `'{}'` | Prior names/tickers captured when maintenance detects a rename. |
+| `last_seen_at` | `timestamptz` | `now()` | Updated by ingestion jobs to note the latest roster refresh. |
+| `source` | `text` | `null` | Origin of the last update (`planner:watchlist`, `tickers-refresh`, etc.). |
+| `metadata` | `jsonb` | `'{}'::jsonb` | Arbitrary structured fields (FIGI, ISIN, listing MIC, etc.). |
 | `created_at` | `timestamptz` | `now()` | Auto timestamp. |
-| `updated_at` | `timestamptz` | `now()` | Maintain with trigger or app logic when editing. |
+| `updated_at` | `timestamptz` | `now()` | Managed by trigger `touch_updated_at` so manual edits stay fresh. |
 
-Seed the table with `/sql/002_seed.sql` for local development when you need sample data.
+Seed `/sql/002_seed.sql` for local smoke tests, then run `/sql/013_watchlists.sql` to enable roster maintenance triggers, `ticker_events`, and watchlist policies.
+
+Row-level security allows anonymous reads but restricts inserts/updates/deletes to admins (enforced by the `is_admin(uid)` helper). The `tickers-refresh` worker (`supabase/functions/tickers-refresh`) upserts records in bulk, records `ticker_events`, and marks missing exchange constituents as `delisted` when `mark_missing=true`.
+
+### `watchlists`
+
+*Primary key*: `id uuid` (`gen_random_uuid()`).
+
+| Column | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `id` | `uuid` | `gen_random_uuid()` | Identifier referenced by planner scope settings and runs. |
+| `name` | `text` | — | Human-readable name surfaced in the planner. |
+| `slug` | `text` | — | Unique slug used for API lookups. |
+| `description` | `text` | `null` | Optional summary shown in the planner. |
+| `is_system` | `boolean` | `false` | Marks built-in/shared watchlists. |
+| `is_public` | `boolean` | `false` | Exposes the watchlist to all authenticated users (read-only). |
+| `created_by` | `uuid` | `null` | Admin who created the list. |
+| `created_by_email` | `text` | `null` | Snapshot of the creator’s email for audit trails. |
+| `created_at` | `timestamptz` | `now()` | Auto timestamp. |
+| `updated_at` | `timestamptz` | `now()` | Managed by `touch_updated_at`. |
+
+Admins (per `is_admin(uid)`) can insert/update/delete; members can read public watchlists. The planner UI (`planner.html`) surfaces CRUD controls for admins, while non-admins fall back to the full-universe mode.
+
+### `watchlist_entries`
+
+Composite primary key: `(watchlist_id, ticker)`.
+
+| Column | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `watchlist_id` | `uuid` | — | References `watchlists(id)` with cascade delete. |
+| `ticker` | `text` | — | References `tickers(ticker)`; planner will upsert tickers before insertion. |
+| `rank` | `int` | `null` | Optional ordering hint used for display. |
+| `notes` | `text` | `null` | Stage guidance or reminders captured alongside the ticker. |
+| `added_at` | `timestamptz` | `now()` | Automatically populated on insert. |
+| `removed_at` | `timestamptz` | `null` | Soft-delete marker so history can be audited. |
+
+Non-admins can read entries belonging to public watchlists they can see; admins or watchlist owners can insert/update/delete.
+
+### `ticker_events`
+
+*Primary key*: `id bigserial`.
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `ticker` | `text` | References `tickers(ticker)`; cascade delete when the ticker is removed. |
+| `event_type` | `text` | `created`, `name_changed`, `exchange_updated`, `delisted_inferred`, etc. |
+| `details` | `jsonb` | Payload describing the change (previous/current values, actor, timestamp). |
+| `created_at` | `timestamptz` | Auto timestamp. |
+
+Every upsert the roster worker performs emits events so operators can audit rename/delist actions. The planner does not expose this table yet, but it is handy for future reporting/alerts.
+
+### `watchlist_summaries`
+
+View that exposes watchlists with ticker counts for lightweight client queries:
+
+```
+select
+  id,
+  name,
+  slug,
+  description,
+  is_system,
+  is_public,
+  created_by,
+  created_by_email,
+  created_at,
+  updated_at,
+  coalesce((select count(*) from public.watchlist_entries we where we.watchlist_id = w.id and we.removed_at is null), 0) as ticker_count
+from public.watchlists w;
+```
+
+Use it to avoid counting entries client-side when populating dropdowns. RLS inherits from the base tables.
 
 ### `sector_prompts`
 
@@ -432,6 +513,7 @@ Seed the table with `/sql/002_seed.sql` for local development when you need samp
 | `stop_requested` | `boolean` | `false` | Workers should check this before processing the next batch. |
 | `created_by` | `uuid` | `null` | Populated by the `runs-create` edge function to record who launched the batch for quota enforcement.【F:supabase/functions/runs-create/index.ts†L232-L330】 |
 | `created_by_email` | `text` | `null` | Snapshot of the operator’s email for audit trails.【F:supabase/functions/runs-create/index.ts†L232-L330】 |
+| `watchlist_id` | `uuid` | `null` | References `watchlists(id)` whenever a run targets a named list so history can be replayed or audited.【F:supabase/functions/runs-create/index.ts†L321-L363】 |
 
 Indexes on `created_by` and `created_at` support daily quota checks (`sql/009_member_access.sql`).【F:sql/009_member_access.sql†L1-L6】
 
