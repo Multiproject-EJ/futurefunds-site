@@ -1,0 +1,112 @@
+{
+  "models": {
+    "openrouter/gpt-4o-mini": {
+      "label": "GPT-4o mini (OpenRouter)",
+      "provider": "openrouter",
+      "model_name": "gpt-4o-mini",
+      "price_in": 0.15,
+      "price_out": 0.6,
+      "metadata": {
+        "headers": {
+          "X-Title": "FutureFunds Analyst",
+          "HTTP-Referer": "https://futurefunds.ai"
+        }
+      }
+    },
+    "openai/gpt-4o-mini": {
+      "label": "GPT-4o mini (OpenAI)",
+      "provider": "openai",
+      "model_name": "gpt-4o-mini",
+      "price_in": 0.15,
+      "price_out": 0.6
+    },
+    "openrouter/gpt-5-mini": {
+      "label": "GPT-5 mini (OpenRouter)",
+      "provider": "openrouter",
+      "model_name": "gpt-5-mini",
+      "price_in": 1.5,
+      "price_out": 6,
+      "metadata": {
+        "headers": {
+          "X-Title": "FutureFunds Analyst",
+          "HTTP-Referer": "https://futurefunds.ai"
+        }
+      }
+    },
+    "openrouter/gpt-5-preview": {
+      "label": "GPT-5 preview (OpenRouter)",
+      "provider": "openrouter",
+      "model_name": "gpt-5-preview",
+      "price_in": 5,
+      "price_out": 15,
+      "metadata": {
+        "headers": {
+          "X-Title": "FutureFunds Analyst",
+          "HTTP-Referer": "https://futurefunds.ai"
+        }
+      }
+    },
+    "openai/text-embedding-3-small": {
+      "label": "text-embedding-3-small",
+      "provider": "openai",
+      "model_name": "text-embedding-3-small",
+      "price_in": 0.02,
+      "price_out": 0
+    }
+  },
+  "stages": {
+    "stage1": {
+      "default_model": "openrouter/gpt-4o-mini",
+      "fallback_model": "openai/gpt-4o-mini",
+      "request": {
+        "temperature": 0.1,
+        "max_output_tokens": 700,
+        "cache": {
+          "ttl": 1800,
+          "strategy": "permissive"
+        }
+      },
+      "retry": {
+        "attempts": 3,
+        "backoff_ms": 1500,
+        "jitter": 300
+      }
+    },
+    "stage2": {
+      "default_model": "openrouter/gpt-5-mini",
+      "fallback_model": "openai/gpt-4o-mini",
+      "embedding_model": "openai/text-embedding-3-small",
+      "request": {
+        "temperature": 0.1,
+        "max_output_tokens": 1400,
+        "cache": {
+          "ttl": 600,
+          "strategy": "balanced"
+        }
+      },
+      "retry": {
+        "attempts": 3,
+        "backoff_ms": 2000,
+        "jitter": 400
+      }
+    },
+    "stage3": {
+      "default_model": "openrouter/gpt-5-preview",
+      "fallback_model": "openrouter/gpt-5-mini",
+      "embedding_model": "openai/text-embedding-3-small",
+      "request": {
+        "temperature": 0.05,
+        "max_output_tokens": 2200,
+        "cache": {
+          "ttl": 900,
+          "strategy": "quality-first"
+        }
+      },
+      "retry": {
+        "attempts": 4,
+        "backoff_ms": 2500,
+        "jitter": 600
+      }
+    }
+  }
+}

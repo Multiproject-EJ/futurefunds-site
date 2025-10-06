@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="en" data-lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>FutureFunds — Document Corpus Console</title>
+  <link rel="stylesheet" href="/assets/styles.css" />
+  <style>
+    :root { color-scheme: light dark; }
+    body { font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; margin: 0; background: var(--page,#f8fafc); color: var(--text,#0f172a); }
+    body.modal-open { overflow: hidden; }
+    .docs-wrap { max-width: 1080px; margin: 0 auto; padding: 32px 20px 96px; display: grid; gap: 28px; }
+    .docs-headline { display: grid; gap: 8px; }
+    .docs-headline h1 { margin: 0; font-size: clamp(1.8rem, 2.6vw, 2.4rem); font-weight: 700; }
+    .docs-headline p { margin: 0; max-width: 720px; color: var(--muted,#475569); font-size: .98rem; }
+    .docs-gate { border: 1px solid var(--border,#e2e8f0); border-radius: 24px; padding: 40px 32px; background: var(--panel,#fff); box-shadow: 0 18px 36px rgba(15,23,42,.08); text-align: center; }
+    .docs-gate h2 { margin: 0 0 12px; font-size: 1.6rem; }
+    .docs-gate p { margin: 0 0 18px; color: var(--muted,#475569); }
+    .docs-console { display: grid; gap: 28px; }
+    .docs-panel { border: 1px solid var(--border,#e2e8f0); border-radius: 22px; background: var(--panel,#fff); box-shadow: 0 18px 36px rgba(15,23,42,.08); padding: 24px; display: grid; gap: 22px; }
+    .docs-panel header { display: grid; gap: 8px; }
+    .docs-panel h2 { margin: 0; font-size: 1.4rem; font-weight: 600; }
+    .docs-panel p { margin: 0; color: var(--muted,#475569); font-size: .95rem; }
+    .docs-form { display: grid; gap: 18px; }
+    .docs-grid { display: grid; gap: 18px; }
+    @media (min-width: 760px) { .docs-grid { grid-template-columns: repeat(2,minmax(0,1fr)); } }
+    .docs-field { display: grid; gap: 6px; }
+    .docs-field label { font-size: .88rem; font-weight: 600; color: var(--text,#0f172a); }
+    .docs-field input, .docs-field select { height: 44px; padding: 0 14px; border-radius: 12px; border: 1px solid var(--border,#cbd5f5); font: inherit; background: rgba(255,255,255,.94); color: inherit; transition: border-color .2s ease, box-shadow .2s ease; }
+    .docs-field input:focus, .docs-field select:focus { outline: none; border-color: var(--accent,#2563eb); box-shadow: 0 0 0 3px rgba(37,99,235,.2); }
+    .docs-field input[type="file"] { padding: 10px 14px; height: auto; }
+    .docs-actions { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+    .docs-actions button { padding: 12px 20px; border-radius: 999px; border: none; font-weight: 600; cursor: pointer; }
+    .docs-actions button.primary { background: var(--accent,#2563eb); color: #fff; }
+    .docs-actions button.secondary { background: rgba(148,163,184,.18); color: var(--text,#0f172a); }
+    .docs-status { font-size: .88rem; color: var(--muted,#475569); }
+    .docs-table { width: 100%; border-collapse: collapse; }
+    .docs-table th, .docs-table td { padding: 12px 14px; border-bottom: 1px solid rgba(148,163,184,.24); text-align: left; font-size: .9rem; }
+    .docs-table th { font-size: .78rem; letter-spacing: .08em; text-transform: uppercase; color: var(--muted,#475569); }
+    .docs-table tbody tr:hover { background: rgba(37,99,235,.06); }
+    .docs-table td.actions { display: flex; gap: 8px; align-items: center; }
+    .badge { display: inline-flex; align-items: center; gap: 6px; padding: 2px 10px; border-radius: 999px; font-size: .75rem; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; }
+    .badge.pending { background: rgba(59,130,246,.14); color: #1d4ed8; }
+    .badge.processed { background: rgba(16,185,129,.16); color: #047857; }
+    .badge.failed { background: rgba(239,68,68,.16); color: #b91c1c; }
+    .docs-empty { padding: 28px; text-align: center; color: var(--muted,#64748b); font-size: .95rem; }
+    .docs-note { font-size: .82rem; color: var(--muted,#64748b); margin: -8px 0 0; }
+    .docs-pill { padding: 4px 10px; border-radius: 999px; background: rgba(37,99,235,.12); color: var(--accent,#2563eb); font-size: .78rem; font-weight: 600; }
+    .docs-console[aria-busy="true"] { opacity: .55; pointer-events: none; }
+  </style>
+</head>
+<body>
+  <header class="site-header">
+    <a class="brand" href="/">
+      <img src="/images/logo.webp" alt="FutureFunds.ai logo" class="logo" />
+      <span>FutureFunds.ai</span>
+    </a>
+    <button class="nav-toggle" id="navToggle" type="button" aria-expanded="false" aria-controls="siteNav">
+      <span class="sr-only">Menu</span>
+      <span class="nav-toggle__bar"></span>
+    </button>
+    <nav class="nav" id="siteNav" aria-label="Primary navigation">
+      <div class="nav-links">
+        <div class="nav-item nav-item--team">
+          <a href="/team.html" class="nav-link" data-i18n="nav.team">Experiment</a>
+        </div>
+        <div class="nav-item nav-item--has-panel nav-item--tools">
+          <a href="/tools.html" class="nav-link" data-i18n="nav.investmentTools">Investment Tools</a>
+          <div class="nav-panel nav-panel--tools" role="group" aria-label="Investment tools">
+            <div class="nav-panel__header">
+              <span class="nav-panel__title">Featured tools</span>
+              <a class="nav-panel__cta" href="/tools.html">Explore tools →</a>
+            </div>
+            <div class="nav-panel__content nav-panel__content--tools">
+              <a class="nav-tool" href="/tool.html?id=ff-pms">
+                <span class="chip membership">Member</span>
+                <h4>Portfolio OS</h4>
+                <p>Run strategies end-to-end with sheets + AI copilots.</p>
+              </a>
+              <a class="nav-tool" href="/tool.html?id=stockalpha-journal">
+                <span class="chip free">Free</span>
+                <h4>StockAlpha Journal</h4>
+                <p>Track theses, catalysts, and behavioral loops.</p>
+              </a>
+              <a class="nav-tool" href="/tool.html?id=smart-watchlist">
+                <span class="chip beta">Beta</span>
+                <h4>Smart Watchlist</h4>
+                <p>Daily signals on upgrades, downgrades, and trend shifts.</p>
+              </a>
+            </div>
+          </div>
+        </div>
+        <div class="nav-item nav-item--has-panel nav-item--analysis">
+          <a href="/universe.html" class="nav-link" data-i18n="nav.research">Research</a>
+        </div>
+      </div>
+      <div class="nav-actions">
+        <button class="btn" type="button" data-open-auth="signin">Sign in</button>
+      </div>
+    </nav>
+  </header>
+
+  <main class="docs-wrap" id="docsRoot">
+    <section class="docs-headline">
+      <h1>Document corpus console</h1>
+      <p>Upload filings, transcripts, or letters, then trigger the chunking worker to embed them for retrieval-augmented Stage 2 and Stage 3 prompts.</p>
+    </section>
+
+    <section class="docs-gate" id="docsGate" hidden>
+      <h2>Admin access required</h2>
+      <p>Sign in with an administrator account to manage the retrieval corpus.</p>
+      <button class="btn" type="button" data-open-auth="signin">Open sign-in</button>
+    </section>
+
+    <section class="docs-console" id="docsConsole" hidden>
+      <section class="docs-panel">
+        <header>
+          <h2>Upload source document</h2>
+          <p>Accepted formats: PDF, HTML, TXT. Files are stored under <span class="docs-pill">docs/raw/…</span> before the edge worker normalises and embeds snippets.</p>
+          <p class="docs-note">If the deployment cannot load the PDF parser you will see a “PDF extraction is not supported” status after processing.</p>
+        </header>
+        <form id="docsUploadForm" class="docs-form">
+          <div class="docs-grid">
+            <div class="docs-field">
+              <label for="docsTicker">Ticker</label>
+              <select id="docsTicker" name="ticker">
+                <option value="">Select ticker</option>
+              </select>
+              <p class="docs-note">Optional for macro or thematic documents.</p>
+            </div>
+            <div class="docs-field">
+              <label for="docsTitle">Title<span aria-hidden="true">*</span></label>
+              <input id="docsTitle" name="title" type="text" required placeholder="Investor letter Q3 2025" />
+            </div>
+            <div class="docs-field">
+              <label for="docsType">Source type</label>
+              <input id="docsType" name="source_type" type="text" placeholder="10-Q, transcript, letter…" />
+            </div>
+            <div class="docs-field">
+              <label for="docsPublished">Published</label>
+              <input id="docsPublished" name="published_at" type="date" />
+            </div>
+            <div class="docs-field">
+              <label for="docsUrl">Source URL</label>
+              <input id="docsUrl" name="source_url" type="url" placeholder="https://example.com/filing.pdf" />
+            </div>
+            <div class="docs-field">
+              <label for="docsFile">Document file<span aria-hidden="true">*</span></label>
+              <input id="docsFile" name="file" type="file" accept=".pdf,.txt,.text,.md,.html,.htm" required />
+            </div>
+          </div>
+          <div class="docs-actions">
+            <button class="primary" type="submit">Upload &amp; process</button>
+            <button class="secondary" type="button" id="docsRefreshBtn">Refresh list</button>
+            <span class="docs-status" id="docsStatus" role="status" aria-live="polite"></span>
+          </div>
+        </form>
+      </section>
+
+      <section class="docs-panel">
+        <header>
+          <h2>Corpus activity</h2>
+          <p>Track processed documents, chunk counts, and retry failed ingestions.</p>
+        </header>
+        <div class="docs-table__wrap">
+          <table class="docs-table">
+            <thead>
+              <tr>
+                <th scope="col">Title</th>
+                <th scope="col">Ticker</th>
+                <th scope="col">Type</th>
+                <th scope="col">Published</th>
+                <th scope="col">Chunks</th>
+                <th scope="col">Status</th>
+                <th scope="col">Uploaded</th>
+                <th scope="col">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="docsTableBody">
+              <tr>
+                <td colspan="8" class="docs-empty">No documents uploaded yet.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </section>
+  </main>
+
+  <script type="module" src="/assets/auth.js"></script>
+  <script type="module" src="/assets/docs-admin.js"></script>
+</body>
+</html>
