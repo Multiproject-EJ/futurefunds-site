@@ -1907,6 +1907,140 @@ function initCredentialManager() {
     return { answer: 'No response text returned.', model: modelId };
   };
 
+  const promptInput = modal.querySelector('#credentialTestPrompt');
+  const responseEl = modal.querySelector('#credentialTestResponse');
+  const responseMetaEl = modal.querySelector('#credentialTestMeta');
+  const responseBodyEl = modal.querySelector('#credentialTestReply');
+  const initialPromptValue = (promptInput?.value && promptInput.value.trim()) || defaultTestPrompt;
+  if (promptInput) {
+    promptInput.value = initialPromptValue;
+  }
+
+  const ensurePromptValue = () => {
+    if (promptInput && !promptInput.value.trim()) {
+      promptInput.value = initialPromptValue;
+    }
+  };
+
+  const hideTestResponse = () => {
+    if (responseEl) {
+      responseEl.hidden = true;
+    }
+    if (responseMetaEl) responseMetaEl.textContent = '';
+    if (responseBodyEl) responseBodyEl.textContent = '';
+  };
+
+  const showTestResponse = (text, providerLabel) => {
+    if (!responseEl) return;
+    responseEl.hidden = false;
+    if (responseBodyEl) {
+      responseBodyEl.textContent = text || 'No response text returned.';
+    }
+    if (responseMetaEl) {
+      const parts = [];
+      if (providerLabel) parts.push(providerLabel);
+      const timestamp = formatTimestamp(new Date());
+      if (timestamp && timestamp !== '—') parts.push(timestamp);
+      responseMetaEl.textContent = parts.join(' • ');
+    }
+  };
+
+  const createTimeoutSignal = (ms = 8000) => {
+    if (typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function') {
+      try {
+        return AbortSignal.timeout(ms);
+      } catch (error) {
+        console.warn('AbortSignal timeout creation failed', error);
+      }
+    }
+    return null;
+  };
+
+  const readResponseSnapshot = async (response) => {
+    let payload = null;
+    let detail = '';
+    try {
+      const clone = response.clone();
+      const contentType = clone.headers.get('content-type') ?? '';
+      if (contentType.includes('application/json')) {
+        payload = await clone.json();
+        detail =
+          (typeof payload?.error === 'string' && payload.error) ||
+          (typeof payload?.error?.message === 'string' && payload.error.message) ||
+          (typeof payload?.message === 'string' && payload.message) ||
+          '';
+      } else {
+        const text = await clone.text();
+        detail = text ? text.slice(0, 200).trim() : '';
+      }
+    } catch (error) {
+      detail = '';
+    }
+    return { payload, detail };
+  };
+
+  const runPingTest = async ({ target, apiKey }) => {
+    if (!target?.ping) return null;
+    const headers = target.ping.headers(apiKey);
+    const controller = createTimeoutSignal(8000);
+    const response = await fetch(target.ping.endpoint, {
+      method: 'GET',
+      headers,
+      signal: controller ?? undefined
+    });
+    const { detail } = await readResponseSnapshot(response);
+    if (!response.ok) {
+      const statusLabel = `${response.status} ${response.statusText || ''}`.trim();
+      const reason = detail ? `${statusLabel} — ${detail}` : statusLabel || 'Connection check failed';
+      const error = new Error(reason);
+      error.status = statusLabel;
+      error.detail = detail;
+      error.authFailure = response.status === 401 || response.status === 403;
+      error.stage = 'ping';
+      throw error;
+    }
+    return true;
+  };
+
+  const runPromptTest = async ({ target, apiKey, promptText }) => {
+    if (!target?.prompt) return { answer: '' };
+    const headers = target.prompt.headers(apiKey);
+    const method = target.prompt.method || 'POST';
+    const bodyPayload = typeof target.prompt.body === 'function'
+      ? target.prompt.body(promptText)
+      : target.prompt.body;
+    const controller = createTimeoutSignal(12000);
+    const response = await fetch(target.prompt.endpoint, {
+      method,
+      headers,
+      body: method.toUpperCase() === 'GET' ? undefined : JSON.stringify(bodyPayload),
+      signal: controller ?? undefined
+    });
+    const { payload, detail } = await readResponseSnapshot(response);
+    if (!response.ok) {
+      const statusLabel = `${response.status} ${response.statusText || ''}`.trim();
+      const reason = detail ? `${statusLabel} — ${detail}` : statusLabel || 'Prompt request failed';
+      const error = new Error(reason);
+      error.status = statusLabel;
+      error.detail = detail;
+      error.authFailure = response.status === 401 || response.status === 403;
+      error.stage = 'prompt';
+      throw error;
+    }
+    const parsed = typeof target.prompt.parse === 'function' ? target.prompt.parse(payload) : '';
+    const answer = (typeof parsed === 'string' ? parsed : '')?.trim();
+    if (answer) {
+      return { answer };
+    }
+    if (detail) {
+      return { answer: detail };
+    }
+    if (typeof payload === 'string' && payload.trim()) {
+      return { answer: payload.trim() };
+    }
+    return { answer: 'No response text returned.' };
+  };
+
   const applyLockedContent = (reason) => {
     if (!lockedEl) return;
     const copy = {
