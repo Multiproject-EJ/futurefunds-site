@@ -1537,6 +1537,12 @@
       gap: 12px;
       margin-top: 4px;
     }
+    .credential-test__hint {
+      margin: 0;
+      color: var(--workspace-muted);
+      font-size: .82rem;
+      line-height: 1.45;
+    }
     .credential-test__output {
       border: 1px solid var(--workspace-border);
       border-radius: 12px;
@@ -2892,6 +2898,9 @@
                   placeholder="Return “Yes, I'm working.” if you are receiving this."
                 >Return “Yes, I'm working.” if you are receiving this.</textarea>
               </label>
+              <p class="credential-test__hint" id="credentialTestHint">
+                Add a provider id above (for example, <code>openrouter</code>) to see how the connectivity check runs.
+              </p>
               <div class="credential-test__output" id="credentialTestResponse" hidden>
                 <div class="credential-test__output-header">
                   <strong>AI response</strong>

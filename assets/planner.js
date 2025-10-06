@@ -1604,13 +1604,15 @@ function initCredentialManager() {
       prompt: {
         endpoint: 'https://api.openai.com/v1/chat/completions',
         method: 'POST',
+        model: 'gpt-4o-mini',
+        modelLabel: 'gpt-4o-mini',
         headers: (key) => ({
           Authorization: `Bearer ${key}`,
           Accept: 'application/json',
           'Content-Type': 'application/json'
         }),
-        body: (question) => ({
-          model: 'gpt-4o-mini',
+        body: (question, promptConfig) => ({
+          model: promptConfig?.model || 'gpt-4o-mini',
           temperature: 0,
           max_tokens: 80,
           messages: [
@@ -1633,6 +1635,8 @@ function initCredentialManager() {
       prompt: {
         endpoint: 'https://openrouter.ai/api/v1/chat/completions',
         method: 'POST',
+        model: 'openrouter/auto',
+        modelLabel: 'openrouter/auto',
         headers: (key) => {
           const headers = {
             Authorization: `Bearer ${key}`,
@@ -1648,8 +1652,8 @@ function initCredentialManager() {
           }
           return headers;
         },
-        body: (question) => ({
-          model: 'openrouter/auto',
+        body: (question, promptConfig) => ({
+          model: promptConfig?.model || 'openrouter/auto',
           temperature: 0,
           max_tokens: 80,
           messages: [
@@ -1673,14 +1677,16 @@ function initCredentialManager() {
       prompt: {
         endpoint: 'https://api.anthropic.com/v1/messages',
         method: 'POST',
+        model: 'claude-3-haiku-20240307',
+        modelLabel: 'claude-3-haiku-20240307',
         headers: (key) => ({
           'x-api-key': key,
           'anthropic-version': '2023-06-01',
           Accept: 'application/json',
           'Content-Type': 'application/json'
         }),
-        body: (question) => ({
-          model: 'claude-3-haiku-20240307',
+        body: (question, promptConfig) => ({
+          model: promptConfig?.model || 'claude-3-haiku-20240307',
           max_tokens: 80,
           system: 'You are a status probe that confirms connectivity in one short sentence.',
           messages: [
@@ -1701,6 +1707,204 @@ function initCredentialManager() {
         }
       }
     }
+  };
+
+  const promptInput = modal.querySelector('#credentialTestPrompt');
+  const responseEl = modal.querySelector('#credentialTestResponse');
+  const responseMetaEl = modal.querySelector('#credentialTestMeta');
+  const responseBodyEl = modal.querySelector('#credentialTestReply');
+  const testHintEl = modal.querySelector('#credentialTestHint');
+  const initialPromptValue = (promptInput?.value && promptInput.value.trim()) || defaultTestPrompt;
+  if (promptInput) {
+    promptInput.value = initialPromptValue;
+  }
+
+  const ensurePromptValue = () => {
+    if (promptInput && !promptInput.value.trim()) {
+      promptInput.value = initialPromptValue;
+    }
+  };
+
+  const formatEndpoint = (value) => {
+    if (!value) return '';
+    try {
+      const url = new URL(value);
+      return `${url.origin}${url.pathname}`.replace(/\/$/, url.pathname === '/' ? '/' : '');
+    } catch (error) {
+      return value;
+    }
+  };
+
+  const updateTestHint = () => {
+    if (!testHintEl) return;
+    const rawProvider = (providerInput?.value || '').trim();
+    if (!rawProvider) {
+      testHintEl.textContent = 'Add a provider id above (for example, openrouter) to see how the connectivity check runs.';
+      return;
+    }
+
+    const normalized = rawProvider.toLowerCase();
+    const lookupKey = normalized.replace(/[^a-z0-9]/g, '');
+    const target = connectionTargets[lookupKey] || connectionTargets[normalized];
+
+    if (!target) {
+      testHintEl.textContent = `No automated connection test is configured for “${rawProvider}”.`;
+      return;
+    }
+
+    const details = [];
+    if (target.ping?.endpoint) {
+      details.push(`Pings ${formatEndpoint(target.ping.endpoint)} to confirm the key`);
+    }
+    if (target.prompt?.endpoint) {
+      const endpointLabel = formatEndpoint(target.prompt.endpoint);
+      const modelLabel = target.prompt.modelLabel || target.prompt.model;
+      if (modelLabel) {
+        details.push(`Sends your question to ${endpointLabel} using ${modelLabel}`);
+      } else {
+        details.push(`Sends your question to ${endpointLabel}`);
+      }
+    }
+
+    if (!details.length) {
+      testHintEl.textContent = `No live requests are configured for ${target.label || rawProvider}.`;
+      return;
+    }
+
+    testHintEl.textContent = `${details.join('. ')}.`;
+  };
+
+  updateTestHint();
+
+  const hideTestResponse = () => {
+    if (responseEl) {
+      responseEl.hidden = true;
+    }
+    if (responseMetaEl) responseMetaEl.textContent = '';
+    if (responseBodyEl) responseBodyEl.textContent = '';
+  };
+
+  const showTestResponse = (text, target, meta = {}) => {
+    if (!responseEl) return;
+    responseEl.hidden = false;
+    if (responseBodyEl) {
+      responseBodyEl.textContent = text || 'No response text returned.';
+    }
+    if (responseMetaEl) {
+      const parts = [];
+      const label = meta.providerLabel || target?.label;
+      if (label) parts.push(label);
+      const modelLabel = meta.modelLabel || meta.model || target?.prompt?.modelLabel || target?.prompt?.model;
+      if (modelLabel) parts.push(modelLabel);
+      const timestamp = formatTimestamp(new Date());
+      if (timestamp && timestamp !== '—') parts.push(timestamp);
+      responseMetaEl.textContent = parts.join(' • ');
+    }
+  };
+
+  if (providerInput) {
+    providerInput.addEventListener('input', () => {
+      updateTestHint();
+      hideTestResponse();
+    });
+  }
+
+  const createTimeoutSignal = (ms = 8000) => {
+    if (typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function') {
+      try {
+        return AbortSignal.timeout(ms);
+      } catch (error) {
+        console.warn('AbortSignal timeout creation failed', error);
+      }
+    }
+    return null;
+  };
+
+  const readResponseSnapshot = async (response) => {
+    let payload = null;
+    let detail = '';
+    try {
+      const clone = response.clone();
+      const contentType = clone.headers.get('content-type') ?? '';
+      if (contentType.includes('application/json')) {
+        payload = await clone.json();
+        detail =
+          (typeof payload?.error === 'string' && payload.error) ||
+          (typeof payload?.error?.message === 'string' && payload.error.message) ||
+          (typeof payload?.message === 'string' && payload.message) ||
+          '';
+      } else {
+        const text = await clone.text();
+        detail = text ? text.slice(0, 200).trim() : '';
+      }
+    } catch (error) {
+      detail = '';
+    }
+    return { payload, detail };
+  };
+
+  const runPingTest = async ({ target, apiKey }) => {
+    if (!target?.ping) return null;
+    const headers = target.ping.headers(apiKey);
+    const controller = createTimeoutSignal(8000);
+    const response = await fetch(target.ping.endpoint, {
+      method: 'GET',
+      headers,
+      signal: controller ?? undefined
+    });
+    const { detail } = await readResponseSnapshot(response);
+    if (!response.ok) {
+      const statusLabel = `${response.status} ${response.statusText || ''}`.trim();
+      const reason = detail ? `${statusLabel} — ${detail}` : statusLabel || 'Connection check failed';
+      const error = new Error(reason);
+      error.status = statusLabel;
+      error.detail = detail;
+      error.authFailure = response.status === 401 || response.status === 403;
+      error.stage = 'ping';
+      throw error;
+    }
+    return true;
+  };
+
+  const runPromptTest = async ({ target, apiKey, promptText }) => {
+    if (!target?.prompt) return { answer: '' };
+    const promptConfig = target.prompt;
+    const headers = promptConfig.headers(apiKey);
+    const method = promptConfig.method || 'POST';
+    const bodyPayload = typeof promptConfig.body === 'function'
+      ? promptConfig.body(promptText, promptConfig, target)
+      : promptConfig.body;
+    const controller = createTimeoutSignal(12000);
+    const response = await fetch(target.prompt.endpoint, {
+      method,
+      headers,
+      body: method.toUpperCase() === 'GET' ? undefined : JSON.stringify(bodyPayload),
+      signal: controller ?? undefined
+    });
+    const { payload, detail } = await readResponseSnapshot(response);
+    if (!response.ok) {
+      const statusLabel = `${response.status} ${response.statusText || ''}`.trim();
+      const reason = detail ? `${statusLabel} — ${detail}` : statusLabel || 'Prompt request failed';
+      const error = new Error(reason);
+      error.status = statusLabel;
+      error.detail = detail;
+      error.authFailure = response.status === 401 || response.status === 403;
+      error.stage = 'prompt';
+      throw error;
+    }
+    const parsed = typeof promptConfig.parse === 'function' ? promptConfig.parse(payload) : '';
+    const answer = (typeof parsed === 'string' ? parsed : '')?.trim();
+    const modelId = promptConfig.model || null;
+    if (answer) {
+      return { answer, model: modelId };
+    }
+    if (detail) {
+      return { answer: detail, model: modelId };
+    }
+    if (typeof payload === 'string' && payload.trim()) {
+      return { answer: payload.trim(), model: modelId };
+    }
+    return { answer: 'No response text returned.', model: modelId };
   };
 
   const promptInput = modal.querySelector('#credentialTestPrompt');
@@ -1932,6 +2136,7 @@ function initCredentialManager() {
     if (updatedEl) updatedEl.textContent = '—';
     ensurePromptValue();
     hideTestResponse();
+    updateTestHint();
     suppressDirty = false;
     isDirty = false;
   };
@@ -1952,6 +2157,7 @@ function initCredentialManager() {
     if (updatedEl) updatedEl.textContent = formatTimestamp(record.updated_at);
     ensurePromptValue();
     hideTestResponse();
+    updateTestHint();
     suppressDirty = false;
     isDirty = false;
   };
@@ -2299,13 +2505,19 @@ function initCredentialManager() {
         setStatus(`Sending test question to ${target.label}…`, 'info');
         const result = await runPromptTest({ target, apiKey, promptText });
         const answer = (result?.answer || '').toString();
-        showTestResponse(answer, target.label);
-        setStatus(`${target.label} responded successfully.`, 'success');
+        const modelId = result?.model || target.prompt?.model || null;
+        const modelLabel = target.prompt?.modelLabel || modelId;
+        showTestResponse(answer, target, { model: modelId, modelLabel });
+        const successMessage = modelLabel
+          ? `${target.label} responded successfully (${modelLabel}).`
+          : `${target.label} responded successfully.`;
+        setStatus(successMessage, 'success');
         const cleaned = answer.replace(/\s+/g, ' ').trim();
         const snippet = cleaned && cleaned !== 'No response text returned.'
           ? (cleaned.length > 120 ? `${cleaned.slice(0, 117)}…` : cleaned)
           : '';
-        logStatus(`${target.label} prompt test succeeded${snippet ? ` — “${snippet}”` : ''}.`);
+        const modelSuffix = modelLabel ? ` via ${modelLabel}` : '';
+        logStatus(`${target.label} prompt test succeeded${modelSuffix}${snippet ? ` — “${snippet}”` : ''}.`);
       } else {
         const successMessage = `${target.label} connection succeeded.`;
         setStatus(successMessage, 'success');
