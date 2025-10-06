@@ -150,7 +150,20 @@
   );
 
   const status = document.getElementById("status");
-  const redirectTo = `${location.origin}/login.html`; // make sure this is whitelisted in Supabase Auth → URL Configuration
+  const urlParams = new URLSearchParams(location.search);
+  const sanitizeRedirect = (value) => {
+    if (!value) return "/universe.html";
+    try {
+      const target = new URL(value, location.origin);
+      if (target.origin !== location.origin) return "/universe.html";
+      const path = `${target.pathname}${target.search}${target.hash}` || "/universe.html";
+      return path.startsWith("/") ? path : "/universe.html";
+    } catch (_error) {
+      return "/universe.html";
+    }
+  };
+  const redirectTarget = sanitizeRedirect(urlParams.get("redirect"));
+  const redirectTo = `${location.origin}${location.pathname}${location.search}`; // maintain query params for magic link callbacks
 
   // --- Magic link ---
   document.getElementById("ml-send").onclick = async () => {
@@ -172,7 +185,6 @@
     if (error) status.textContent = `Error: ${error.message}`;
     else {
       status.textContent = `Logged in as ${data.user.email}. Redirecting…`;
-      location.href = "/universe.html";
     }
   };
 
@@ -207,11 +219,17 @@
     }
   })();
 
-  sb.auth.onAuthStateChange((_event, session) => {
+  sb.auth.onAuthStateChange((event, session) => {
     if (session) {
-      status.textContent = `Logged in as ${session.user.email}. Redirecting…`;
-      // Send them to members area
-      setTimeout(()=> location.href = "/universe.html", 500);
+      const message = event === "INITIAL_SESSION"
+        ? `Logged in as ${session.user.email}.`
+        : `Logged in as ${session.user.email}. Redirecting…`;
+      status.textContent = message;
+      if (event === "SIGNED_IN" || event === "TOKEN_REFRESHED") {
+        setTimeout(() => { location.href = redirectTarget; }, 500);
+      }
+    } else {
+      status.textContent = "Signed out.";
     }
   });
 </script>
