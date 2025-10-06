@@ -7,6 +7,14 @@ import {
   requestChatCompletion,
   withRetry
 } from '../_shared/ai.ts';
+import {
+  hashRequestBody,
+  buildCacheKey,
+  fetchCachedCompletion,
+  storeCachedCompletion,
+  markCachedCompletionHit,
+  resolveCacheTtlMinutes
+} from '../_shared/cache.ts';
 import { validateStage1Response, explainValidation } from '../_shared/prompt-validators.ts';
 import { recordErrorLog } from '../_shared/observability.ts';
 import {
@@ -32,6 +40,7 @@ type StageResult = {
   summary: string;
   updated_at: string;
   status: 'ok' | 'failed';
+  cache_hit?: boolean;
 };
 
 const corsHeaders = {
@@ -51,6 +60,7 @@ const DEFAULT_STAGE1_MODEL = stageDefaults?.default_model ?? 'openrouter/gpt-4o-
 const FALLBACK_STAGE1_MODEL = stageDefaults?.fallback_model ?? 'openai/gpt-4o-mini';
 const stageRequestSettings = stageDefaults?.request ?? null;
 const stageRetry = unpackRetrySettings(stageDefaults?.retry);
+const stageCacheTtlMinutes = resolveCacheTtlMinutes('stage1');
 
 const systemPromptTemplate = loadPromptTemplate('stage1/system');
 const userPromptTemplate = loadPromptTemplate('stage1/user');
@@ -386,6 +396,7 @@ serve(async (req) => {
   }
 
   const results: StageResult[] = [];
+  let cacheHits = 0;
   let processed = 0;
   let failures = 0;
 
@@ -411,14 +422,54 @@ serve(async (req) => {
         },
         stageRequestSettings
       );
-      const completion = await withRetry(
-        stageRetry.attempts,
-        stageRetry.backoffMs,
-        () => requestChatCompletion(modelRecord, credentialRecord, requestBody),
-        { jitter: stageRetry.jitter }
-      );
+      const promptHash = await hashRequestBody(requestBody);
+      const cacheKey = buildCacheKey(['stage1', ticker, promptHash]);
+      let cacheHit = false;
+      let usage: Record<string, unknown> | null = null;
+      let completion: Record<string, unknown> | null = null;
 
-      rawMessage = completion?.choices?.[0]?.message?.content ?? '{}';
+      try {
+        const cached = await fetchCachedCompletion(supabaseAdmin, modelRecord.slug, cacheKey);
+        if (cached) {
+          cacheHit = true;
+          cacheHits += 1;
+          usage = cached.usage ?? null;
+          completion = cached.response_body ?? null;
+          await markCachedCompletionHit(supabaseAdmin, cached.id);
+        }
+      } catch (error) {
+        console.warn('Stage 1 cache lookup failed', error);
+      }
+
+      if (!completion) {
+        completion = await withRetry(
+          stageRetry.attempts,
+          stageRetry.backoffMs,
+          () => requestChatCompletion(modelRecord, credentialRecord, requestBody),
+          { jitter: stageRetry.jitter }
+        );
+        const completionAny = completion as { usage?: Record<string, unknown> };
+        usage = completionAny?.usage ?? null;
+        try {
+          await storeCachedCompletion(
+            supabaseAdmin,
+            modelRecord.slug,
+            cacheKey,
+            promptHash,
+            requestBody,
+            completion as Record<string, unknown>,
+            usage ?? null,
+            { ttlMinutes: stageCacheTtlMinutes }
+          );
+        } catch (error) {
+          console.warn('Stage 1 cache write failed', error);
+        }
+      }
+
+      const completionAny = completion as {
+        choices?: Array<{ message?: { content?: string } }>;
+      };
+      rawMessage = completionAny?.choices?.[0]?.message?.content ?? '{}';
       try {
         parsed = JSON.parse(rawMessage);
       } catch (error) {
@@ -444,15 +495,17 @@ serve(async (req) => {
         throw validationError;
       }
 
-      const usage = completion?.usage ?? {};
-      const { cost, promptTokens, completionTokens } = computeUsageCost(modelRecord, usage);
+      const effectiveUsage = cacheHit ? {} : (usage ?? {});
+      const { cost, promptTokens, completionTokens } = computeUsageCost(modelRecord, effectiveUsage);
+
+      const answerPayload = cacheHit ? { ...parsed, cache_hit: true } : parsed;
 
       await supabaseAdmin.from('answers').insert({
         run_id: runRow.id,
         ticker,
         stage: 1,
         question_group: 'triage',
-        answer_json: parsed,
+        answer_json: answerPayload,
         tokens_in: promptTokens,
         tokens_out: completionTokens,
         cost_usd: cost,
@@ -472,15 +525,17 @@ serve(async (req) => {
         .eq('run_id', runRow.id)
         .eq('ticker', ticker);
 
-      await supabaseAdmin.from('cost_ledger').insert({
-        run_id: runRow.id,
-        stage: 1,
-        model: modelRecord.slug,
-        tokens_in: promptTokens,
-        tokens_out: completionTokens,
-        cost_usd: cost,
-        created_at: startedAt
-      });
+      if (cost > 0) {
+        await supabaseAdmin.from('cost_ledger').insert({
+          run_id: runRow.id,
+          stage: 1,
+          model: modelRecord.slug,
+          tokens_in: promptTokens,
+          tokens_out: completionTokens,
+          cost_usd: cost,
+          created_at: startedAt
+        });
+      }
 
       const summary = Array.isArray(parsed?.reasons) && parsed.reasons.length
         ? String(parsed.reasons[0])
@@ -495,7 +550,8 @@ serve(async (req) => {
         label: typeof parsed?.label === 'string' ? parsed.label : null,
         summary,
         updated_at: startedAt,
-        status: 'ok'
+        status: 'ok',
+        cache_hit: cacheHit
       });
       processed += 1;
     } catch (error) {
@@ -551,8 +607,9 @@ serve(async (req) => {
   }
 
   const metrics = await computeMetrics(supabaseAdmin, runRow.id);
+  const cacheNote = cacheHits > 0 ? ` (${cacheHits} cached)` : '';
   const message = processed > 0
-    ? `Processed ${processed} ticker${processed === 1 ? '' : 's'}. Pending: ${metrics.pending}.`
+    ? `Processed ${processed} ticker${processed === 1 ? '' : 's'}${cacheNote}. Pending: ${metrics.pending}.`
     : 'No tickers processed.';
 
   return jsonResponse(200, {
@@ -562,6 +619,7 @@ serve(async (req) => {
     metrics,
     results,
     model: modelRecord.slug,
-    message
+    message,
+    cache_hits: cacheHits
   });
 });

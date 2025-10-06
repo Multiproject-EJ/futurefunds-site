@@ -35,6 +35,7 @@ multi-stage model runs and reporting:
 | `run_feedback` | Captures post-run follow-up questions submitted by members or automation for analyst review. |
 | `answers` | Stores structured and narrative outputs produced at each stage of the pipeline. |
 | `cost_ledger` | Aggregated token usage and USD cost per stage/run for budget monitoring. |
+| `cached_completions` | Persistent cache of deterministic model outputs reused across runs to avoid duplicate spend. |
 | `doc_chunks` | Optional retrieval corpus of text snippets (10-Ks, transcripts, etc.) used for RAG. |
 | `analysis_dimensions` | Registry of scoring dimensions (financial resilience, leadership, etc.) with color/weight metadata. |
 | `analysis_questions` | Question bank powering Stage&nbsp;3 prompts, dependency graphing, and verdict schemas. |
@@ -613,6 +614,30 @@ returns both the fresh item and, on `GET`, the full queue for operators monitori
 | `tokens_out` | `bigint` | Completion tokens. |
 | `cost_usd` | `numeric(12,4)` | USD spend at logging time. |
 | `created_at` | `timestamptz` | Timestamp of the ledger entry. |
+
+### `cached_completions`
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | `uuid` | Primary key generated via `gen_random_uuid()`. |
+| `model_slug` | `text` | Identifier for the model that produced the response. |
+| `cache_key` | `text` | Stage/ticker hash that groups equivalent prompts. Unique per model. |
+| `prompt_hash` | `text` | SHA-256 hash of the request payload for audit/debugging. |
+| `request_body` | `jsonb` | Exact body sent to the model (messages, temperature, etc.). |
+| `response_body` | `jsonb` | Full model response (choices, usage metadata). |
+| `usage` | `jsonb` | Raw token usage captured from the provider. |
+| `context` | `jsonb` | Optional metadata (retrieval citations, dependency notes) saved alongside the response. |
+| `tags` | `text[]` | Reserved for future segmentation of cache entries. |
+| `hit_count` | `int` | Number of times the cache entry has been reused. |
+| `last_hit_at` | `timestamptz` | Timestamp of the most recent cache reuse. |
+| `expires_at` | `timestamptz` | Optional expiry timestamp computed from the TTL controls. |
+| `created_at` | `timestamptz` | Insert timestamp. |
+
+Stage 1–3 workers consult this table before making model calls. When the request body matches
+an existing `cache_key`, the worker reuses the stored response, marks the hit, and records zero
+incremental cost for the run. Otherwise the fresh response is inserted with a TTL governed by
+`AI_CACHE_TTL_MINUTES` (or the stage-specific overrides) so deterministic prompts can be reused
+across future batches without double spending.
 
 ### `docs`
 

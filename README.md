@@ -23,6 +23,9 @@ universe, and internal tooling.
    - Configure the `tickers-refresh` worker with a roster feed (or let it infer
      updates from the planner) so new tickers, renames, and delistings are
      captured automatically.
+5. Tune the cached completion TTLs if desired. The defaults keep deterministic
+   Stage 1–3 prompts for seven days (`AI_CACHE_TTL_MINUTES`); override the stage
+   specific env vars when you need shorter or longer retention.
 
 ## Developer docs
 
@@ -35,6 +38,9 @@ universe, and internal tooling.
 - [Ticker roster maintenance](docs/supabase-schema.md#tickers) — describes the
   `tickers-refresh` worker, watchlists, and the policies backing the planner’s
   new scope controls.
+- [LLM response cache](docs/supabase-schema.md#cached_completions) — explains how
+  Stage 1–3 workers reuse deterministic prompts via the `cached_completions`
+  table and the associated TTL environment variables.
 - [Sector prompt library](sectors.html) — admin console to curate Stage 2 heuristics synced to the planner.
 - [Universe cockpit](universe.html) — requires the helper functions from `sql/003_dashboard_helpers.sql`
   and `sql/005_universe_snapshot.sql` to surface run outputs and ticker dossiers.

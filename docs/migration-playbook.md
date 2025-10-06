@@ -15,6 +15,9 @@ migration up`, or any PostgreSQL client that runs the statements in order.
 
 ## Recent changes
 
+- `sql/014_cached_completions.sql` provisions the cache that Stage 1–3 workers
+  consult before calling the model. Run it before deploying the cached response
+  helpers so reuse works end to end.
 - `sql/013_watchlists.sql` introduces watchlists, ticker events, and helper
   functions/policies. Apply it before deploying the planner scope UI or the
   `tickers-refresh` worker.

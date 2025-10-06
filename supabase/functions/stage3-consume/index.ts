@@ -9,6 +9,14 @@ import {
   withRetry
 } from '../_shared/ai.ts';
 import {
+  hashRequestBody,
+  buildCacheKey,
+  fetchCachedCompletion,
+  storeCachedCompletion,
+  markCachedCompletionHit,
+  resolveCacheTtlMinutes
+} from '../_shared/cache.ts';
+import {
   validateStage3QuestionResponse,
   validateStage3SummaryResponse,
   explainValidation
@@ -34,6 +42,7 @@ type Stage3Result = {
     hits: number;
     citations: RetrievedCitation[];
   };
+  cache_hit?: boolean;
 };
 
 type Stage3Metrics = {
@@ -128,6 +137,9 @@ const FALLBACK_STAGE3_MODEL = stageDefaults?.fallback_model ?? 'openrouter/gpt-5
 const EMBEDDING_MODEL_SLUG = stageDefaults?.embedding_model ?? 'openai/text-embedding-3-small';
 const stageRequestSettings = stageDefaults?.request ?? null;
 const stageRetry = unpackRetrySettings(stageDefaults?.retry);
+const stageCacheTtlMinutes = resolveCacheTtlMinutes('stage3');
+const questionCacheTtlMinutes = resolveCacheTtlMinutes('stage3_question', stageCacheTtlMinutes);
+const summaryCacheTtlMinutes = resolveCacheTtlMinutes('stage3_summary', stageCacheTtlMinutes);
 const questionSystemTemplate = loadPromptTemplate('stage3/question-system');
 const questionUserTemplate = loadPromptTemplate('stage3/question-user');
 const summarySystemTemplate = loadPromptTemplate('stage3/summary-system');
@@ -861,14 +873,57 @@ serve(async (req) => {
         },
         stageRequestSettings
       );
-      const completion = await withRetry(
-        stageRetry.attempts,
-        stageRetry.backoffMs,
-        () => requestChatCompletion(modelRecord, credentialRecord, requestBody),
-        { jitter: stageRetry.jitter }
-      );
+      const promptHash = await hashRequestBody(requestBody);
+      const scope = cacheScope ?? promptId;
+      const cacheKey = buildCacheKey(['stage3', ticker, scope, promptHash]);
+      const ttlMinutes = scope === 'stage3-summary' ? summaryCacheTtlMinutes : questionCacheTtlMinutes;
 
-      rawMessage = completion?.choices?.[0]?.message?.content ?? '{}';
+      let cacheHit = false;
+      let usage: Record<string, unknown> | null = null;
+      let completion: Record<string, unknown> | null = null;
+
+      try {
+        const cached = await fetchCachedCompletion(supabaseAdmin, modelRecord.slug, cacheKey);
+        if (cached) {
+          cacheHit = true;
+          usage = cached.usage ?? null;
+          completion = cached.response_body ?? null;
+          await markCachedCompletionHit(supabaseAdmin, cached.id);
+        }
+      } catch (error) {
+        console.warn('Stage 3 cache lookup failed', error);
+      }
+
+      if (!completion) {
+        completion = await withRetry(
+          stageRetry.attempts,
+          stageRetry.backoffMs,
+          () => requestChatCompletion(modelRecord, credentialRecord, requestBody),
+          { jitter: stageRetry.jitter }
+        );
+        const completionAny = completion as { usage?: Record<string, unknown> };
+        usage = completionAny?.usage ?? null;
+        try {
+          await storeCachedCompletion(
+            supabaseAdmin,
+            modelRecord.slug,
+            cacheKey,
+            promptHash,
+            requestBody,
+            completion as Record<string, unknown>,
+            usage ?? null,
+            { ttlMinutes, context: cacheContext ?? metadata ?? undefined }
+          );
+        } catch (error) {
+          console.warn('Stage 3 cache write failed', error);
+        }
+      }
+
+      const completionAny = completion as {
+        choices?: Array<{ message?: { content?: string } }>;
+      };
+
+      rawMessage = completionAny?.choices?.[0]?.message?.content ?? '{}';
       let parsed: JsonRecord;
       try {
         parsed = JSON.parse(rawMessage);
@@ -916,9 +971,9 @@ serve(async (req) => {
         }
       }
 
-      const usage = completion?.usage ?? {};
-      const { cost, promptTokens, completionTokens } = computeUsageCost(modelRecord, usage);
-      return { parsed, cost, promptTokens, completionTokens };
+      const effectiveUsage = cacheHit ? {} : (usage ?? {});
+      const { cost, promptTokens, completionTokens } = computeUsageCost(modelRecord, effectiveUsage);
+      return { parsed, cost, promptTokens, completionTokens, cacheHit };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       const basePayload: JsonRecord =
@@ -987,6 +1042,7 @@ serve(async (req) => {
   let failures = 0;
   let totalRetrievalHits = 0;
   let totalEmbeddingTokens = 0;
+  let cacheHits = 0;
 
   for (const item of items) {
     const ticker = item.ticker;
@@ -1027,7 +1083,13 @@ serve(async (req) => {
       for (const question of questionDefinitions) {
         const dependencyNotes = digestDependencies(question, questionCache);
         const prompt = await buildQuestionPrompt(context, question, dependencyNotes);
-        const { parsed, cost, promptTokens, completionTokens } = await runJsonPrompt(
+        const {
+          parsed,
+          cost,
+          promptTokens,
+          completionTokens,
+          cacheHit
+        } = await runJsonPrompt(
           prompt.system,
           prompt.user,
           {
@@ -1038,10 +1100,19 @@ serve(async (req) => {
               question: question.slug,
               dimension: question.dimension.slug,
               depends_on: question.depends_on
+            },
+            cacheScope: `stage3-question-${question.slug}`,
+            cacheContext: {
+              retrieval: retrieval.citations,
+              dependencies: dependencyNotes,
+              context
             }
           }
         );
         totalCost += cost;
+        if (cacheHit) {
+          cacheHits += 1;
+        }
 
         const verdict = normalizeVerdictValue(
           (parsed as JsonRecord)?.verdict ?? (parsed as JsonRecord)?.rating ?? (parsed as JsonRecord)?.outlook
@@ -1076,6 +1147,9 @@ serve(async (req) => {
           ...parsed,
           context_citations: retrieval.citations
         };
+        if (cacheHit) {
+          enrichedAnswer.cache_hit = true;
+        }
 
         const outcome: QuestionOutcome = {
           definition: question,
@@ -1126,15 +1200,17 @@ serve(async (req) => {
           created_at: startedAt
         });
 
-        await supabaseAdmin.from('cost_ledger').insert({
-          run_id: runRow.id,
-          stage: 3,
-          model: modelRecord.slug,
-          tokens_in: promptTokens,
-          tokens_out: completionTokens,
-          cost_usd: cost,
-          created_at: startedAt
-        });
+        if (cost > 0) {
+          await supabaseAdmin.from('cost_ledger').insert({
+            run_id: runRow.id,
+            stage: 3,
+            model: modelRecord.slug,
+            tokens_in: promptTokens,
+            tokens_out: completionTokens,
+            cost_usd: cost,
+            created_at: startedAt
+          });
+        }
       }
 
       const dimensionSummaries = computeDimensionSummaries(outcomes);
@@ -1166,7 +1242,8 @@ serve(async (req) => {
         parsed: summaryJson,
         cost: summaryCost,
         promptTokens: summaryPromptTokens,
-        completionTokens: summaryCompletionTokens
+        completionTokens: summaryCompletionTokens,
+        cacheHit: summaryCacheHit
       } = await runJsonPrompt(summaryPrompt.system, summaryPrompt.user, {
         promptId: 'stage3-summary',
         ticker,
@@ -1174,9 +1251,22 @@ serve(async (req) => {
         metadata: {
           ticker,
           question_count: questionDefinitions.length
+        },
+        cacheScope: 'stage3-summary',
+        cacheContext: {
+          retrieval: retrieval.citations,
+          dimensions: dimensionSummaries
         }
       });
       totalCost += summaryCost;
+      if (summaryCacheHit) {
+        cacheHits += 1;
+      }
+
+      summaryJson.context_citations = retrieval.citations;
+      if (summaryCacheHit) {
+        summaryJson.cache_hit = true;
+      }
 
       summaryJson.context_citations = retrieval.citations;
 
@@ -1213,15 +1303,17 @@ serve(async (req) => {
         created_at: startedAt
       });
 
-      await supabaseAdmin.from('cost_ledger').insert({
-        run_id: runRow.id,
-        stage: 3,
-        model: modelRecord.slug,
-        tokens_in: summaryPromptTokens,
-        tokens_out: summaryCompletionTokens,
-        cost_usd: summaryCost,
-        created_at: startedAt
-      });
+      if (summaryCost > 0) {
+        await supabaseAdmin.from('cost_ledger').insert({
+          run_id: runRow.id,
+          stage: 3,
+          model: modelRecord.slug,
+          tokens_in: summaryPromptTokens,
+          tokens_out: summaryCompletionTokens,
+          cost_usd: summaryCost,
+          created_at: startedAt
+        });
+      }
 
       await supabaseAdmin
         .from('run_items')
@@ -1243,7 +1335,8 @@ serve(async (req) => {
         retrieval: {
           hits: retrieval.snippets.length,
           citations: retrieval.citations
-        }
+        },
+        cache_hit: summaryCacheHit
       });
       processed += 1;
     } catch (error) {
@@ -1308,8 +1401,9 @@ serve(async (req) => {
   }
   const metricsWithSpend: Stage3Metrics = { ...metrics, spend };
 
+  const cacheNote = cacheHits > 0 ? ` (${cacheHits} cached)` : '';
   const message = processed > 0
-    ? `Processed ${processed} finalist${processed === 1 ? '' : 's'}. Pending deep dives: ${metrics.pending}.`
+    ? `Processed ${processed} finalist${processed === 1 ? '' : 's'}${cacheNote}. Pending deep dives: ${metrics.pending}.`
     : 'No finalists processed.';
 
   return jsonResponse(200, {
@@ -1320,6 +1414,7 @@ serve(async (req) => {
     metrics: metricsWithSpend,
     results,
     message,
+    cache_hits: cacheHits,
     retrieval: {
       total_hits: totalRetrievalHits,
       embedding_tokens: totalEmbeddingTokens

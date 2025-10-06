@@ -36,7 +36,8 @@ scheduler drive hourly batches on your Supabase project.
       `npm run db:push` to apply the SQL files under `/sql` in order. The core
       schema lives in `001_core.sql` and includes the tables consumed by the
       edge workers. `013_watchlists.sql` adds the roster/watchlist tables used by
-      the new planner scope controls.
+      the new planner scope controls and `014_cached_completions.sql` provisions
+      the response cache reused by Stage 1–3.
 - [ ] Confirm the seed data exists: `tickers`, `sector_prompts`, and the question
       registry should all contain rows once migrations finish.
 

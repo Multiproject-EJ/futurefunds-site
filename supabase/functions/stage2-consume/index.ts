@@ -8,6 +8,14 @@ import {
   requestEmbedding,
   withRetry
 } from '../_shared/ai.ts';
+import {
+  hashRequestBody,
+  buildCacheKey,
+  fetchCachedCompletion,
+  storeCachedCompletion,
+  markCachedCompletionHit,
+  resolveCacheTtlMinutes
+} from '../_shared/cache.ts';
 import { validateStage2Response, explainValidation } from '../_shared/prompt-validators.ts';
 import { recordErrorLog } from '../_shared/observability.ts';
 import {
@@ -30,6 +38,7 @@ type Stage2Result = {
     hits: number;
     citations: RetrievedCitation[];
   };
+  cache_hit?: boolean;
 };
 
 type Stage2Metrics = {
@@ -78,6 +87,7 @@ const FALLBACK_STAGE2_MODEL = stageDefaults?.fallback_model ?? 'openai/gpt-4o-mi
 const EMBEDDING_MODEL_SLUG = stageDefaults?.embedding_model ?? 'openai/text-embedding-3-small';
 const stageRequestSettings = stageDefaults?.request ?? null;
 const stageRetry = unpackRetrySettings(stageDefaults?.retry);
+const stageCacheTtlMinutes = resolveCacheTtlMinutes('stage2');
 const systemPromptTemplate = loadPromptTemplate('stage2/system');
 const userPromptTemplate = loadPromptTemplate('stage2/user');
 const MAX_RETRIEVAL_SNIPPETS = 6;
@@ -643,6 +653,7 @@ serve(async (req) => {
   }
 
   const results: Stage2Result[] = [];
+  let cacheHits = 0;
   let processed = 0;
   let failures = 0;
   let totalRetrievalHits = 0;
@@ -706,14 +717,54 @@ serve(async (req) => {
         },
         stageRequestSettings
       );
-      const completion = await withRetry(
-        stageRetry.attempts,
-        stageRetry.backoffMs,
-        () => requestChatCompletion(modelRecord, credentialRecord, requestBody),
-        { jitter: stageRetry.jitter }
-      );
+      const promptHash = await hashRequestBody(requestBody);
+      const cacheKey = buildCacheKey(['stage2', ticker, promptHash]);
+      let cacheHit = false;
+      let usage: Record<string, unknown> | null = null;
+      let completion: Record<string, unknown> | null = null;
 
-      rawMessage = completion?.choices?.[0]?.message?.content ?? '{}';
+      try {
+        const cached = await fetchCachedCompletion(supabaseAdmin, modelRecord.slug, cacheKey);
+        if (cached) {
+          cacheHit = true;
+          cacheHits += 1;
+          usage = cached.usage ?? null;
+          completion = cached.response_body ?? null;
+          await markCachedCompletionHit(supabaseAdmin, cached.id);
+        }
+      } catch (error) {
+        console.warn('Stage 2 cache lookup failed', error);
+      }
+
+      if (!completion) {
+        completion = await withRetry(
+          stageRetry.attempts,
+          stageRetry.backoffMs,
+          () => requestChatCompletion(modelRecord, credentialRecord, requestBody),
+          { jitter: stageRetry.jitter }
+        );
+        const completionAny = completion as { usage?: Record<string, unknown> };
+        usage = completionAny?.usage ?? null;
+        try {
+          await storeCachedCompletion(
+            supabaseAdmin,
+            modelRecord.slug,
+            cacheKey,
+            promptHash,
+            requestBody,
+            completion as Record<string, unknown>,
+            usage ?? null,
+            { ttlMinutes: stageCacheTtlMinutes, context: retrievalMeta ?? undefined }
+          );
+        } catch (error) {
+          console.warn('Stage 2 cache write failed', error);
+        }
+      }
+
+      const completionAny = completion as {
+        choices?: Array<{ message?: { content?: string } }>;
+      };
+      rawMessage = completionAny?.choices?.[0]?.message?.content ?? '{}';
       try {
         parsed = JSON.parse(rawMessage);
       } catch (error) {
@@ -741,8 +792,8 @@ serve(async (req) => {
         throw validationError;
       }
 
-      const usage = completion?.usage ?? {};
-      const { cost, promptTokens, completionTokens } = computeUsageCost(modelRecord, usage);
+      const effectiveUsage = cacheHit ? {} : (usage ?? {});
+      const { cost, promptTokens, completionTokens } = computeUsageCost(modelRecord, effectiveUsage);
       const verdict = (parsed?.verdict ?? null) as JsonRecord | null;
       const goDeep = Boolean(verdict?.go_deep);
 
@@ -750,6 +801,9 @@ serve(async (req) => {
         ...parsed,
         context_citations: retrieval.citations
       };
+      if (cacheHit) {
+        enrichedAnswer.cache_hit = true;
+      }
 
       await supabaseAdmin.from('answers').insert({
         run_id: runRow.id,
@@ -775,15 +829,17 @@ serve(async (req) => {
         .eq('run_id', runRow.id)
         .eq('ticker', ticker);
 
-      await supabaseAdmin.from('cost_ledger').insert({
-        run_id: runRow.id,
-        stage: 2,
-        model: modelRecord.slug,
-        tokens_in: promptTokens,
-        tokens_out: completionTokens,
-        cost_usd: cost,
-        created_at: startedAt
-      });
+      if (cost > 0) {
+        await supabaseAdmin.from('cost_ledger').insert({
+          run_id: runRow.id,
+          stage: 2,
+          model: modelRecord.slug,
+          tokens_in: promptTokens,
+          tokens_out: completionTokens,
+          cost_usd: cost,
+          created_at: startedAt
+        });
+      }
 
       results.push({
         ticker,
@@ -794,7 +850,8 @@ serve(async (req) => {
         retrieval: {
           hits: retrieval.snippets.length,
           citations: retrieval.citations
-        }
+        },
+        cache_hit: cacheHit
       });
       processed += 1;
     } catch (error) {
@@ -854,8 +911,9 @@ serve(async (req) => {
   }
 
   const metrics = await computeMetrics(supabaseAdmin, runRow.id);
+  const cacheNote = cacheHits > 0 ? ` (${cacheHits} cached)` : '';
   const message = processed > 0
-    ? `Processed ${processed} ticker${processed === 1 ? '' : 's'}. Pending survivors: ${metrics.pending}.`
+    ? `Processed ${processed} ticker${processed === 1 ? '' : 's'}${cacheNote}. Pending survivors: ${metrics.pending}.`
     : 'No tickers processed.';
 
   return jsonResponse(200, {
@@ -866,6 +924,7 @@ serve(async (req) => {
     results,
     model: modelRecord.slug,
     message,
+    cache_hits: cacheHits,
     retrieval: {
       total_hits: totalRetrievalHits,
       embedding_tokens: totalEmbeddingTokens
