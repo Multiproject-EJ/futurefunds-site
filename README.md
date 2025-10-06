@@ -53,6 +53,9 @@ universe, and internal tooling.
 - [LLM response cache](docs/supabase-schema.md#cached_completions) — explains how
   Stage 1–3 workers reuse deterministic prompts via the `cached_completions`
   table and the associated TTL environment variables.
+- [Planner launch smoke test](docs/planner-launch-troubleshooting.md) — step-by-step
+  checklist to validate run creation and surface detailed error diagnostics when
+  Supabase rejects a launch.
 - [Sector prompt library](sectors.html) — admin console to curate Stage 2 heuristics synced to the planner.
 - [Universe cockpit](universe.html) — requires the helper functions from `sql/003_dashboard_helpers.sql`
   and `sql/005_universe_snapshot.sql` to surface run outputs and ticker dossiers.

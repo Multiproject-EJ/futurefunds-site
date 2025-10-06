@@ -1,4 +1,4 @@
-import { supabase, ensureProfile, hasAdminRole, isMembershipActive, SUPABASE_URL } from './supabase.js';
+import { supabase, ensureProfile, hasAdminRole, isMembershipActive, SUPABASE_URL, SUPABASE_ANON_KEY } from './supabase.js';
 import {
   fetchActiveModels,
   fetchActiveCredentials,
@@ -258,6 +258,19 @@ let sectorNotesChannel = null;
 let sectorNotesReady = false;
 let modelOptions = [];
 let modelMap = new Map();
+
+function buildFunctionHeaders({ json = true } = {}) {
+  const headers = {
+    apikey: SUPABASE_ANON_KEY
+  };
+  if (authContext.token) {
+    headers.Authorization = `Bearer ${authContext.token}`;
+  }
+  if (json) {
+    headers['Content-Type'] = 'application/json';
+  }
+  return headers;
+}
 let priceMap = new Map();
 let credentialOptions = [];
 let credentialMap = new Map();
@@ -484,12 +497,29 @@ function updateScopeUI({ fromSettings = false } = {}) {
     inputs.refreshWatchlistsBtn.disabled = watchlistLoading;
   }
   if (inputs.customTickers) {
-    inputs.customTickers.disabled = mode !== 'custom';
+    const isCustom = mode === 'custom';
+    if (isCustom) {
+      inputs.customTickers.disabled = false;
+      inputs.customTickers.removeAttribute('disabled');
+      inputs.customTickers.removeAttribute('aria-disabled');
+      if (!fromSettings) {
+        try {
+          inputs.customTickers.focus({ preventScroll: true });
+        } catch (error) {
+          inputs.customTickers.focus();
+        }
+      }
+    } else {
+      inputs.customTickers.disabled = true;
+      inputs.customTickers.setAttribute('disabled', '');
+      inputs.customTickers.setAttribute('aria-disabled', 'true');
+    }
   }
 
   if (inputs.universe) {
     if (mode === 'watchlist') {
-      const count = watchlist?.tickerCount ?? plannerScope.watchlistCount ?? Number(inputs.universe.value) || 0;
+      const fallbackUniverse = Number(inputs.universe.value) || 0;
+      const count = watchlist?.tickerCount ?? plannerScope.watchlistCount ?? fallbackUniverse;
       inputs.universe.value = count;
       inputs.universe.disabled = true;
     } else if (mode === 'custom') {
@@ -2593,10 +2623,7 @@ async function toggleRunStop(stopRequested) {
   try {
     const response = await fetch(RUNS_STOP_ENDPOINT, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${authContext.token}`
-      },
+      headers: buildFunctionHeaders(),
       body: JSON.stringify({
         run_id: activeRunId,
         stop_requested: Boolean(stopRequested),
@@ -2777,10 +2804,7 @@ async function runAutoContinue() {
   try {
     const response = await fetch(RUNS_CONTINUE_ENDPOINT, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${authContext.token}`
-      },
+      headers: buildFunctionHeaders(),
       body: JSON.stringify({
         run_id: activeRunId,
         stage_limits: AUTO_CONTINUE_LIMITS,
@@ -3113,9 +3137,7 @@ async function fetchRunSchedule({ silent = false } = {}) {
 
   try {
     const response = await fetch(`${RUNS_SCHEDULE_ENDPOINT}?run_id=${activeRunId}`, {
-      headers: {
-        Authorization: `Bearer ${authContext.token}`
-      }
+      headers: buildFunctionHeaders({ json: false })
     });
 
     const raw = await response.text();
@@ -3220,10 +3242,7 @@ async function saveRunSchedule() {
   try {
     const response = await fetch(RUNS_SCHEDULE_ENDPOINT, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${authContext.token}`
-      },
+      headers: buildFunctionHeaders(),
       body: JSON.stringify({
         run_id: activeRunId,
         cadence_seconds: cadenceSeconds,
@@ -3765,9 +3784,7 @@ async function fetchFocusData({ silent = false } = {}) {
     const url = new URL(RUNS_FOCUS_ENDPOINT);
     url.searchParams.set('run_id', activeRunId);
     const response = await fetch(url.toString(), {
-      headers: {
-        Authorization: `Bearer ${authContext.token}`
-      }
+      headers: buildFunctionHeaders({ json: false })
     });
 
     if (!response.ok) {
@@ -3850,10 +3867,7 @@ async function submitFocusForm(event) {
 
     const response = await fetch(RUNS_FOCUS_ENDPOINT, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${authContext.token}`
-      },
+      headers: buildFunctionHeaders(),
       body: JSON.stringify(body)
     });
 
@@ -3973,9 +3987,7 @@ async function refreshFollowupList({ silent = false } = {}) {
     const url = new URL(RUNS_FEEDBACK_ENDPOINT);
     url.searchParams.set('run_id', activeRunId);
     const response = await fetch(url.toString(), {
-      headers: {
-        Authorization: `Bearer ${authContext.token}`
-      }
+      headers: buildFunctionHeaders({ json: false })
     });
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) {
@@ -4082,10 +4094,7 @@ async function submitFollowupRequest(event) {
   try {
     const response = await fetch(RUNS_FEEDBACK_ENDPOINT, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${authContext.token}`
-      },
+      headers: buildFunctionHeaders(),
       body: JSON.stringify({
         run_id: activeRunId,
         ticker: tickerValue || undefined,
@@ -4515,10 +4524,7 @@ async function processStage1Batch() {
   try {
     const response = await fetch(STAGE1_CONSUME_ENDPOINT, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${authContext.token}`
-      },
+      headers: buildFunctionHeaders(),
       body: JSON.stringify({
         run_id: activeRunId,
         limit: 8,
@@ -4611,10 +4617,7 @@ async function processStage2Batch() {
   try {
     const response = await fetch(STAGE2_CONSUME_ENDPOINT, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${authContext.token}`
-      },
+      headers: buildFunctionHeaders(),
       body: JSON.stringify({
         run_id: activeRunId,
         limit: 4,
@@ -4715,10 +4718,7 @@ async function processStage3Batch() {
   try {
     const response = await fetch(STAGE3_CONSUME_ENDPOINT, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${authContext.token}`
-      },
+      headers: buildFunctionHeaders(),
       body: JSON.stringify({
         run_id: activeRunId,
         limit: 2,
@@ -5272,10 +5272,7 @@ async function startRun() {
   try {
     const response = await fetch(RUNS_CREATE_ENDPOINT, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${authContext.token}`
-      },
+      headers: buildFunctionHeaders(),
       body: JSON.stringify({
         planner: settings,
         budget_usd: settings.budgetUsd,
@@ -5306,9 +5303,12 @@ async function startRun() {
       logStatus(`Budget guardrail set to ${formatCurrency(data.budget_usd)}.`);
     }
   } catch (error) {
-    console.error(error);
-    inputs.status.textContent = 'Launch failed';
-    logStatus(`Launch failed: ${error.message}`);
+    console.error('Automated run launch failed', error);
+    const message = typeof error?.message === 'string' && error.message.trim().length > 0
+      ? error.message
+      : 'Launch failed: unexpected error (see console for details).';
+    inputs.status.textContent = message;
+    logStatus(`Launch failed: ${message}`);
   } finally {
     applyAccessState({ preserveStatus: true });
   }
@@ -5361,9 +5361,7 @@ async function refreshHealthStatus({ silent = false } = {}) {
   }
   try {
     const response = await fetch(HEALTH_ENDPOINT, {
-      headers: {
-        Authorization: `Bearer ${authContext.token}`
-      }
+      headers: buildFunctionHeaders({ json: false })
     });
     const data = await response.json().catch(() => ({}));
     if (!response.ok) {
