@@ -139,6 +139,18 @@ const inputs = {
   stage3ContextHits: $('stage3ContextHits'),
   stage3ContextTokens: $('stage3ContextTokens'),
   stage3RecentBody: $('stage3RecentBody'),
+  focusPanel: $('focusPanel'),
+  focusPanelStatus: $('focusPanelStatus'),
+  focusRefreshBtn: $('refreshFocusBtn'),
+  focusForm: $('focusForm'),
+  focusTicker: $('focusTicker'),
+  focusTemplates: $('focusTemplates'),
+  focusCustomQuestion: $('focusCustomQuestion'),
+  focusSubmitBtn: $('focusSubmitBtn'),
+  focusStatus: $('focusStatus'),
+  focusCount: $('focusCount'),
+  focusSummary: $('focusSummary'),
+  focusTableBody: $('focusTableBody'),
   followupPanel: $('followupPanel'),
   followupForm: $('followupForm'),
   followupTicker: $('followupTicker'),
@@ -182,6 +194,7 @@ const RUNS_STOP_ENDPOINT = `${FUNCTIONS_BASE}/runs-stop`;
 const RUNS_CONTINUE_ENDPOINT = `${FUNCTIONS_BASE}/runs-continue`;
 const RUNS_SCHEDULE_ENDPOINT = `${FUNCTIONS_BASE}/runs-schedule`;
 const RUNS_FEEDBACK_ENDPOINT = `${FUNCTIONS_BASE}/runs-feedback`;
+const RUNS_FOCUS_ENDPOINT = `${FUNCTIONS_BASE}/runs-focus`;
 const HEALTH_ENDPOINT = `${FUNCTIONS_BASE}/health`;
 const RUN_STORAGE_KEY = 'ff-active-run-id';
 
@@ -201,6 +214,7 @@ let stage1RefreshTimer = null;
 let stage2RefreshTimer = null;
 let stage3RefreshTimer = null;
 let followupRefreshTimer = null;
+let focusRefreshTimer = null;
 
 const followupStatusLabels = {
   pending: 'Pending review',
@@ -209,8 +223,20 @@ const followupStatusLabels = {
   dismissed: 'Dismissed'
 };
 
+const focusStatusLabels = {
+  pending: 'Pending',
+  queued: 'Queued',
+  in_progress: 'In progress',
+  answered: 'Answered',
+  failed: 'Failed',
+  cancelled: 'Cancelled'
+};
+
 let followupLoading = false;
 let followupTickers = [];
+let focusTemplates = [];
+let focusRequests = [];
+let focusLoading = false;
 let sectorNotesChannel = null;
 let sectorNotesReady = false;
 let modelOptions = [];
@@ -1972,6 +1998,7 @@ function unsubscribeFromRunChannel() {
   clearStage2RefreshTimer();
   clearStage3RefreshTimer();
   clearFollowupRefreshTimer();
+  clearFocusRefreshTimer();
   if (runChannel) {
     try {
       supabase.removeChannel(runChannel);
@@ -2001,6 +2028,9 @@ function subscribeToRunChannel(runId) {
     .on('postgres_changes', { event: '*', schema: 'public', table: 'run_feedback', filter: `run_id=eq.${runId}` }, () => {
       scheduleFollowupRefresh();
     })
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'focus_question_requests', filter: `run_id=eq.${runId}` }, () => {
+      scheduleFocusRefresh();
+    })
     .on('postgres_changes', { event: '*', schema: 'public', table: 'runs', filter: `id=eq.${runId}` }, () => {
       fetchRunMeta({ silent: true }).catch((error) => {
         console.error('Realtime run meta refresh failed', error);
@@ -2012,6 +2042,7 @@ function subscribeToRunChannel(runId) {
         scheduleStage2Refresh({ immediate: true });
         scheduleStage3Refresh({ immediate: true });
         scheduleFollowupRefresh({ immediate: true });
+        scheduleFocusRefresh({ immediate: true });
         fetchRunMeta({ silent: true }).catch((error) => {
           console.error('Initial run meta load failed', error);
         });
@@ -2994,6 +3025,30 @@ function populateFollowupTickers(tickers) {
   } else {
     select.value = '';
   }
+
+  if (inputs.focusTicker) {
+    const focusSelect = inputs.focusTicker;
+    const prevFocus = focusSelect.value;
+    focusSelect.innerHTML = '';
+
+    const placeholder = document.createElement('option');
+    placeholder.value = '';
+    placeholder.textContent = 'Select ticker';
+    focusSelect.append(placeholder);
+
+    followupTickers.forEach((ticker) => {
+      const option = document.createElement('option');
+      option.value = ticker;
+      option.textContent = ticker;
+      focusSelect.append(option);
+    });
+
+    if (prevFocus && followupTickers.includes(prevFocus)) {
+      focusSelect.value = prevFocus;
+    } else {
+      focusSelect.value = '';
+    }
+  }
 }
 
 function renderFollowupTable(rows) {
@@ -3062,6 +3117,318 @@ function renderFollowupTable(rows) {
 
     tbody.append(row);
   });
+}
+
+function setFocusPanelStatus(message) {
+  if (!inputs.focusPanelStatus) return;
+  inputs.focusPanelStatus.textContent = message || '';
+}
+
+function setFocusStatus(message, tone = '') {
+  if (!inputs.focusStatus) return;
+  inputs.focusStatus.textContent = message || '';
+  if (tone) {
+    inputs.focusStatus.dataset.tone = tone;
+  } else {
+    delete inputs.focusStatus.dataset.tone;
+  }
+}
+
+function clearFocusRefreshTimer() {
+  if (focusRefreshTimer) {
+    window.clearTimeout(focusRefreshTimer);
+    focusRefreshTimer = null;
+  }
+}
+
+function scheduleFocusRefresh({ immediate = false } = {}) {
+  clearFocusRefreshTimer();
+  if (immediate) {
+    fetchFocusData({ silent: true }).catch((error) => {
+      console.warn('Focus refresh failed', error);
+    });
+    return;
+  }
+  focusRefreshTimer = window.setTimeout(() => {
+    focusRefreshTimer = null;
+    fetchFocusData({ silent: true }).catch((error) => {
+      console.warn('Focus refresh failed', error);
+    });
+  }, 650);
+}
+
+function updateFocusMetrics(metrics = null) {
+  if (!inputs.focusSummary) return;
+  if (!metrics) {
+    inputs.focusSummary.textContent = 'Pending — • Completed — • Failed —';
+    return;
+  }
+  inputs.focusSummary.textContent = `Pending ${Number(metrics.pending ?? 0).toLocaleString()} • Completed ${Number(
+    metrics.completed ?? 0
+  ).toLocaleString()} • Failed ${Number(metrics.failed ?? 0).toLocaleString()}`;
+}
+
+function renderFocusTemplates(templates = []) {
+  const container = inputs.focusTemplates;
+  if (!container) return;
+
+  container.innerHTML = '';
+  const entries = Array.isArray(templates) ? templates : [];
+
+  if (!entries.length) {
+    const empty = document.createElement('p');
+    empty.className = 'focus-empty';
+    empty.textContent = 'No saved focus templates yet. Add questions from the docs admin to reuse them here.';
+    container.append(empty);
+    return;
+  }
+
+  entries.forEach((template) => {
+    const wrapper = document.createElement('label');
+    wrapper.className = 'focus-template';
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.value = template.slug;
+    checkbox.dataset.slug = template.slug;
+    checkbox.name = 'focusTemplates';
+    checkbox.id = `focus-template-${template.slug}`;
+
+    const title = document.createElement('span');
+    title.className = 'focus-template__title';
+    title.textContent = template.label ?? template.slug;
+
+    const description = document.createElement('span');
+    description.className = 'focus-template__question';
+    description.textContent = template.question ?? '';
+
+    wrapper.append(checkbox, title, description);
+    container.append(wrapper);
+  });
+}
+
+function renderFocusTable(rows = []) {
+  const body = inputs.focusTableBody;
+  if (!body) return;
+
+  body.innerHTML = '';
+  const entries = Array.isArray(rows) ? rows : [];
+  if (inputs.focusCount) {
+    inputs.focusCount.textContent = String(entries.length);
+  }
+
+  if (!entries.length) {
+    const emptyRow = document.createElement('tr');
+    const cell = document.createElement('td');
+    cell.colSpan = 5;
+    cell.textContent = 'No focus questions queued yet. Select templates or add a custom prompt to get started.';
+    emptyRow.append(cell);
+    body.append(emptyRow);
+    return;
+  }
+
+  entries.forEach((entry) => {
+    const row = document.createElement('tr');
+
+    const createdCell = document.createElement('td');
+    if (entry.created_at) {
+      createdCell.textContent = formatRelativeTimestamp(entry.created_at);
+      createdCell.title = new Date(entry.created_at).toLocaleString();
+    } else {
+      createdCell.textContent = '—';
+    }
+    row.append(createdCell);
+
+    const tickerCell = document.createElement('td');
+    tickerCell.textContent = entry.ticker ?? '—';
+    row.append(tickerCell);
+
+    const questionCell = document.createElement('td');
+    questionCell.className = 'focus-question';
+    questionCell.textContent = entry.question ?? '—';
+    row.append(questionCell);
+
+    const statusCell = document.createElement('td');
+    const label = focusStatusLabels[entry.status] ?? entry.status ?? '—';
+    statusCell.textContent = label;
+    statusCell.dataset.status = entry.status ?? 'unknown';
+    row.append(statusCell);
+
+    const summaryCell = document.createElement('td');
+    const summary = entry.answer_text ? String(entry.answer_text) : '';
+    const truncated = summary.length > 160 ? `${summary.slice(0, 160)}…` : summary || '—';
+    const badge = renderCacheBadge(entry.cache_hit);
+    summaryCell.innerHTML = `${truncated}${badge}`;
+    row.append(summaryCell);
+
+    const updatedCell = document.createElement('td');
+    const updatedAt = entry.answered_at ?? entry.updated_at ?? entry.created_at;
+    if (updatedAt) {
+      updatedCell.textContent = formatRelativeTimestamp(updatedAt);
+      updatedCell.title = new Date(updatedAt).toLocaleString();
+    } else {
+      updatedCell.textContent = '—';
+    }
+    row.append(updatedCell);
+
+    body.append(row);
+  });
+}
+
+function resetFocusUI(message = '') {
+  focusTemplates = [];
+  focusRequests = [];
+  renderFocusTemplates([]);
+  renderFocusTable([]);
+  updateFocusMetrics(null);
+  setFocusPanelStatus(message);
+  setFocusStatus('');
+}
+
+async function fetchFocusData({ silent = false } = {}) {
+  if (!inputs.focusPanel) return;
+
+  if (!activeRunId) {
+    resetFocusUI('Set a run ID to manage focus questions.');
+    return;
+  }
+
+  if (!authContext.user || !authContext.isAdmin) {
+    resetFocusUI('Admin access required to queue focus questions.');
+    return;
+  }
+
+  if (!authContext.token) {
+    resetFocusUI('Session expired. Sign in again to continue.');
+    await syncAccess({ preserveStatus: true });
+    return;
+  }
+
+  if (!silent) {
+    setFocusPanelStatus('Loading focus questions…');
+  }
+
+  focusLoading = true;
+  applyAccessState({ preserveStatus: true });
+
+  try {
+    const url = new URL(RUNS_FOCUS_ENDPOINT);
+    url.searchParams.set('run_id', activeRunId);
+    const response = await fetch(url.toString(), {
+      headers: {
+        Authorization: `Bearer ${authContext.token}`
+      }
+    });
+
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(`Focus endpoint responded ${response.status}: ${text}`);
+    }
+
+    const data = await response.json();
+    focusTemplates = Array.isArray(data.templates) ? data.templates : [];
+    focusRequests = Array.isArray(data.requests) ? data.requests : [];
+
+    renderFocusTemplates(focusTemplates);
+    renderFocusTable(focusRequests);
+    updateFocusMetrics(data.metrics ?? null);
+
+    const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    setFocusPanelStatus(`Last updated ${timestamp}`);
+  } catch (error) {
+    console.error('Failed to load focus questions', error);
+    setFocusPanelStatus('Failed to load focus questions.');
+  } finally {
+    focusLoading = false;
+    applyAccessState({ preserveStatus: true });
+  }
+}
+
+async function submitFocusForm(event) {
+  event.preventDefault();
+  if (!inputs.focusForm) return;
+
+  if (!activeRunId) {
+    setFocusStatus('Set a run ID before queuing focus questions.', 'warn');
+    return;
+  }
+
+  if (!authContext.user) {
+    setFocusStatus('Sign in required.', 'warn');
+    return;
+  }
+
+  if (!authContext.isAdmin) {
+    setFocusStatus('Admin access required.', 'warn');
+    return;
+  }
+
+  if (!authContext.token) {
+    setFocusStatus('Session expired. Sign in again to continue.', 'warn');
+    await syncAccess({ preserveStatus: true });
+    return;
+  }
+
+  const ticker = inputs.focusTicker ? inputs.focusTicker.value.trim() : '';
+  if (!ticker) {
+    setFocusStatus('Choose a ticker before queuing focus questions.', 'warn');
+    return;
+  }
+
+  const selectedTemplates = inputs.focusTemplates
+    ? Array.from(inputs.focusTemplates.querySelectorAll('input[type="checkbox"]:checked')).map((input) => input.value)
+    : [];
+
+  const customQuestion = inputs.focusCustomQuestion ? inputs.focusCustomQuestion.value.trim() : '';
+
+  if (!selectedTemplates.length && !customQuestion) {
+    setFocusStatus('Select at least one template or enter a custom question.', 'warn');
+    return;
+  }
+
+  focusLoading = true;
+  setFocusStatus('Submitting focus questions…');
+  applyAccessState({ preserveStatus: true });
+
+  try {
+    const body = {
+      run_id: activeRunId,
+      ticker,
+      template_slugs: selectedTemplates,
+      custom_questions: customQuestion ? [customQuestion] : []
+    };
+
+    const response = await fetch(RUNS_FOCUS_ENDPOINT, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${authContext.token}`
+      },
+      body: JSON.stringify(body)
+    });
+
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(`Focus submit failed (${response.status}): ${text}`);
+    }
+
+    if (inputs.focusCustomQuestion) {
+      inputs.focusCustomQuestion.value = '';
+    }
+    if (inputs.focusTemplates) {
+      inputs.focusTemplates.querySelectorAll('input[type="checkbox"]').forEach((input) => {
+        input.checked = false;
+      });
+    }
+
+    setFocusStatus('Focus questions queued.', 'success');
+    scheduleFocusRefresh({ immediate: true });
+  } catch (error) {
+    console.error('Focus question submission failed', error);
+    setFocusStatus(`Failed to queue focus questions: ${error.message}`, 'warn');
+  } finally {
+    focusLoading = false;
+    applyAccessState({ preserveStatus: true });
+  }
 }
 
 async function refreshFollowupTickers({ silent = false } = {}) {
@@ -3580,6 +3947,7 @@ function setActiveRunId(value, { announce = true, silent = false } = {}) {
     updateStage3Metrics();
     renderStage3Reports([]);
     resetFollowupUI('No active run selected.');
+    resetFocusUI('No active run selected.');
     applySchedulerUI(null);
     hideSchedulerToast();
     if (announce && inputs.stage1Status) {
@@ -3642,6 +4010,9 @@ function setActiveRunId(value, { announce = true, silent = false } = {}) {
   });
   refreshFollowupList({ silent }).catch((error) => {
     console.warn('Failed to load follow-up requests', error);
+  });
+  fetchFocusData({ silent }).catch((error) => {
+    console.warn('Failed to load focus questions', error);
   });
 
   return changed;
@@ -4221,6 +4592,29 @@ function applyAccessState({ preserveStatus = false } = {}) {
     inputs.watchlistManager.hidden = state !== 'admin-ok';
   }
 
+  if (inputs.focusPanel) {
+    inputs.focusPanel.hidden = state !== 'admin-ok';
+  }
+
+  const focusDisabled = state !== 'admin-ok' || !activeRunId || focusLoading;
+  if (inputs.focusRefreshBtn) {
+    inputs.focusRefreshBtn.disabled = state !== 'admin-ok' || !activeRunId;
+  }
+  if (inputs.focusSubmitBtn) {
+    inputs.focusSubmitBtn.disabled = focusDisabled;
+  }
+  if (inputs.focusTicker) {
+    inputs.focusTicker.disabled = focusDisabled;
+  }
+  if (inputs.focusCustomQuestion) {
+    inputs.focusCustomQuestion.disabled = focusDisabled;
+  }
+  if (inputs.focusTemplates) {
+    inputs.focusTemplates.querySelectorAll('input[type="checkbox"]').forEach((input) => {
+      input.disabled = focusDisabled;
+    });
+  }
+
   if (state !== 'admin-ok' && plannerScope.mode === 'watchlist') {
     plannerScope.mode = 'universe';
     applyScopeSettings(plannerScope, { fromSettings: true });
@@ -4340,6 +4734,11 @@ async function syncAccess(options = {}) {
     refreshFollowupList({ silent: true }).catch((error) => {
       console.warn('Failed to refresh follow-up requests during access sync', error);
     });
+    if (authContext.isAdmin) {
+      fetchFocusData({ silent: true }).catch((error) => {
+        console.warn('Failed to refresh focus questions during access sync', error);
+      });
+    }
   }
 }
 
@@ -4747,6 +5146,12 @@ function bindEvents() {
   inputs.followupRefreshBtn?.addEventListener('click', () => {
     refreshFollowupList({ silent: false }).catch((error) => {
       console.error('Failed to refresh follow-up requests', error);
+    });
+  });
+  inputs.focusForm?.addEventListener('submit', submitFocusForm);
+  inputs.focusRefreshBtn?.addEventListener('click', () => {
+    fetchFocusData({ silent: false }).catch((error) => {
+      console.error('Failed to refresh focus questions', error);
     });
   });
 }

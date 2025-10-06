@@ -1268,8 +1268,6 @@ serve(async (req) => {
         summaryJson.cache_hit = true;
       }
 
-      summaryJson.context_citations = retrieval.citations;
-
       if (!summaryJson.scoreboard) {
         summaryJson.scoreboard = dimensionSummaries.map((entry) => ({
           dimension: entry.dimension.slug,

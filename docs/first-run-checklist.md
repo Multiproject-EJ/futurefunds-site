@@ -76,5 +76,5 @@ scheduler drive hourly batches on your Supabase project.
    `RUNS_DAILY_LIMIT` or budgets as required.
 
 Once these steps are complete the system is production-ready for automated
-hourly coverage. Future enhancements (notifications, focus questions, cached
+hourly coverage. Future enhancements (notifications, scoring ensembles, cached
 context) can be layered on without disturbing the core pipeline above.

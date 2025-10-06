@@ -26,6 +26,10 @@ universe, and internal tooling.
 5. Tune the cached completion TTLs if desired. The defaults keep deterministic
    Stage 1–3 prompts for seven days (`AI_CACHE_TTL_MINUTES`); override the stage
    specific env vars when you need shorter or longer retention.
+6. Deploy the `runs-focus` and `focus-consume` edge functions if you want to queue
+   post–Stage 3 focus questions from the planner. Admins can mix reusable templates
+   with ad-hoc prompts per ticker, and automation will record answers with citations
+   alongside the Stage 4 ledger entries.
 
 ## Developer docs
 

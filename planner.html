@@ -2401,6 +2401,73 @@
       </table>
     </section>
 
+    <section class="focus-panel" id="focusPanel" aria-live="polite">
+      <div class="focus-panel__header">
+        <div>
+          <h3>Focus questions</h3>
+          <p class="muted">
+            Queue targeted prompts after Stage 3 to probe the highest-conviction tickers before handing off to analysts.
+          </p>
+        </div>
+        <div class="focus-panel__actions">
+          <button class="btn-secondary" type="button" id="refreshFocusBtn">Refresh</button>
+          <span class="focus-panel__status" id="focusPanelStatus"></span>
+        </div>
+      </div>
+
+      <form id="focusForm" class="focus-form" novalidate>
+        <div class="focus-form__grid">
+          <label for="focusTicker">
+            Ticker
+            <select id="focusTicker">
+              <option value="">Select ticker</option>
+            </select>
+          </label>
+          <div class="focus-templates" id="focusTemplates" aria-label="Focus question templates"></div>
+        </div>
+        <label for="focusCustomQuestion" class="focus-form__custom">
+          Custom question (optional)
+          <textarea
+            id="focusCustomQuestion"
+            rows="3"
+            maxlength="500"
+            placeholder="e.g., Stress test the bull case against customer churn scenarios."
+          ></textarea>
+        </label>
+        <div class="focus-form__footer">
+          <button type="submit" class="btn-primary" id="focusSubmitBtn">Queue focus questions</button>
+          <p class="focus-status" id="focusStatus" role="status" aria-live="polite"></p>
+        </div>
+      </form>
+
+      <section class="focus-list" aria-live="polite" aria-label="Queued focus questions">
+        <header class="focus-list__header">
+          <div>
+            <h4>Queued focus prompts</h4>
+            <p class="muted-small" id="focusSummary">Pending — • Completed — • Failed —</p>
+          </div>
+          <span class="focus-list__count" id="focusCount">0</span>
+        </header>
+        <table class="focus-table">
+          <thead>
+            <tr>
+              <th scope="col">Submitted</th>
+              <th scope="col">Ticker</th>
+              <th scope="col">Question</th>
+              <th scope="col">Status</th>
+              <th scope="col">Answer</th>
+              <th scope="col">Updated</th>
+            </tr>
+          </thead>
+          <tbody id="focusTableBody">
+            <tr>
+              <td colspan="6">No focus questions queued yet. Select templates or add a custom prompt to get started.</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+    </section>
+
     <section class="followup-panel" id="followupPanel" aria-live="polite">
       <div class="followup-panel__header">
         <div>

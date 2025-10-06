@@ -26,8 +26,15 @@ type Stage3Summary = {
   failed: number;
 };
 
+type FocusSummary = {
+  total_requests: number;
+  pending: number;
+  completed: number;
+  failed: number;
+};
+
 type StageOperation = {
-  stage: 1 | 2 | 3;
+  stage: 1 | 2 | 3 | 4;
   status: 'invoked' | 'halted';
   processed: number;
   failed: number;
@@ -53,7 +60,7 @@ const jsonHeaders = {
   'Cache-Control': 'no-store'
 };
 
-const DEFAULT_STAGE_LIMITS = { stage1: 8, stage2: 4, stage3: 2 } as const;
+const DEFAULT_STAGE_LIMITS = { stage1: 8, stage2: 4, stage3: 2, focus: 3 } as const;
 const MAX_STAGE_LIMIT = 25;
 const MAX_CYCLES = 10;
 
@@ -194,6 +201,21 @@ async function fetchStage3Summary(client: ReturnType<typeof createClient>, runId
   };
 }
 
+async function fetchFocusSummary(client: ReturnType<typeof createClient>, runId: string): Promise<FocusSummary> {
+  const { data, error } = await client.rpc('run_focus_summary', { p_run_id: runId }).maybeSingle();
+  if (error) {
+    console.error('run_focus_summary failed', error);
+    return { total_requests: 0, pending: 0, completed: 0, failed: 0 };
+  }
+
+  return {
+    total_requests: Number(data?.total_requests ?? 0),
+    pending: Number(data?.pending ?? 0),
+    completed: Number(data?.completed ?? 0),
+    failed: Number(data?.failed ?? 0)
+  };
+}
+
 async function fetchCostSummary(client: ReturnType<typeof createClient>, runId: string) {
   const { data, error } = await client.rpc('run_cost_summary', { p_run_id: runId }).maybeSingle();
   if (error) {
@@ -230,7 +252,7 @@ async function invokeStage({
   accessToken,
   serviceSecret
 }: {
-  stage: 1 | 2 | 3;
+  stage: 1 | 2 | 3 | 4;
   limit: number;
   runId: string;
   functionsBaseUrl: string;
@@ -245,7 +267,9 @@ async function invokeStage({
       ? `${functionsBaseUrl}/stage1-consume`
       : stage === 2
         ? `${functionsBaseUrl}/stage2-consume`
-        : `${functionsBaseUrl}/stage3-consume`;
+        : stage === 3
+          ? `${functionsBaseUrl}/stage3-consume`
+          : `${functionsBaseUrl}/focus-consume`;
 
   const meta = mergeClientMeta(clientMeta, {
     orchestrator: 'runs-continue',
@@ -366,7 +390,13 @@ serve(async (req) => {
   const stageLimits = {
     stage1: clampInteger(limitPayload?.stage1 ?? payload?.stage1_limit ?? payload?.limit, 1, MAX_STAGE_LIMIT, DEFAULT_STAGE_LIMITS.stage1),
     stage2: clampInteger(limitPayload?.stage2 ?? payload?.stage2_limit ?? payload?.limit, 1, MAX_STAGE_LIMIT, DEFAULT_STAGE_LIMITS.stage2),
-    stage3: clampInteger(limitPayload?.stage3 ?? payload?.stage3_limit ?? payload?.limit, 1, MAX_STAGE_LIMIT, DEFAULT_STAGE_LIMITS.stage3)
+    stage3: clampInteger(limitPayload?.stage3 ?? payload?.stage3_limit ?? payload?.limit, 1, MAX_STAGE_LIMIT, DEFAULT_STAGE_LIMITS.stage3),
+    focus: clampInteger(
+      limitPayload?.focus ?? payload?.focus_limit ?? payload?.stage4_limit ?? payload?.limit,
+      1,
+      MAX_STAGE_LIMIT,
+      DEFAULT_STAGE_LIMITS.focus
+    )
   };
 
   const cycles = clampInteger(payload?.cycles, 1, MAX_CYCLES, 1);
@@ -508,6 +538,7 @@ serve(async (req) => {
   let stage1Metrics = await computeStage1Metrics(supabaseAdmin, runId);
   let stage2Summary = await fetchStage2Summary(supabaseAdmin, runId);
   let stage3Summary = await fetchStage3Summary(supabaseAdmin, runId);
+  let focusSummary = await fetchFocusSummary(supabaseAdmin, runId);
 
   const operations: StageOperation[] = [];
   let cyclesCompleted = 0;
@@ -537,7 +568,8 @@ serve(async (req) => {
             stage_status: {
               stage1: stage1Metrics,
               stage2: stage2Summary,
-              stage3: stage3Summary
+              stage3: stage3Summary,
+              focus: focusSummary
             }
           });
         }
@@ -576,7 +608,8 @@ serve(async (req) => {
             stage_status: {
               stage1: stage1Metrics,
               stage2: stage2Summary,
-              stage3: stage3Summary
+              stage3: stage3Summary,
+              focus: focusSummary
             }
           });
         }
@@ -584,6 +617,7 @@ serve(async (req) => {
         operations.push(outcome.operation);
         stage2Summary = await fetchStage2Summary(supabaseAdmin, runId);
         stage3Summary = await fetchStage3Summary(supabaseAdmin, runId);
+        focusSummary = await fetchFocusSummary(supabaseAdmin, runId);
         cycleDidWork = true;
 
         if (outcome.type === 'halt') {
@@ -615,13 +649,54 @@ serve(async (req) => {
             stage_status: {
               stage1: stage1Metrics,
               stage2: stage2Summary,
-              stage3: stage3Summary
+              stage3: stage3Summary,
+              focus: focusSummary
             }
           });
         }
 
         operations.push(outcome.operation);
         stage3Summary = await fetchStage3Summary(supabaseAdmin, runId);
+        focusSummary = await fetchFocusSummary(supabaseAdmin, runId);
+        cycleDidWork = true;
+
+        if (outcome.type === 'halt') {
+          haltedReason = outcome.reason;
+          break;
+        }
+      }
+
+      if (haltedReason) break;
+
+      if (focusSummary.pending > 0) {
+        const outcome = await invokeStage({
+          stage: 4,
+          limit: stageLimits.focus,
+          runId,
+          functionsBaseUrl,
+          cycleIndex: cycle,
+          clientMeta: payload?.client_meta,
+          mode: invocationMode,
+          accessToken,
+          serviceSecret
+        });
+
+        if (outcome.type === 'error') {
+          return jsonResponse(outcome.status, {
+            error: outcome.message,
+            details: outcome.details ?? null,
+            operations,
+            stage_status: {
+              stage1: stage1Metrics,
+              stage2: stage2Summary,
+              stage3: stage3Summary,
+              focus: focusSummary
+            }
+          });
+        }
+
+        operations.push(outcome.operation);
+        focusSummary = await fetchFocusSummary(supabaseAdmin, runId);
         cycleDidWork = true;
 
         if (outcome.type === 'halt') {
@@ -642,6 +717,7 @@ serve(async (req) => {
   stage1Metrics = await computeStage1Metrics(supabaseAdmin, runId);
   stage2Summary = await fetchStage2Summary(supabaseAdmin, runId);
   stage3Summary = await fetchStage3Summary(supabaseAdmin, runId);
+  focusSummary = await fetchFocusSummary(supabaseAdmin, runId);
 
   const finalCost = await fetchCostSummary(supabaseAdmin, runId);
   totalCost = finalCost.totalCost;
@@ -700,7 +776,8 @@ serve(async (req) => {
     stage_status: {
       stage1: stage1Metrics,
       stage2: stage2Summary,
-      stage3: stage3Summary
+      stage3: stage3Summary,
+      focus: focusSummary
     },
     cost: {
       total_cost: totalCost,

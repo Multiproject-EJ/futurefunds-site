@@ -107,7 +107,7 @@ incrementally.
 ## 15. Stretch Enhancements (Backlog)
 - [x] Cached context via OpenAI Responses API to reuse deterministic summaries.
 - [ ] Advanced scoring ensembles (blend LLM output with deterministic factors).
-- [ ] User-triggered “Focus questions” appended post Stage 3.
+- [x] User-triggered “Focus questions” appended post Stage 3.
 - [ ] Automated notification system (email / Slack) when high-conviction names found.
 
 ---

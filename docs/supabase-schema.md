@@ -33,6 +33,8 @@ multi-stage model runs and reporting:
 | `run_items` | Per-ticker processing state tracking the current stage, label, and spend. |
 | `run_schedules` | Stores per-run automation cadence, batch limits, and activation state for the background dispatcher. |
 | `run_feedback` | Captures post-run follow-up questions submitted by members or automation for analyst review. |
+| `focus_question_templates` | Library of reusable focus prompts Stage 3 automation can append after deep dives. |
+| `focus_question_requests` | Queue of ticker-specific focus prompts awaiting automated responses and citations. |
 | `answers` | Stores structured and narrative outputs produced at each stage of the pipeline. |
 | `cost_ledger` | Aggregated token usage and USD cost per stage/run for budget monitoring. |
 | `cached_completions` | Persistent cache of deterministic model outputs reused across runs to avoid duplicate spend. |
@@ -62,6 +64,7 @@ payloads to the browser:
 | `run_stage3_summary(run_id uuid)` | Aggregates Stage&nbsp;3 finalists, pending deep dives, completed reports, and failures. |
 | `run_cost_breakdown(run_id uuid)` | Summarises `cost_ledger` spend by stage/model for budget monitoring. |
 | `run_cost_summary(run_id uuid)` | Provides overall spend and token totals for a run. |
+| `run_focus_summary(run_id uuid)` | Aggregates queued, completed, and failed focus-question requests per run. |
 | `run_latest_activity(run_id uuid, limit int)` | Streams the latest answers (stage, ticker, summary) for the activity feed. |
 | `run_feedback_for_run(run_id uuid)` | Returns the manual follow-up queue for a given run ordered by submission time. |
 | `run_universe_rows(run_id uuid, ...)` | Paginates ticker-level snapshots (stage, label, spend, Stage 1–3 JSON) for the universe dashboard. |
@@ -585,6 +588,57 @@ service-to-service calls can bypass interactive auth without exposing the Supaba
 `run_feedback_for_run` helper for the planner UI. The `runs-feedback` edge function verifies the
 caller (member or automation secret), validates the ticker belongs to the run, inserts rows, and
 returns both the fresh item and, on `GET`, the full queue for operators monitoring manual follow-ups.
+
+### `focus_question_templates`
+
+*Primary key*: `id bigserial`.
+
+| Column | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `id` | `bigserial` | — | Surrogate key for each reusable focus prompt. |
+| `slug` | `text` | — | Unique handle used by the planner and automation payloads. |
+| `label` | `text` | — | Short operator-friendly name surfaced in the planner checkbox list. |
+| `question` | `text` | — | Full prompt rendered when a template is queued. |
+| `created_at` | `timestamptz` | `now()` | Managed automatically. |
+| `updated_at` | `timestamptz` | `now()` | Maintained by the shared `set_updated_at` trigger. |
+
+`sql/015_focus_questions.sql` provisions the catalog and seeds three starter prompts covering
+capital allocation, growth durability, and risk monitoring so operators have defaults on first run.【F:sql/015_focus_questions.sql†L1-L8】【F:sql/015_focus_questions.sql†L71-L76】
+The planner consumes this list to render the checkbox grid for admins configuring follow-up
+automation.【F:assets/planner.js†L3107-L3150】
+
+### `focus_question_requests`
+
+*Primary key*: `id uuid` generated via `gen_random_uuid()`.
+
+| Column | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `id` | `uuid` | `gen_random_uuid()` | Stable identifier for each queued focus prompt. |
+| `run_id` | `uuid` | — | References `runs(id)`; cascades on delete so orphaned rows disappear with the run.【F:sql/015_focus_questions.sql†L10-L29】 |
+| `ticker` | `text` | — | References `tickers(ticker)`; required so automation can fetch Stage 1–3 context.【F:sql/015_focus_questions.sql†L12-L15】 |
+| `template_id` | `bigint` | `null` | Optional reference back to `focus_question_templates.id`; preserved on template deletion via `SET NULL`. |
+| `question` | `text` | — | Canonical prompt text (template copy or ad-hoc freeform request). |
+| `status` | `text` | `'pending'` | Enum enforced by a check constraint: `pending`, `queued`, `in_progress`, `answered`, `failed`, or `cancelled`. |
+| `answer` | `jsonb` | `null` | Full structured payload returned by the LLM, including citations. |
+| `answer_text` | `text` | `null` | Human-readable summary shown in the planner table. |
+| `tokens_in` / `tokens_out` | `int` | `null` | Usage metrics recorded by the automation worker. |
+| `cost_usd` | `numeric(12,4)` | `null` | USD spend tracked alongside the Stage&nbsp;4 ledger entry. |
+| `cache_hit` | `boolean` | `false` | Flags whether the response came from the shared completion cache. |
+| `metadata` | `jsonb` | `null` | Automation metadata (retrieval snippets, usage, errors). |
+| `created_by` / `created_by_email` | `uuid` / `text` | `null` | Captures the submitting admin for audit trails. |
+| `answered_by` / `answered_by_email` | `uuid` / `text` | `null` | Populated when automation resolves the request. |
+| `created_at` | `timestamptz` | `now()` | Submission timestamp. |
+| `updated_at` | `timestamptz` | `now()` | Maintained by the `touch_focus_request` trigger on update. |
+| `answered_at` | `timestamptz` | `null` | Set when automation marks the item `answered`. |
+
+The migration adds run/ticker/time indexes plus a trigger to keep `updated_at` current.【F:sql/015_focus_questions.sql†L33-L50】
+The `run_focus_summary` helper provides aggregated counts consumed by the planner dashboard and
+`runs-focus` endpoint.【F:sql/015_focus_questions.sql†L52-L69】【F:assets/planner.js†L3287-L3336】
+Admins interact with the queue through the `runs-focus` edge function (`GET` lists templates,
+requests, and metrics; `POST` enqueues template and custom prompts after validating the run/ticker
+relationship).【F:supabase/functions/runs-focus/index.ts†L222-L358】【F:supabase/functions/runs-focus/index.ts†L360-L438】
+The `focus-consume` worker processes pending rows, fetches Stage&nbsp;1–3 context, performs retrieval,
+records answers/costs, and updates status transitions while logging failures for observability.【F:supabase/functions/focus-consume/index.ts†L1-L364】
 
 ### `answers`
 
