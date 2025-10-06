@@ -89,8 +89,7 @@ create policy tickers_read on public.tickers
 drop policy if exists tickers_admin_write on public.tickers;
 create policy tickers_admin_write on public.tickers
   for insert
-  with check (public.is_admin(auth.uid()))
-  using (public.is_admin(auth.uid()));
+  with check (public.is_admin(auth.uid()));
 
 drop policy if exists tickers_admin_update on public.tickers;
 create policy tickers_admin_update on public.tickers
