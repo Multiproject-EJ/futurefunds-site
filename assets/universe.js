@@ -1,4 +1,4 @@
-import { supabase, getUser, getProfile, getMembership, hasAdminRole } from './supabase.js';
+import { supabase, getUser, getProfile, getMembership, hasAdminRole, isMembershipActive } from './supabase.js';
 
 const state = {
   session: { user: null, profile: null, membership: null },
@@ -20,6 +20,7 @@ const state = {
 
 const elements = {
   gate: document.getElementById('gate'),
+  gateMessage: document.getElementById('gateMessage'),
   content: document.getElementById('universeContent'),
   runSelect: document.getElementById('runSelect'),
   search: document.getElementById('q'),
@@ -134,20 +135,30 @@ function chipValue(target, attr) {
   return value;
 }
 
+function setGate(message) {
+  if (elements.gateMessage) {
+    elements.gateMessage.textContent = message;
+  }
+  elements.gate.hidden = false;
+  elements.content.hidden = true;
+}
+
 async function ensureAccess() {
   const user = await getUser();
   if (!user) {
-    elements.gate.hidden = false;
-    elements.content.hidden = true;
+    setGate('Sign in with your FutureFunds.ai membership to view the analyst universe.');
     return false;
   }
+
   const [profile, membership] = await Promise.all([getProfile(), getMembership()]);
-  if (!hasAdminRole({ user, profile, membership })) {
-    elements.gate.hidden = false;
-    elements.gate.querySelector('p').textContent = 'This cockpit is limited to analyst operators and admins. Please contact the FutureFunds team for access.';
-    elements.content.hidden = true;
+  const admin = hasAdminRole({ user, profile, membership });
+  const memberActive = isMembershipActive(membership, { profile, user });
+
+  if (!admin && !memberActive) {
+    setGate('An active FutureFunds.ai membership is required to inspect automated analyst runs.');
     return false;
   }
+
   state.session = { user, profile, membership };
   elements.gate.hidden = true;
   elements.content.hidden = false;

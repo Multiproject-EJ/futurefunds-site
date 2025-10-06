@@ -626,6 +626,174 @@
       gap: 12px;
       align-items: center;
     }
+
+    .auto-continue {
+      border: 1px solid rgba(37,99,235,.18);
+      background: rgba(37,99,235,.05);
+      border-radius: 16px;
+      padding: 14px 16px;
+      display: grid;
+      gap: 8px;
+    }
+
+    .auto-continue__controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .auto-continue__label {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-weight: 600;
+      font-size: .92rem;
+      color: var(--text,#0f172a);
+    }
+
+    .auto-continue__label input[type="checkbox"] {
+      width: 18px;
+      height: 18px;
+    }
+
+    .auto-continue select {
+      height: 34px;
+      border-radius: 10px;
+      border: 1px solid var(--border,#cbd5f5);
+      background: rgba(255,255,255,.92);
+      font: inherit;
+      padding: 0 12px;
+      color: var(--text,#0f172a);
+    }
+
+    .auto-continue__status {
+      margin: 0;
+      font-size: .85rem;
+      color: var(--muted,#475569);
+    }
+
+    .background-scheduler {
+      border: 1px solid rgba(16,185,129,.18);
+      background: rgba(16,185,129,.05);
+      border-radius: 16px;
+      padding: 16px 18px;
+      display: grid;
+      gap: 12px;
+    }
+
+    .background-scheduler__intro h3 {
+      margin: 0 0 4px;
+      font-size: 1rem;
+      font-weight: 600;
+    }
+
+    .background-scheduler__intro p {
+      margin: 0;
+      font-size: .88rem;
+      color: var(--muted,#475569);
+    }
+
+    .background-scheduler__controls {
+      display: grid;
+      gap: 12px;
+    }
+
+    .background-scheduler__toggle {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      font-size: .9rem;
+      font-weight: 600;
+      color: var(--text,#0f172a);
+    }
+
+    .background-scheduler__toggle input[type="checkbox"] {
+      width: 18px;
+      height: 18px;
+    }
+
+    .background-scheduler__grid {
+      display: grid;
+      gap: 12px;
+      grid-template-columns: repeat(auto-fit,minmax(160px,1fr));
+    }
+
+    .background-scheduler__grid label {
+      display: grid;
+      gap: 6px;
+      font-size: .85rem;
+      font-weight: 600;
+      color: var(--muted,#475569);
+    }
+
+    .background-scheduler__grid input,
+    .background-scheduler__grid select {
+      height: 36px;
+      border-radius: 10px;
+      border: 1px solid var(--border,#cbd5f5);
+      background: rgba(255,255,255,.95);
+      font: inherit;
+      padding: 0 12px;
+      color: var(--text,#0f172a);
+    }
+
+    .background-scheduler__grid input[type="number"] {
+      font-variant-numeric: tabular-nums;
+    }
+
+    .background-scheduler__actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .background-scheduler__status {
+      margin: 0;
+      font-size: .85rem;
+      color: var(--muted,#475569);
+    }
+
+    .background-scheduler__toast {
+      margin: 0;
+      font-size: .85rem;
+      line-height: 1.45;
+      border-radius: 12px;
+      padding: 10px 12px;
+      border: 1px solid rgba(37,99,235,.28);
+      background: rgba(37,99,235,.1);
+      color: var(--text,#0f172a);
+    }
+
+    .background-scheduler__toast.is-success {
+      border-color: rgba(16,185,129,.35);
+      background: rgba(16,185,129,.14);
+      color: #047857;
+    }
+
+    .background-scheduler__toast.is-error {
+      border-color: rgba(239,68,68,.35);
+      background: rgba(239,68,68,.14);
+      color: #b91c1c;
+    }
+
+    .background-scheduler__toast.is-info {
+      border-color: rgba(37,99,235,.28);
+      background: rgba(37,99,235,.1);
+      color: var(--text,#0f172a);
+    }
+
+    .background-scheduler__toast[hidden] {
+      display: none;
+    }
+
+    .background-scheduler__summary {
+      margin: 0;
+      font-size: .9rem;
+      font-weight: 500;
+      color: var(--text,#0f172a);
+    }
     .sector-notes {
       border: 1px solid rgba(37,99,235,.18);
       background: rgba(37,99,235,.05);
@@ -724,6 +892,220 @@
       text-align: center;
       color: var(--muted,#64748b);
       padding: 16px;
+    }
+
+    .cache-badge {
+      display: inline-flex;
+      align-items: center;
+      margin-left: 6px;
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: rgba(37,99,235,.16);
+      color: var(--accent,#2563eb);
+      font-size: .65rem;
+      font-weight: 700;
+      letter-spacing: .04em;
+      text-transform: uppercase;
+    }
+
+    .followup-panel {
+      border: 1px solid rgba(37,99,235,.18);
+      background: rgba(37,99,235,.05);
+      border-radius: 18px;
+      padding: 18px;
+      display: grid;
+      gap: 18px;
+    }
+
+    .followup-panel__header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 14px;
+    }
+
+    .followup-panel__header h3 {
+      margin: 0 0 6px;
+      font-size: 1.05rem;
+      font-weight: 600;
+    }
+
+    .followup-panel__header p {
+      margin: 0;
+      font-size: .88rem;
+      color: var(--muted,#475569);
+    }
+
+    .followup-panel__actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .followup-panel__status {
+      font-size: .85rem;
+      color: var(--muted,#475569);
+    }
+
+    .followup-form {
+      display: grid;
+      gap: 14px;
+    }
+
+    .followup-form__grid {
+      display: grid;
+      gap: 12px;
+    }
+
+    @media (min-width: 720px) {
+      .followup-form__grid {
+        grid-template-columns: minmax(0, 0.35fr) minmax(0, 1fr);
+      }
+    }
+
+    .followup-form__grid label {
+      display: grid;
+      gap: 6px;
+      font-size: .9rem;
+      font-weight: 600;
+      color: var(--text,#0f172a);
+    }
+
+    .followup-form__grid select,
+    .followup-form__grid textarea {
+      padding: 10px 12px;
+      border-radius: 12px;
+      border: 1px solid var(--border,#cbd5f5);
+      font: inherit;
+      background: rgba(255,255,255,.92);
+      color: var(--text,#0f172a);
+      box-shadow: 0 1px 2px rgba(15,23,42,.04);
+      transition: border-color .2s ease, box-shadow .2s ease;
+    }
+
+    .followup-form__grid select:focus,
+    .followup-form__grid textarea:focus {
+      outline: none;
+      border-color: var(--accent,#2563eb);
+      box-shadow: 0 0 0 3px rgba(37,99,235,.18);
+    }
+
+    .followup-form__grid textarea {
+      resize: vertical;
+      min-height: 92px;
+    }
+
+    .followup-form__footer {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .followup-status {
+      margin: 0;
+      font-size: .85rem;
+      color: var(--muted,#475569);
+    }
+
+    .followup-status[data-tone="success"] {
+      color: #047857;
+    }
+
+    .followup-status[data-tone="error"] {
+      color: #b91c1c;
+    }
+
+    .followup-list {
+      display: grid;
+      gap: 12px;
+    }
+
+    .followup-list__header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .followup-list__header h4 {
+      margin: 0;
+      font-size: .95rem;
+      font-weight: 600;
+    }
+
+    .followup-list__count {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 32px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: rgba(37,99,235,.12);
+      color: var(--accent,#2563eb);
+      font-size: .8rem;
+      font-weight: 600;
+    }
+
+    .followup-table {
+      width: 100%;
+      border-collapse: collapse;
+      border-radius: 14px;
+      overflow: hidden;
+      border: 1px solid rgba(15,23,42,.08);
+      font-size: .85rem;
+      background: rgba(255,255,255,.92);
+    }
+
+    .followup-table thead {
+      background: rgba(15,23,42,.06);
+    }
+
+    .followup-table th,
+    .followup-table td {
+      padding: 9px 12px;
+      text-align: left;
+      color: var(--text,#0f172a);
+    }
+
+    .followup-table tbody tr:nth-child(odd) {
+      background: rgba(15,23,42,.02);
+    }
+
+    .followup-table td strong {
+      font-weight: 600;
+    }
+
+    .followup-table .followup-status-label {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: rgba(37,99,235,.12);
+      color: var(--accent,#2563eb);
+      font-size: .78rem;
+      font-weight: 600;
+    }
+
+    .followup-table .followup-status-label[data-state="resolved"] {
+      background: rgba(16,185,129,.14);
+      color: #047857;
+    }
+
+    .followup-table .followup-status-label[data-state="dismissed"] {
+      background: rgba(239,68,68,.18);
+      color: #b91c1c;
+    }
+
+    .followup-table .followup-question {
+      white-space: pre-line;
+    }
+
+    #followupEmpty td {
+      text-align: center;
+      color: var(--muted,#64748b);
     }
 
     .run-id-display {
@@ -1429,7 +1811,7 @@
     </nav>
   </header>
 
-  <main class="planner-shell planner-wrap">
+  <main class="planner-shell planner-wrap" data-gated="member">
     <header class="planner-headline">
       <a class="inline-link" href="/equity_analyst.html">← Back to analyst blueprint</a>
       <h1>Market Scan Planner & Cost Estimator</h1>
@@ -1447,6 +1829,38 @@
             <strong>No API credentials detected</strong>
             <span>Add keys from your providers in <button type="button" class="planner-alert__link" data-open-credential-manager>Tools → API Registry</button> and then refresh the planner to assign them to each stage.</span>
           </div>
+          <fieldset class="scope-field" id="runScopeFieldset">
+            <legend>Run scope</legend>
+            <div class="scope-options">
+              <label class="scope-option">
+                <input type="radio" name="runScope" value="universe" checked />
+                <span>Entire ticker universe</span>
+                <small id="scopeUniverseSummary">Use the universe slider to cap Stage 1 intake.</small>
+              </label>
+              <div class="scope-option scope-option--watchlist">
+                <label>
+                  <input type="radio" name="runScope" value="watchlist" />
+                  <span>Watchlist</span>
+                </label>
+                <div class="scope-option__control">
+                  <label class="sr-only" for="watchlistSelect">Watchlist</label>
+                  <select id="watchlistSelect" disabled>
+                    <option value="">Select watchlist…</option>
+                  </select>
+                  <button type="button" class="btn ghost small" id="refreshWatchlistsBtn">Refresh</button>
+                </div>
+                <p class="muted" id="watchlistSummary" aria-live="polite">Choose a watchlist to see membership and size.</p>
+              </div>
+              <div class="scope-option scope-option--custom">
+                <label>
+                  <input type="radio" name="runScope" value="custom" />
+                  <span>Custom symbols</span>
+                </label>
+                <textarea id="customTickersInput" rows="2" placeholder="AAPL, MSFT, 0700.HK" disabled></textarea>
+              </div>
+              <p class="muted" id="scopeStatus" aria-live="polite"></p>
+            </div>
+          </fieldset>
           <div class="field">
             <label for="universeInput">Universe size (tickers)</label>
             <input type="number" id="universeInput" name="universe" min="1" value="40000" />
@@ -1553,6 +1967,81 @@
               </div>
             </section>
           </div>
+
+          <section class="watchlist-manager" id="watchlistManager" hidden>
+            <header>
+              <h3>Watchlists</h3>
+              <p>Admins can curate watchlists for targeted runs. Create lists, add tickers, and keep memberships current without leaving the planner.</p>
+            </header>
+            <div class="watchlist-manager__forms">
+              <form id="createWatchlistForm" class="watchlist-form">
+                <div class="field">
+                  <label for="watchlistNameInput">Watchlist name</label>
+                  <input type="text" id="watchlistNameInput" placeholder="Global quality" autocomplete="off" />
+                </div>
+                <div class="field">
+                  <label for="watchlistSlugInput">Slug</label>
+                  <input type="text" id="watchlistSlugInput" placeholder="global-quality" autocomplete="off" />
+                </div>
+                <div class="field">
+                  <label for="watchlistDescriptionInput">Description</label>
+                  <input type="text" id="watchlistDescriptionInput" placeholder="Optional short description" autocomplete="off" />
+                </div>
+                <div class="watchlist-form__actions">
+                  <button type="submit" class="btn-secondary small">Create watchlist</button>
+                  <span class="watchlist-status" id="createWatchlistStatus" aria-live="polite"></span>
+                </div>
+              </form>
+              <form id="addWatchlistTickerForm" class="watchlist-form">
+                <div class="field">
+                  <label for="watchlistTickerInput">Ticker symbol</label>
+                  <input type="text" id="watchlistTickerInput" placeholder="AAPL" autocomplete="off" />
+                </div>
+                <div class="field-grid">
+                  <label>
+                    <span class="field-label">Display name</span>
+                    <input type="text" id="watchlistTickerNameInput" placeholder="Apple Inc." autocomplete="off" />
+                  </label>
+                  <label>
+                    <span class="field-label">Exchange</span>
+                    <input type="text" id="watchlistTickerExchangeInput" placeholder="NASDAQ" autocomplete="off" />
+                  </label>
+                  <label>
+                    <span class="field-label">Country</span>
+                    <input type="text" id="watchlistTickerCountryInput" placeholder="US" autocomplete="off" />
+                  </label>
+                </div>
+                <div class="field">
+                  <label for="watchlistTickerNotesInput">Notes</label>
+                  <input type="text" id="watchlistTickerNotesInput" placeholder="Optional stage guidance" autocomplete="off" />
+                </div>
+                <div class="watchlist-form__actions">
+                  <button type="submit" class="btn-secondary small">Add to watchlist</button>
+                  <span class="watchlist-status" id="addWatchlistTickerStatus" aria-live="polite"></span>
+                </div>
+              </form>
+            </div>
+            <div class="watchlist-table-wrapper">
+              <header class="watchlist-table__header">
+                <h4 id="watchlistSelectionLabel">Selected watchlist</h4>
+                <button type="button" class="btn ghost small" id="refreshWatchlistEntriesBtn">Refresh list</button>
+              </header>
+              <table class="watchlist-table">
+                <thead>
+                  <tr>
+                    <th scope="col">Ticker</th>
+                    <th scope="col">Name</th>
+                    <th scope="col">Exchange</th>
+                    <th scope="col">Last seen</th>
+                    <th scope="col" class="sr-only">Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="watchlistEntriesBody">
+                  <tr><td colspan="5" class="muted">Select a watchlist to view its tickers.</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
 
           <div class="planner-actions">
             <button class="btn-primary" type="button" id="startRunBtn">Start automated run</button>
@@ -1692,6 +2181,73 @@
         <span id="stage1Status" role="status" aria-live="polite"></span>
       </div>
 
+      <section class="auto-continue" aria-label="Automation controls">
+        <div class="auto-continue__controls">
+          <label class="auto-continue__label" for="autoContinueToggle">
+            <input type="checkbox" id="autoContinueToggle" />
+            <span>Auto continue</span>
+          </label>
+          <label class="sr-only" for="autoContinueInterval">Auto continue interval</label>
+          <select id="autoContinueInterval">
+            <option value="15">Every 15 seconds</option>
+            <option value="30" selected>Every 30 seconds</option>
+            <option value="60">Every 60 seconds</option>
+          </select>
+        </div>
+        <p class="auto-continue__status" id="autoContinueStatus" role="status" aria-live="polite">
+          Auto continue idle.
+        </p>
+      </section>
+
+      <section class="background-scheduler" aria-label="Background scheduler" id="schedulerSection">
+        <div class="background-scheduler__intro">
+          <h3>Background scheduler</h3>
+          <p>Let automation continue when the planner is closed. Configure cadence and batch sizes for unattended dispatch.</p>
+        </div>
+        <div class="background-scheduler__controls">
+          <label class="background-scheduler__toggle" for="schedulerEnabled">
+            <input type="checkbox" id="schedulerEnabled" />
+            <span>Enable background dispatch</span>
+          </label>
+          <div class="background-scheduler__grid">
+            <label>
+              <span>Cadence</span>
+              <select id="schedulerCadence">
+                <option value="1800">Every 30 minutes</option>
+                <option value="3600" selected>Every hour</option>
+                <option value="7200">Every 2 hours</option>
+                <option value="14400">Every 4 hours</option>
+              </select>
+            </label>
+            <label>
+              <span>Stage 1 batch</span>
+              <input type="number" id="schedulerStage1Limit" min="1" max="25" value="1" />
+            </label>
+            <label>
+              <span>Stage 2 batch</span>
+              <input type="number" id="schedulerStage2Limit" min="1" max="25" value="1" />
+            </label>
+            <label>
+              <span>Stage 3 batch</span>
+              <input type="number" id="schedulerStage3Limit" min="1" max="25" value="1" />
+            </label>
+            <label>
+              <span>Cycles per trigger</span>
+              <input type="number" id="schedulerCycles" min="1" max="10" value="1" />
+            </label>
+          </div>
+          <div class="background-scheduler__actions">
+            <button class="btn-primary" type="button" id="schedulerSaveBtn">Save schedule</button>
+            <button class="btn-secondary" type="button" id="schedulerRefreshBtn">Refresh</button>
+          </div>
+          <p class="background-scheduler__status" id="schedulerStatus" role="status" aria-live="polite"></p>
+          <div class="background-scheduler__toast" id="schedulerToast" role="status" aria-live="polite" hidden></div>
+        </div>
+        <p class="background-scheduler__summary" id="schedulerSummary">
+          Assign a run to enable background automation.
+        </p>
+      </section>
+
       <section class="recent-results" aria-live="polite">
         <h3>Latest classifications</h3>
         <table class="recent-table">
@@ -1737,6 +2293,14 @@
         <div class="controller-metrics__item">
           <dt>Failed</dt>
           <dd id="stage2Failed">—</dd>
+        </div>
+        <div class="controller-metrics__item">
+          <dt>Retrieved snippets</dt>
+          <dd id="stage2ContextHits">—</dd>
+        </div>
+        <div class="controller-metrics__item">
+          <dt>Embedding tokens</dt>
+          <dd id="stage2ContextTokens">—</dd>
         </div>
       </dl>
 
@@ -1802,6 +2366,14 @@
         <dt>Failed</dt>
         <dd id="stage3Failed">—</dd>
       </div>
+      <div class="controller-metrics__item">
+        <dt>Retrieved snippets</dt>
+        <dd id="stage3ContextHits">—</dd>
+      </div>
+      <div class="controller-metrics__item">
+        <dt>Embedding tokens</dt>
+        <dd id="stage3ContextTokens">—</dd>
+      </div>
     </dl>
 
     <div class="controller-actions">
@@ -1824,6 +2396,186 @@
         <tbody id="stage3RecentBody">
           <tr>
             <td colspan="4" class="recent-empty">No deep dives yet.</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="focus-panel" id="focusPanel" aria-live="polite">
+      <div class="focus-panel__header">
+        <div>
+          <h3>Focus questions</h3>
+          <p class="muted">
+            Queue targeted prompts after Stage 3 to probe the highest-conviction tickers before handing off to analysts.
+          </p>
+        </div>
+        <div class="focus-panel__actions">
+          <button class="btn-secondary" type="button" id="refreshFocusBtn">Refresh</button>
+          <span class="focus-panel__status" id="focusPanelStatus"></span>
+        </div>
+      </div>
+
+      <form id="focusForm" class="focus-form" novalidate>
+        <div class="focus-form__grid">
+          <label for="focusTicker">
+            Ticker
+            <select id="focusTicker">
+              <option value="">Select ticker</option>
+            </select>
+          </label>
+          <div class="focus-templates" id="focusTemplates" aria-label="Focus question templates"></div>
+        </div>
+        <label for="focusCustomQuestion" class="focus-form__custom">
+          Custom question (optional)
+          <textarea
+            id="focusCustomQuestion"
+            rows="3"
+            maxlength="500"
+            placeholder="e.g., Stress test the bull case against customer churn scenarios."
+          ></textarea>
+        </label>
+        <div class="focus-form__footer">
+          <button type="submit" class="btn-primary" id="focusSubmitBtn">Queue focus questions</button>
+          <p class="focus-status" id="focusStatus" role="status" aria-live="polite"></p>
+        </div>
+      </form>
+
+      <section class="focus-list" aria-live="polite" aria-label="Queued focus questions">
+        <header class="focus-list__header">
+          <div>
+            <h4>Queued focus prompts</h4>
+            <p class="muted-small" id="focusSummary">Pending — • Completed — • Failed —</p>
+          </div>
+          <span class="focus-list__count" id="focusCount">0</span>
+        </header>
+        <table class="focus-table">
+          <thead>
+            <tr>
+              <th scope="col">Submitted</th>
+              <th scope="col">Ticker</th>
+              <th scope="col">Question</th>
+              <th scope="col">Status</th>
+              <th scope="col">Answer</th>
+              <th scope="col">Updated</th>
+            </tr>
+          </thead>
+          <tbody id="focusTableBody">
+            <tr>
+              <td colspan="6">No focus questions queued yet. Select templates or add a custom prompt to get started.</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+    </section>
+
+    <section class="followup-panel" id="followupPanel" aria-live="polite">
+      <div class="followup-panel__header">
+        <div>
+          <h3>Post-run feedback &amp; follow-ups</h3>
+          <p class="muted">Share the manual questions you still want answered. We’ll queue them for the next automation pass or analyst follow-up.</p>
+        </div>
+        <div class="followup-panel__actions">
+          <button class="btn-secondary" type="button" id="refreshFollowupsBtn">Refresh</button>
+          <span class="followup-panel__status" id="followupPanelStatus"></span>
+        </div>
+      </div>
+
+      <form id="followupForm" class="followup-form" novalidate>
+        <div class="followup-form__grid">
+          <label for="followupTicker">
+            Ticker (optional)
+            <select id="followupTicker">
+              <option value="">General follow-up</option>
+            </select>
+          </label>
+          <label for="followupQuestion" class="followup-form__question">
+            Follow-up request
+            <textarea
+              id="followupQuestion"
+              rows="3"
+              maxlength="750"
+              placeholder="e.g., Can we model out the margin expansion path if management hits their FY25 guidance?"
+              required
+            ></textarea>
+          </label>
+        </div>
+        <div class="followup-form__footer">
+          <button type="submit" class="btn-primary" id="submitFollowupBtn">Submit follow-up</button>
+          <p class="followup-status" id="followupStatus" role="status" aria-live="polite"></p>
+        </div>
+      </form>
+
+      <section class="followup-list" aria-live="polite" aria-label="Recent follow-up questions">
+        <header class="followup-list__header">
+          <h4>Recent requests</h4>
+          <span class="followup-list__count" id="followupCount">0</span>
+        </header>
+        <table class="followup-table">
+          <thead>
+            <tr>
+              <th scope="col">Submitted</th>
+              <th scope="col">Ticker</th>
+              <th scope="col">Question</th>
+              <th scope="col">Status</th>
+              <th scope="col">Updated</th>
+            </tr>
+          </thead>
+          <tbody id="followupTableBody">
+            <tr id="followupEmpty">
+              <td colspan="5">No feedback logged yet. Start by submitting a question above.</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+    </section>
+  </section>
+
+  <section class="panel controller-panel" id="observabilityPanel" hidden>
+    <header>
+      <h2>Observability &amp; safety</h2>
+      <p>Verify worker health and inspect recent automation failures before triggering unattended runs.</p>
+    </header>
+
+    <div class="health-grid" id="healthStatus">
+      <article class="health-card" id="healthDatabaseCard" data-status="unknown">
+        <h3>Database</h3>
+        <p id="healthDatabaseStatus">Not checked</p>
+        <small id="healthDatabaseDetail">Run a check to confirm Supabase connectivity.</small>
+      </article>
+      <article class="health-card" id="healthOpenAICard" data-status="unknown">
+        <h3>OpenAI</h3>
+        <p id="healthOpenAIStatus">Not checked</p>
+        <small id="healthOpenAIDetail">We ping the models API to ensure credentials work.</small>
+      </article>
+    </div>
+
+    <div class="health-actions">
+      <button class="btn-secondary" type="button" id="refreshHealthBtn">Refresh health</button>
+      <span class="health-timestamp" id="healthCheckedAt">Health checks have not run yet.</span>
+    </div>
+
+    <section class="error-log" aria-live="polite">
+      <header class="error-log__header">
+        <h3>Recent error logs</h3>
+        <div class="error-log__actions">
+          <button class="btn-secondary" type="button" id="refreshErrorsBtn">Refresh log</button>
+          <span class="error-log__status" id="errorLogStatus"></span>
+        </div>
+      </header>
+      <table class="error-log__table">
+        <thead>
+          <tr>
+            <th scope="col">When</th>
+            <th scope="col">Stage</th>
+            <th scope="col">Ticker</th>
+            <th scope="col">Prompt</th>
+            <th scope="col">Message</th>
+            <th scope="col">Retries</th>
+          </tr>
+        </thead>
+        <tbody id="errorLogBody">
+          <tr class="error-log__empty">
+            <td colspan="6">No failures recorded in the last 50 entries.</td>
           </tr>
         </tbody>
       </table>
@@ -1941,7 +2693,20 @@
       </div>
     </div>
   </div>
-</main>
+
+    <div class="gate-cta">
+      <div class="gate-cta__inner">
+        <div>
+          <strong>Members only</strong>
+          <p>Join FutureFunds.ai or sign in to run automated analyst sweeps.</p>
+        </div>
+        <div class="gate-cta__actions">
+          <button class="btn primary" type="button" data-open-auth="signup">Join membership</button>
+          <button class="btn" type="button" data-open-auth="signin">Sign in</button>
+        </div>
+      </div>
+    </div>
+  </main>
 
 <button type="button" class="guided-fab" id="guidedFab" aria-label="Start guided walkthrough">
   <strong>Need a tour?</strong>
