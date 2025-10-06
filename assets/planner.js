@@ -484,12 +484,29 @@ function updateScopeUI({ fromSettings = false } = {}) {
     inputs.refreshWatchlistsBtn.disabled = watchlistLoading;
   }
   if (inputs.customTickers) {
-    inputs.customTickers.disabled = mode !== 'custom';
+    const isCustom = mode === 'custom';
+    if (isCustom) {
+      inputs.customTickers.disabled = false;
+      inputs.customTickers.removeAttribute('disabled');
+      inputs.customTickers.removeAttribute('aria-disabled');
+      if (!fromSettings) {
+        try {
+          inputs.customTickers.focus({ preventScroll: true });
+        } catch (error) {
+          inputs.customTickers.focus();
+        }
+      }
+    } else {
+      inputs.customTickers.disabled = true;
+      inputs.customTickers.setAttribute('disabled', '');
+      inputs.customTickers.setAttribute('aria-disabled', 'true');
+    }
   }
 
   if (inputs.universe) {
     if (mode === 'watchlist') {
-      const count = watchlist?.tickerCount ?? plannerScope.watchlistCount ?? Number(inputs.universe.value) || 0;
+      const fallbackUniverse = Number(inputs.universe.value) || 0;
+      const count = watchlist?.tickerCount ?? plannerScope.watchlistCount ?? fallbackUniverse;
       inputs.universe.value = count;
       inputs.universe.disabled = true;
     } else if (mode === 'custom') {
