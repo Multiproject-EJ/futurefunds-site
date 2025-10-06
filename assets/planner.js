@@ -484,7 +484,13 @@ function updateScopeUI({ fromSettings = false } = {}) {
     inputs.refreshWatchlistsBtn.disabled = watchlistLoading;
   }
   if (inputs.customTickers) {
-    inputs.customTickers.disabled = mode !== 'custom';
+    const isCustom = mode === 'custom';
+    inputs.customTickers.readOnly = !isCustom;
+    if (isCustom) {
+      inputs.customTickers.removeAttribute('aria-disabled');
+    } else {
+      inputs.customTickers.setAttribute('aria-disabled', 'true');
+    }
   }
 
   if (inputs.universe) {

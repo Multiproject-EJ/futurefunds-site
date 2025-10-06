@@ -1545,7 +1545,7 @@ body.theme-light table.grid pre{
   border-radius:16px;
   padding:16px 18px;
   display:grid;
-  gap:12px;
+  gap:16px;
   background:rgba(37,99,235,.04);
 }
 .scope-field legend{
@@ -1555,39 +1555,48 @@ body.theme-light table.grid pre{
 }
 .scope-options{
   display:grid;
-  gap:14px;
+  gap:18px;
 }
 .scope-option{
   display:grid;
-  gap:6px;
-  align-items:flex-start;
+  gap:10px;
   border-bottom:1px solid rgba(148,163,184,.3);
-  padding-bottom:12px;
+  padding-bottom:16px;
 }
 .scope-option:last-child{border-bottom:none;padding-bottom:0}
-.scope-option > label,
-.scope-option{
+.scope-option__choice{
+  display:flex;
+  align-items:flex-start;
+  gap:10px;
   font-size:.95rem;
   color:var(--text,#0f172a);
+  font-weight:600;
+  cursor:pointer;
 }
-.scope-option input[type="radio"]{
-  margin-right:8px;
+.scope-option__choice input[type="radio"]{
+  cursor:pointer;
+  margin-top:2px;
   accent-color:var(--accent,#2563eb);
 }
-.scope-option small,
+.scope-option__label{display:block;line-height:1.4}
 .scope-option p{
   margin:0;
   color:var(--muted,#475569);
   font-size:.85rem;
 }
-.scope-option__control{
+.scope-option__body{
   display:flex;
   gap:10px;
   align-items:center;
+  flex-wrap:wrap;
 }
-.scope-option__control select{
-  flex:1 1 auto;
+.scope-option__body select{
+  flex:1 1 220px;
   min-width:200px;
+}
+.scope-option--custom .scope-option__body{
+  flex-direction:column;
+  align-items:stretch;
 }
 #customTickersInput{
   resize:vertical;
@@ -1598,8 +1607,13 @@ body.theme-light table.grid pre{
   font:inherit;
   background:rgba(255,255,255,.92);
   color:var(--text,#0f172a);
+  width:100%;
+  transition:border-color .2s ease,box-shadow .2s ease,opacity .2s ease;
 }
-#customTickersInput:disabled{opacity:.65}
+#customTickersInput[aria-disabled="true"]{
+  opacity:.6;
+  pointer-events:none;
+}
 
 .watchlist-manager{
   border:1px solid var(--border,#e2e8f0);
