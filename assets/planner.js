@@ -1589,32 +1589,252 @@ function initCredentialManager() {
     statusEl.dataset.tone = text ? tone : '';
   };
 
+  const defaultTestPrompt = 'Return "Yes, I\'m working." if you are receiving this.';
+
   const connectionTargets = {
     openai: {
       label: 'OpenAI',
-      endpoint: 'https://api.openai.com/v1/models',
-      headers: (key) => ({
-        Authorization: `Bearer ${key}`,
-        Accept: 'application/json'
-      })
+      ping: {
+        endpoint: 'https://api.openai.com/v1/models',
+        headers: (key) => ({
+          Authorization: `Bearer ${key}`,
+          Accept: 'application/json'
+        })
+      },
+      prompt: {
+        endpoint: 'https://api.openai.com/v1/chat/completions',
+        method: 'POST',
+        headers: (key) => ({
+          Authorization: `Bearer ${key}`,
+          Accept: 'application/json',
+          'Content-Type': 'application/json'
+        }),
+        body: (question) => ({
+          model: 'gpt-4o-mini',
+          temperature: 0,
+          max_tokens: 80,
+          messages: [
+            { role: 'system', content: 'You are a status probe that confirms connectivity in one short sentence.' },
+            { role: 'user', content: question }
+          ]
+        }),
+        parse: (payload) => payload?.choices?.[0]?.message?.content?.trim() || ''
+      }
     },
     openrouter: {
       label: 'OpenRouter',
-      endpoint: 'https://openrouter.ai/api/v1/models',
-      headers: (key) => ({
-        Authorization: `Bearer ${key}`,
-        Accept: 'application/json'
-      })
+      ping: {
+        endpoint: 'https://openrouter.ai/api/v1/models',
+        headers: (key) => ({
+          Authorization: `Bearer ${key}`,
+          Accept: 'application/json'
+        })
+      },
+      prompt: {
+        endpoint: 'https://openrouter.ai/api/v1/chat/completions',
+        method: 'POST',
+        headers: (key) => {
+          const headers = {
+            Authorization: `Bearer ${key}`,
+            Accept: 'application/json',
+            'Content-Type': 'application/json',
+            'X-Title': 'FutureFunds Planner'
+          };
+          if (typeof window !== 'undefined' && window?.location?.origin) {
+            const referer = window.location.origin;
+            if (/^https?:/i.test(referer)) {
+              headers['HTTP-Referer'] = referer;
+            }
+          }
+          return headers;
+        },
+        body: (question) => ({
+          model: 'openrouter/auto',
+          temperature: 0,
+          max_tokens: 80,
+          messages: [
+            { role: 'system', content: 'You are a status probe that confirms connectivity in one short sentence.' },
+            { role: 'user', content: question }
+          ]
+        }),
+        parse: (payload) => payload?.choices?.[0]?.message?.content?.trim() || ''
+      }
     },
     anthropic: {
       label: 'Anthropic',
-      endpoint: 'https://api.anthropic.com/v1/models',
-      headers: (key) => ({
-        'x-api-key': key,
-        'anthropic-version': '2023-06-01',
-        Accept: 'application/json'
-      })
+      ping: {
+        endpoint: 'https://api.anthropic.com/v1/models',
+        headers: (key) => ({
+          'x-api-key': key,
+          'anthropic-version': '2023-06-01',
+          Accept: 'application/json'
+        })
+      },
+      prompt: {
+        endpoint: 'https://api.anthropic.com/v1/messages',
+        method: 'POST',
+        headers: (key) => ({
+          'x-api-key': key,
+          'anthropic-version': '2023-06-01',
+          Accept: 'application/json',
+          'Content-Type': 'application/json'
+        }),
+        body: (question) => ({
+          model: 'claude-3-haiku-20240307',
+          max_tokens: 80,
+          system: 'You are a status probe that confirms connectivity in one short sentence.',
+          messages: [
+            { role: 'user', content: question }
+          ]
+        }),
+        parse: (payload) => {
+          if (Array.isArray(payload?.content)) {
+            return payload.content.map((part) => part?.text || '').join('\n').trim();
+          }
+          if (typeof payload?.content === 'string') {
+            return payload.content.trim();
+          }
+          if (typeof payload?.output_text === 'string') {
+            return payload.output_text.trim();
+          }
+          return '';
+        }
+      }
     }
+  };
+
+  const promptInput = modal.querySelector('#credentialTestPrompt');
+  const responseEl = modal.querySelector('#credentialTestResponse');
+  const responseMetaEl = modal.querySelector('#credentialTestMeta');
+  const responseBodyEl = modal.querySelector('#credentialTestReply');
+  const initialPromptValue = (promptInput?.value && promptInput.value.trim()) || defaultTestPrompt;
+  if (promptInput) {
+    promptInput.value = initialPromptValue;
+  }
+
+  const ensurePromptValue = () => {
+    if (promptInput && !promptInput.value.trim()) {
+      promptInput.value = initialPromptValue;
+    }
+  };
+
+  const hideTestResponse = () => {
+    if (responseEl) {
+      responseEl.hidden = true;
+    }
+    if (responseMetaEl) responseMetaEl.textContent = '';
+    if (responseBodyEl) responseBodyEl.textContent = '';
+  };
+
+  const showTestResponse = (text, providerLabel) => {
+    if (!responseEl) return;
+    responseEl.hidden = false;
+    if (responseBodyEl) {
+      responseBodyEl.textContent = text || 'No response text returned.';
+    }
+    if (responseMetaEl) {
+      const parts = [];
+      if (providerLabel) parts.push(providerLabel);
+      const timestamp = formatTimestamp(new Date());
+      if (timestamp && timestamp !== '—') parts.push(timestamp);
+      responseMetaEl.textContent = parts.join(' • ');
+    }
+  };
+
+  const createTimeoutSignal = (ms = 8000) => {
+    if (typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function') {
+      try {
+        return AbortSignal.timeout(ms);
+      } catch (error) {
+        console.warn('AbortSignal timeout creation failed', error);
+      }
+    }
+    return null;
+  };
+
+  const readResponseSnapshot = async (response) => {
+    let payload = null;
+    let detail = '';
+    try {
+      const clone = response.clone();
+      const contentType = clone.headers.get('content-type') ?? '';
+      if (contentType.includes('application/json')) {
+        payload = await clone.json();
+        detail =
+          (typeof payload?.error === 'string' && payload.error) ||
+          (typeof payload?.error?.message === 'string' && payload.error.message) ||
+          (typeof payload?.message === 'string' && payload.message) ||
+          '';
+      } else {
+        const text = await clone.text();
+        detail = text ? text.slice(0, 200).trim() : '';
+      }
+    } catch (error) {
+      detail = '';
+    }
+    return { payload, detail };
+  };
+
+  const runPingTest = async ({ target, apiKey }) => {
+    if (!target?.ping) return null;
+    const headers = target.ping.headers(apiKey);
+    const controller = createTimeoutSignal(8000);
+    const response = await fetch(target.ping.endpoint, {
+      method: 'GET',
+      headers,
+      signal: controller ?? undefined
+    });
+    const { detail } = await readResponseSnapshot(response);
+    if (!response.ok) {
+      const statusLabel = `${response.status} ${response.statusText || ''}`.trim();
+      const reason = detail ? `${statusLabel} — ${detail}` : statusLabel || 'Connection check failed';
+      const error = new Error(reason);
+      error.status = statusLabel;
+      error.detail = detail;
+      error.authFailure = response.status === 401 || response.status === 403;
+      error.stage = 'ping';
+      throw error;
+    }
+    return true;
+  };
+
+  const runPromptTest = async ({ target, apiKey, promptText }) => {
+    if (!target?.prompt) return { answer: '' };
+    const headers = target.prompt.headers(apiKey);
+    const method = target.prompt.method || 'POST';
+    const bodyPayload = typeof target.prompt.body === 'function'
+      ? target.prompt.body(promptText)
+      : target.prompt.body;
+    const controller = createTimeoutSignal(12000);
+    const response = await fetch(target.prompt.endpoint, {
+      method,
+      headers,
+      body: method.toUpperCase() === 'GET' ? undefined : JSON.stringify(bodyPayload),
+      signal: controller ?? undefined
+    });
+    const { payload, detail } = await readResponseSnapshot(response);
+    if (!response.ok) {
+      const statusLabel = `${response.status} ${response.statusText || ''}`.trim();
+      const reason = detail ? `${statusLabel} — ${detail}` : statusLabel || 'Prompt request failed';
+      const error = new Error(reason);
+      error.status = statusLabel;
+      error.detail = detail;
+      error.authFailure = response.status === 401 || response.status === 403;
+      error.stage = 'prompt';
+      throw error;
+    }
+    const parsed = typeof target.prompt.parse === 'function' ? target.prompt.parse(payload) : '';
+    const answer = (typeof parsed === 'string' ? parsed : '')?.trim();
+    if (answer) {
+      return { answer };
+    }
+    if (detail) {
+      return { answer: detail };
+    }
+    if (typeof payload === 'string' && payload.trim()) {
+      return { answer: payload.trim() };
+    }
+    return { answer: 'No response text returned.' };
   };
 
   const applyLockedContent = (reason) => {
@@ -1710,6 +1930,8 @@ function initCredentialManager() {
     if (keyInput) keyInput.value = '';
     if (activeInput) activeInput.checked = true;
     if (updatedEl) updatedEl.textContent = '—';
+    ensurePromptValue();
+    hideTestResponse();
     suppressDirty = false;
     isDirty = false;
   };
@@ -1728,6 +1950,8 @@ function initCredentialManager() {
     if (keyInput) keyInput.value = record.api_key || '';
     if (activeInput) activeInput.checked = record.is_active !== false;
     if (updatedEl) updatedEl.textContent = formatTimestamp(record.updated_at);
+    ensurePromptValue();
+    hideTestResponse();
     suppressDirty = false;
     isDirty = false;
   };
@@ -2053,68 +2277,60 @@ function initCredentialManager() {
       return;
     }
 
+    ensurePromptValue();
+    hideTestResponse();
+
+    const promptText = (promptInput?.value || '').trim() || initialPromptValue;
+    if (promptInput && !promptInput.value.trim()) {
+      promptInput.value = promptText;
+    }
+
     if (testBtn) {
       testBtn.setAttribute('disabled', 'true');
     }
 
-    setStatus(`Checking ${target.label} connection…`, 'info');
-
     try {
-      const headers = target.headers(apiKey);
-      const controller =
-        typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function'
-          ? AbortSignal.timeout(8000)
-          : null;
-      const response = await fetch(target.endpoint, {
-        method: 'GET',
-        headers,
-        signal: controller ?? undefined
-      });
-
-      let detail = '';
-      try {
-        const clone = response.clone();
-        const contentType = clone.headers.get('content-type') ?? '';
-        if (contentType.includes('application/json')) {
-          const data = await clone.json();
-          detail =
-            (typeof data?.error === 'string' && data.error) ||
-            (typeof data?.error?.message === 'string' && data.error.message) ||
-            (typeof data?.message === 'string' && data.message) ||
-            '';
-        } else {
-          const text = await clone.text();
-          detail = text ? text.slice(0, 200).trim() : '';
-        }
-      } catch (parseError) {
-        detail = '';
+      if (target.ping) {
+        setStatus(`Checking ${target.label} connection…`, 'info');
+        await runPingTest({ target, apiKey });
       }
 
-      if (response.ok) {
-        setStatus(`${target.label} connection succeeded.`, 'success');
-        logStatus(`${target.label} credential check succeeded.`);
+      if (target.prompt) {
+        setStatus(`Sending test question to ${target.label}…`, 'info');
+        const result = await runPromptTest({ target, apiKey, promptText });
+        const answer = (result?.answer || '').toString();
+        showTestResponse(answer, target.label);
+        setStatus(`${target.label} responded successfully.`, 'success');
+        const cleaned = answer.replace(/\s+/g, ' ').trim();
+        const snippet = cleaned && cleaned !== 'No response text returned.'
+          ? (cleaned.length > 120 ? `${cleaned.slice(0, 117)}…` : cleaned)
+          : '';
+        logStatus(`${target.label} prompt test succeeded${snippet ? ` — “${snippet}”` : ''}.`);
       } else {
-        const status = `${response.status} ${response.statusText || ''}`.trim();
-        const reason = detail ? `${status} — ${detail}` : status;
-        const authFailure = response.status === 401 || response.status === 403;
-        setStatus(
-          authFailure
-            ? `${target.label} rejected the key (${status}). Confirm the API key and scopes.`
-            : `Connection test failed: ${reason}`,
-          'error'
-        );
-        console.error('Credential connection test failed', {
-          provider: target.label,
-          status: response.status,
-          detail
-        });
+        const successMessage = `${target.label} connection succeeded.`;
+        setStatus(successMessage, 'success');
+        logStatus(`${target.label} credential check succeeded.`);
       }
     } catch (error) {
-      const message = error?.name === 'AbortError'
-        ? 'Connection test timed out after 8 seconds.'
-        : `Connection error: ${error?.message || 'Unknown failure'}`;
+      let message = '';
+      if (error?.name === 'AbortError') {
+        message = 'Connection test timed out after 8 seconds.';
+      } else if (error?.authFailure) {
+        const statusLabel = error.status || '401';
+        message = `${target.label} rejected the key (${statusLabel}). Confirm the API key and scopes.`;
+      } else if (error?.stage === 'prompt') {
+        message = `Test question failed: ${error.message || 'Unknown failure'}`;
+      } else {
+        message = `Connection test failed: ${error?.message || 'Unknown failure'}`;
+      }
       setStatus(message, 'error');
-      console.error('Credential connection test error', error);
+      console.error('Credential connection test error', {
+        provider: target.label,
+        stage: error?.stage || 'ping',
+        detail: error?.detail,
+        status: error?.status,
+        error
+      });
     } finally {
       if (testBtn) {
         testBtn.removeAttribute('disabled');

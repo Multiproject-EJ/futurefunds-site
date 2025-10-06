@@ -1532,6 +1532,39 @@
       min-height: 100px;
       font-family: ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;
     }
+    .credential-test {
+      display: grid;
+      gap: 12px;
+      margin-top: 4px;
+    }
+    .credential-test__output {
+      border: 1px solid var(--workspace-border);
+      border-radius: 12px;
+      padding: 12px;
+      background: var(--workspace-panel-muted);
+      display: grid;
+      gap: 6px;
+    }
+    .credential-test__output[hidden] {
+      display: none;
+    }
+    .credential-test__output-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      color: var(--workspace-muted);
+      font-size: .85rem;
+    }
+    .credential-test__reply {
+      margin: 0;
+      font-family: ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;
+      font-size: .92rem;
+      line-height: 1.45;
+      white-space: pre-wrap;
+      word-break: break-word;
+      color: var(--workspace-text);
+    }
     .credential-form input[type="text"]:focus,
     .credential-form textarea:focus {
       outline: none;
@@ -2850,6 +2883,23 @@
               API key
               <textarea id="credentialKey" rows="4" placeholder="Paste the provider API key"></textarea>
             </label>
+            <div class="credential-test">
+              <label for="credentialTestPrompt">
+                Test question (optional)
+                <textarea
+                  id="credentialTestPrompt"
+                  rows="2"
+                  placeholder="Return “Yes, I'm working.” if you are receiving this."
+                >Return “Yes, I'm working.” if you are receiving this.</textarea>
+              </label>
+              <div class="credential-test__output" id="credentialTestResponse" hidden>
+                <div class="credential-test__output-header">
+                  <strong>AI response</strong>
+                  <span id="credentialTestMeta"></span>
+                </div>
+                <pre class="credential-test__reply" id="credentialTestReply"></pre>
+              </div>
+            </div>
             <div class="credential-form__meta">
               <label class="credential-form__toggle" for="credentialActive">
                 <input type="checkbox" id="credentialActive" checked />
