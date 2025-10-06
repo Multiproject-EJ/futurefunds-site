@@ -66,15 +66,22 @@ export async function fetchActiveCredentials({ includeInactive = false, scope = 
 
   const { data, error } = await query;
   if (error) throw error;
-  return (data ?? []).map((row) => ({
-    id: row.id,
-    label: row.label ?? 'Unnamed credential',
-    provider: row.provider,
-    tier: row.tier ?? 'standard',
-    scopes: parseScopes(row.scopes),
-    is_active: row.is_active !== false,
-    updated_at: row.updated_at ?? null
-  }));
+  const seen = new Map();
+
+  (data ?? []).forEach((row) => {
+    if (!row?.id || seen.has(row.id)) return;
+    seen.set(row.id, {
+      id: row.id,
+      label: row.label ?? 'Unnamed credential',
+      provider: row.provider,
+      tier: row.tier ?? 'standard',
+      scopes: parseScopes(row.scopes),
+      is_active: row.is_active !== false,
+      updated_at: row.updated_at ?? null
+    });
+  });
+
+  return Array.from(seen.values());
 }
 
 export function buildModelMap(models = []) {
