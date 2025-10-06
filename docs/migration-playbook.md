@@ -26,10 +26,10 @@ migration up`, or any PostgreSQL client that runs the statements in order.
 
 ```
 # reset the full schema (drops and recreates everything)
-supabase db reset
+npm run db:reset
 
 # apply migrations that have not been run yet
-supabase db migration up
+npm run db:push
 
 # run an individual script
 psql "$SUPABASE_DB_URL" -f sql/007_question_registry.sql
