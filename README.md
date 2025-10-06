@@ -64,3 +64,36 @@ universe, and internal tooling.
   weighted scorecards.
 - Database migrations live under `/sql` (apply them with `supabase db push` or your preferred
   migration runner).
+
+## Working with GitHub pull requests
+
+When you open **View pull request** in GitHub and see the banner `Pull request successfully
+merged and closed`, that means the work from that branch already lives on the main branch.
+To keep iterating, follow these steps:
+
+1. Sync your local repository so it has the latest main branch:
+   ```bash
+   git checkout main
+   git pull origin main
+   ```
+2. Create a new feature branch for the next round of changes:
+   ```bash
+   git checkout -b feature/your-change-name
+   ```
+3. Make and stage your edits (for example, restoring a modal or adjusting copy):
+   ```bash
+   # edit files
+   git status            # confirm the modified files
+   git add <files>
+   ```
+4. Commit and push the new branch:
+   ```bash
+   git commit -m "Describe the fix or feature"
+   git push origin feature/your-change-name
+   ```
+5. Open a fresh pull request from the pushed branch. GitHub will show the diff against the
+   latest main branch, and reviewers can merge it once the changes look good.
+
+If you need to revisit the earlier implementation that was merged, use the **Commits** tab in
+GitHub (or `git log`) to find the specific commit hash. You can then check it out locally with
+`git checkout <hash>` to inspect the previous state before porting pieces into your new branch.
