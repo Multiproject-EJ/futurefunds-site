@@ -100,6 +100,23 @@ const inputs = {
   schedulerStatus: $('schedulerStatus'),
   schedulerToast: $('schedulerToast'),
   schedulerSummary: $('schedulerSummary'),
+  notificationsSection: $('notificationsSection'),
+  notificationForm: $('notificationForm'),
+  notificationType: $('notificationType'),
+  notificationLabel: $('notificationLabel'),
+  notificationTarget: $('notificationTarget'),
+  notificationMinScore: $('notificationMinScore'),
+  notificationConvictionVeryHigh: $('notificationConvictionVeryHigh'),
+  notificationConvictionHigh: $('notificationConvictionHigh'),
+  notificationConvictionMedium: $('notificationConvictionMedium'),
+  notificationWatchlist: $('notificationWatchlistSelect'),
+  notificationStatus: $('notificationStatus'),
+  notificationSaveBtn: $('notificationSaveBtn'),
+  notificationList: $('notificationList'),
+  notificationEmpty: $('notificationEmpty'),
+  notificationEventsBody: $('notificationEventsBody'),
+  notificationEventsEmpty: $('notificationEventsEmpty'),
+  refreshNotificationsBtn: $('refreshNotificationsBtn'),
   stageSpendSection: $('stageSpendSection'),
   stageSpendChart: $('stageSpendChart'),
   stageSpendTotal: $('stageSpendTotal'),
@@ -275,6 +292,11 @@ let watchlistMap = new Map();
 let watchlistEntriesCache = new Map();
 let watchlistLoading = false;
 let watchlistEntriesLoading = false;
+let notificationChannels = [];
+let notificationEvents = [];
+let notificationsLoading = false;
+let notificationEventsLoading = false;
+let notificationSubmitting = false;
 let plannerScope = { ...defaults.scope };
 
 function loadSettings() {
@@ -426,6 +448,31 @@ function renderWatchlistOptions() {
   }
 }
 
+function renderNotificationWatchlistOptions() {
+  if (!inputs.notificationWatchlist) return;
+  const select = inputs.notificationWatchlist;
+  const previous = select.value;
+  select.innerHTML = '';
+  const baseOption = document.createElement('option');
+  baseOption.value = '';
+  baseOption.textContent = 'All watchlists';
+  select.appendChild(baseOption);
+
+  watchlists.forEach((item) => {
+    const option = document.createElement('option');
+    option.value = item.id;
+    const count = item.tickerCount ?? 0;
+    option.textContent = `${item.name ?? item.slug ?? item.id} (${count})`;
+    select.appendChild(option);
+  });
+
+  if (previous && watchlistMap.has(previous)) {
+    select.value = previous;
+  } else {
+    select.value = '';
+  }
+}
+
 function updateScopeUI({ fromSettings = false } = {}) {
   const mode = plannerScope.mode;
   const watchlist = plannerScope.watchlistId ? getWatchlistById(plannerScope.watchlistId) : null;
@@ -519,6 +566,7 @@ async function loadWatchlists({ silent = false } = {}) {
     watchlists = [];
     watchlistMap.clear();
     renderWatchlistOptions();
+    renderNotificationWatchlistOptions();
     updateScopeUI();
     return;
   }
@@ -552,6 +600,7 @@ async function loadWatchlists({ silent = false } = {}) {
     watchlistMap = new Map(watchlists.map((item) => [item.id, item]));
 
     renderWatchlistOptions();
+    renderNotificationWatchlistOptions();
 
     if (plannerScope.mode === 'watchlist') {
       if (plannerScope.watchlistId && !watchlistMap.has(plannerScope.watchlistId)) {
@@ -681,6 +730,408 @@ async function loadWatchlistEntries(watchlistId, { force = false, silent = false
     }
   } finally {
     watchlistEntriesLoading = false;
+  }
+}
+
+function setNotificationStatus(message = '', tone = 'muted') {
+  if (!inputs.notificationStatus) return;
+  inputs.notificationStatus.textContent = message;
+  if (tone === 'error') {
+    inputs.notificationStatus.style.color = '#b91c1c';
+  } else if (tone === 'success') {
+    inputs.notificationStatus.style.color = '#047857';
+  } else {
+    inputs.notificationStatus.style.color = 'var(--muted,#475569)';
+  }
+}
+
+function getSelectedConvictionLevels() {
+  const selections = [];
+  if (inputs.notificationConvictionVeryHigh?.checked) selections.push('very_high');
+  if (inputs.notificationConvictionHigh?.checked) selections.push('high');
+  if (inputs.notificationConvictionMedium?.checked) selections.push('medium');
+  return selections;
+}
+
+function normalizeConvictionLabel(value) {
+  if (!value) return 'Unknown';
+  const normalized = value.toString().toLowerCase();
+  if (normalized === 'very_high') return 'Very high';
+  if (normalized === 'high') return 'High';
+  if (normalized === 'medium') return 'Medium';
+  if (normalized === 'low') return 'Low';
+  return value.toString();
+}
+
+function formatChannelFilters(channel) {
+  const parts = [];
+  if (channel.minScore != null) {
+    parts.push(`Score ≥ ${Math.round(channel.minScore)}`);
+  }
+  if (channel.convictionLevels?.length) {
+    const labels = channel.convictionLevels.map((level) => normalizeConvictionLabel(level));
+    parts.push(`Conviction: ${labels.join(', ')}`);
+  } else {
+    parts.push('Conviction: all');
+  }
+  if (channel.watchlistIds?.length) {
+    const names = channel.watchlistIds
+      .map((id) => watchlistMap.get(id)?.name ?? watchlistMap.get(id)?.slug ?? id)
+      .filter(Boolean);
+    parts.push(`Watchlists: ${names.join(', ')}`);
+  } else {
+    parts.push('Watchlists: all');
+  }
+  return parts.join(' · ');
+}
+
+function renderNotificationChannels() {
+  if (!inputs.notificationList) return;
+  const body = inputs.notificationList;
+  body.innerHTML = '';
+
+  if (!notificationChannels.length) {
+    const row = document.createElement('tr');
+    const cell = document.createElement('td');
+    cell.colSpan = 5;
+    cell.className = 'notification-empty';
+    cell.textContent = 'No notification channels configured yet.';
+    row.appendChild(cell);
+    body.appendChild(row);
+    return;
+  }
+
+  notificationChannels.forEach((channel) => {
+    const row = document.createElement('tr');
+
+    const nameCell = document.createElement('td');
+    const label = document.createElement('div');
+    label.textContent = channel.label || 'Untitled channel';
+    label.style.fontWeight = '600';
+    const type = document.createElement('div');
+    type.className = 'muted';
+    type.textContent = channel.type === 'email' ? 'Email' : 'Slack webhook';
+    nameCell.append(label, type);
+    row.appendChild(nameCell);
+
+    const targetCell = document.createElement('td');
+    targetCell.textContent = channel.target;
+    row.appendChild(targetCell);
+
+    const filterCell = document.createElement('td');
+    filterCell.textContent = formatChannelFilters(channel);
+    row.appendChild(filterCell);
+
+    const statusCell = document.createElement('td');
+    statusCell.textContent = channel.isActive ? 'Active' : 'Paused';
+    if (!channel.isActive) {
+      statusCell.className = 'muted';
+    }
+    row.appendChild(statusCell);
+
+    const actionsCell = document.createElement('td');
+    actionsCell.className = 'notification-actions';
+    const toggleBtn = document.createElement('button');
+    toggleBtn.type = 'button';
+    toggleBtn.className = 'notification-action';
+    toggleBtn.dataset.notifyAction = 'toggle';
+    toggleBtn.dataset.notifyId = channel.id;
+    toggleBtn.dataset.notifyNext = channel.isActive ? 'pause' : 'activate';
+    toggleBtn.textContent = channel.isActive ? 'Pause' : 'Activate';
+    actionsCell.appendChild(toggleBtn);
+
+    const deleteBtn = document.createElement('button');
+    deleteBtn.type = 'button';
+    deleteBtn.className = 'notification-action danger';
+    deleteBtn.dataset.notifyAction = 'delete';
+    deleteBtn.dataset.notifyId = channel.id;
+    deleteBtn.textContent = 'Delete';
+    actionsCell.appendChild(deleteBtn);
+
+    row.appendChild(actionsCell);
+    body.appendChild(row);
+  });
+}
+
+function renderNotificationEvents() {
+  if (!inputs.notificationEventsBody) return;
+  const body = inputs.notificationEventsBody;
+  body.innerHTML = '';
+
+  if (!notificationEvents.length) {
+    const row = document.createElement('tr');
+    const cell = document.createElement('td');
+    cell.colSpan = 5;
+    cell.className = 'notification-empty';
+    cell.textContent = 'Alerts will appear after the next deep dive.';
+    row.appendChild(cell);
+    body.appendChild(row);
+    return;
+  }
+
+  notificationEvents.forEach((event) => {
+    const row = document.createElement('tr');
+
+    const timeCell = document.createElement('td');
+    timeCell.className = 'notification-datetime';
+    const timestamp = event.dispatchedAt || event.createdAt;
+    timeCell.textContent = formatRelativeTimestamp(timestamp);
+    row.appendChild(timeCell);
+
+    const tickerCell = document.createElement('td');
+    if (event.ticker) {
+      const link = document.createElement('a');
+      const params = new URLSearchParams({ ticker: event.ticker });
+      if (event.runId) params.set('run', event.runId);
+      link.href = `/ticker.html?${params.toString()}`;
+      link.textContent = event.ticker;
+      link.target = '_blank';
+      link.rel = 'noreferrer noopener';
+      tickerCell.appendChild(link);
+    } else {
+      tickerCell.textContent = '—';
+    }
+    row.appendChild(tickerCell);
+
+    const channelCell = document.createElement('td');
+    const channelLabel = event.channelLabel || (event.channelType === 'email' ? 'Email channel' : 'Slack webhook');
+    channelCell.textContent = channelLabel;
+    row.appendChild(channelCell);
+
+    const convictionCell = document.createElement('td');
+    convictionCell.className = 'notification-conviction';
+    convictionCell.textContent = event.conviction ? normalizeConvictionLabel(event.conviction) : '—';
+    row.appendChild(convictionCell);
+
+    const statusCell = document.createElement('td');
+    const badge = document.createElement('span');
+    badge.className = 'notification-status-badge';
+    const state = event.status || 'pending';
+    badge.dataset.state = state;
+    badge.textContent = state === 'sent' ? 'Delivered' : state === 'failed' ? 'Failed' : 'Pending';
+    statusCell.appendChild(badge);
+    row.appendChild(statusCell);
+
+    body.appendChild(row);
+  });
+}
+
+async function loadNotificationChannels({ silent = false } = {}) {
+  if (!authContext.isAdmin) {
+    notificationChannels = [];
+    renderNotificationChannels();
+    return;
+  }
+  if (notificationsLoading) return;
+  notificationsLoading = true;
+  if (!silent) {
+    setNotificationStatus('Loading notification channels…');
+  }
+  try {
+    const { data, error } = await supabase
+      .from('notification_channels')
+      .select('id, label, type, target, is_active, min_score, conviction_levels, watchlist_ids, created_at')
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+    notificationChannels = (data ?? []).map((row) => ({
+      id: row.id,
+      label: row.label ?? 'Notification channel',
+      type: row.type === 'slack_webhook' ? 'slack_webhook' : 'email',
+      target: row.target ?? '',
+      isActive: row.is_active !== false,
+      minScore: row.min_score != null ? Number(row.min_score) : null,
+      convictionLevels: Array.isArray(row.conviction_levels) ? row.conviction_levels : [],
+      watchlistIds: Array.isArray(row.watchlist_ids) ? row.watchlist_ids : [],
+      createdAt: row.created_at ?? null
+    }));
+    renderNotificationChannels();
+    if (!silent) {
+      setNotificationStatus(notificationChannels.length ? '' : 'Add a channel to start receiving alerts.');
+    }
+  } catch (error) {
+    console.error('Failed to load notification channels', error);
+    setNotificationStatus(`Failed to load channels: ${error.message}`, 'error');
+  } finally {
+    notificationsLoading = false;
+  }
+}
+
+async function loadNotificationEvents({ silent = false } = {}) {
+  if (!authContext.isAdmin) {
+    notificationEvents = [];
+    renderNotificationEvents();
+    return;
+  }
+  if (notificationEventsLoading) return;
+  notificationEventsLoading = true;
+  try {
+    let query = supabase
+      .from('notification_event_summaries')
+      .select('id, run_id, ticker, conviction, verdict, ensemble_score, status, created_at, dispatched_at, channel_label, channel_type, channel_target')
+      .order('created_at', { ascending: false })
+      .limit(activeRunId ? 30 : 20);
+    if (activeRunId) {
+      query = query.eq('run_id', activeRunId);
+    }
+    const { data, error } = await query;
+    if (error) throw error;
+    notificationEvents = (data ?? []).map((row) => ({
+      id: row.id,
+      runId: row.run_id ?? null,
+      ticker: row.ticker ?? null,
+      conviction: row.conviction ?? null,
+      verdict: row.verdict ?? null,
+      ensembleScore: row.ensemble_score != null ? Number(row.ensemble_score) : null,
+      status: (row.status ?? 'pending').toLowerCase(),
+      createdAt: row.created_at ?? null,
+      dispatchedAt: row.dispatched_at ?? null,
+      channelLabel: row.channel_label ?? null,
+      channelType: row.channel_type ?? null,
+      channelTarget: row.channel_target ?? null
+    }));
+    renderNotificationEvents();
+  } catch (error) {
+    console.warn('Failed to load notification events', error);
+    if (!silent) {
+      setNotificationStatus(`Failed to load recent alerts: ${error.message}`, 'error');
+    }
+  } finally {
+    notificationEventsLoading = false;
+  }
+}
+
+async function refreshNotificationData({ silent = false } = {}) {
+  await Promise.all([
+    loadNotificationChannels({ silent }),
+    loadNotificationEvents({ silent: true })
+  ]);
+}
+
+async function submitNotificationChannel(event) {
+  event.preventDefault();
+  if (!authContext.isAdmin) {
+    setNotificationStatus('Admin session required to configure alerts.', 'error');
+    return;
+  }
+  if (notificationSubmitting) return;
+
+  const type = inputs.notificationType?.value === 'slack_webhook' ? 'slack_webhook' : 'email';
+  const label = (inputs.notificationLabel?.value || '').trim();
+  const target = (inputs.notificationTarget?.value || '').trim();
+  const minScoreRaw = inputs.notificationMinScore?.value;
+  const convictionLevels = getSelectedConvictionLevels();
+  const watchlistId = inputs.notificationWatchlist?.value || '';
+
+  if (!label) {
+    setNotificationStatus('Add a descriptive label for this channel.', 'error');
+    inputs.notificationLabel?.focus();
+    return;
+  }
+
+  if (!target) {
+    setNotificationStatus('Provide an email address or webhook URL.', 'error');
+    inputs.notificationTarget?.focus();
+    return;
+  }
+
+  if (type === 'email' && !/.+@.+\..+/.test(target)) {
+    setNotificationStatus('Enter a valid email address.', 'error');
+    inputs.notificationTarget?.focus();
+    return;
+  }
+
+  if (type === 'slack_webhook' && !/^https:\/\//i.test(target)) {
+    setNotificationStatus('Slack webhooks must begin with https://', 'error');
+    inputs.notificationTarget?.focus();
+    return;
+  }
+
+  const minScore = Number(minScoreRaw);
+  const payload = {
+    type,
+    label,
+    target,
+    is_active: true,
+    min_score: Number.isFinite(minScore) && minScore >= 0 && minScore <= 100 ? minScore : null,
+    conviction_levels: convictionLevels,
+    watchlist_ids: watchlistId ? [watchlistId] : [],
+    metadata: { source: 'planner' }
+  };
+
+  notificationSubmitting = true;
+  if (inputs.notificationSaveBtn) inputs.notificationSaveBtn.disabled = true;
+  setNotificationStatus('Saving channel…');
+
+  try {
+    const { error } = await supabase.from('notification_channels').insert(payload);
+    if (error) throw error;
+    setNotificationStatus('Channel saved.', 'success');
+    inputs.notificationLabel && (inputs.notificationLabel.value = '');
+    inputs.notificationTarget && (inputs.notificationTarget.value = '');
+    inputs.notificationMinScore && (inputs.notificationMinScore.value = '');
+    if (inputs.notificationConvictionVeryHigh) inputs.notificationConvictionVeryHigh.checked = true;
+    if (inputs.notificationConvictionHigh) inputs.notificationConvictionHigh.checked = true;
+    if (inputs.notificationConvictionMedium) inputs.notificationConvictionMedium.checked = false;
+    if (inputs.notificationWatchlist) inputs.notificationWatchlist.value = '';
+    await loadNotificationChannels({ silent: true });
+  } catch (error) {
+    console.error('Failed to create notification channel', error);
+    setNotificationStatus(`Failed to save channel: ${error.message}`, 'error');
+  } finally {
+    notificationSubmitting = false;
+    if (inputs.notificationSaveBtn) inputs.notificationSaveBtn.disabled = false;
+  }
+}
+
+async function toggleNotificationChannel(channelId, nextState) {
+  if (!authContext.isAdmin || !channelId) return;
+  try {
+    const channel = notificationChannels.find((entry) => entry.id === channelId);
+    const desired = typeof nextState === 'boolean' ? nextState : !(channel?.isActive ?? true);
+    const { error } = await supabase
+      .from('notification_channels')
+      .update({ is_active: desired })
+      .eq('id', channelId);
+    if (error) throw error;
+    await loadNotificationChannels({ silent: true });
+    setNotificationStatus(desired ? 'Channel activated.' : 'Channel paused.', 'success');
+  } catch (error) {
+    console.error('Failed to toggle notification channel', error);
+    setNotificationStatus(`Failed to update channel: ${error.message}`, 'error');
+  }
+}
+
+async function deleteNotificationChannel(channelId) {
+  if (!authContext.isAdmin || !channelId) return;
+  const channel = notificationChannels.find((entry) => entry.id === channelId);
+  const label = channel?.label ?? 'this channel';
+  if (!window.confirm(`Remove ${label}? Alerts will no longer be delivered.`)) {
+    return;
+  }
+  try {
+    const { error } = await supabase.from('notification_channels').delete().eq('id', channelId);
+    if (error) throw error;
+    await loadNotificationChannels({ silent: true });
+    setNotificationStatus('Channel deleted.', 'success');
+  } catch (error) {
+    console.error('Failed to delete notification channel', error);
+    setNotificationStatus(`Failed to delete channel: ${error.message}`, 'error');
+  }
+}
+
+function handleNotificationAction(event) {
+  const target = event.target;
+  if (!(target instanceof HTMLElement)) return;
+  const actionButton = target.closest('[data-notify-action]');
+  if (!(actionButton instanceof HTMLElement)) return;
+  const id = actionButton.dataset.notifyId;
+  if (!id) return;
+  const action = actionButton.dataset.notifyAction;
+  if (action === 'toggle') {
+    const next = actionButton.dataset.notifyNext === 'activate';
+    toggleNotificationChannel(id, next);
+  } else if (action === 'delete') {
+    deleteNotificationChannel(id);
   }
 }
 
@@ -3950,6 +4401,7 @@ function setActiveRunId(value, { announce = true, silent = false } = {}) {
     resetFocusUI('No active run selected.');
     applySchedulerUI(null);
     hideSchedulerToast();
+    renderNotificationEvents();
     if (announce && inputs.stage1Status) {
       inputs.stage1Status.textContent = 'Active run cleared. Set a run ID to continue.';
     }
@@ -4013,6 +4465,9 @@ function setActiveRunId(value, { announce = true, silent = false } = {}) {
   });
   fetchFocusData({ silent }).catch((error) => {
     console.warn('Failed to load focus questions', error);
+  });
+  loadNotificationEvents({ silent: true }).catch((error) => {
+    console.warn('Failed to refresh notification log', error);
   });
 
   return changed;
@@ -4596,6 +5051,28 @@ function applyAccessState({ preserveStatus = false } = {}) {
     inputs.focusPanel.hidden = state !== 'admin-ok';
   }
 
+  if (inputs.notificationsSection) {
+    const visible = state === 'admin-ok';
+    inputs.notificationsSection.hidden = !visible;
+    if (!visible) {
+      setNotificationStatus('Admin access required to manage alerts.', 'muted');
+    } else if (!notificationChannels.length) {
+      setNotificationStatus('Add a channel to start receiving alerts.');
+    } else {
+      setNotificationStatus('');
+    }
+  }
+
+  if (inputs.notificationForm) {
+    const controls = inputs.notificationForm.querySelectorAll('input, select');
+    controls.forEach((element) => {
+      element.disabled = state !== 'admin-ok';
+    });
+  }
+  if (inputs.notificationSaveBtn) {
+    inputs.notificationSaveBtn.disabled = state !== 'admin-ok' || notificationSubmitting;
+  }
+
   const focusDisabled = state !== 'admin-ok' || !activeRunId || focusLoading;
   if (inputs.focusRefreshBtn) {
     inputs.focusRefreshBtn.disabled = state !== 'admin-ok' || !activeRunId;
@@ -4720,11 +5197,19 @@ async function syncAccess(options = {}) {
     loadWatchlists({ silent: true }).catch((error) => {
       console.error('Failed to refresh watchlists during access sync', error);
     });
+    refreshNotificationData({ silent: true }).catch((error) => {
+      console.error('Failed to refresh notification channels during access sync', error);
+    });
   } else {
     watchlists = [];
     watchlistMap.clear();
     watchlistEntriesCache.clear();
     renderWatchlistOptions();
+    renderNotificationWatchlistOptions();
+    notificationChannels = [];
+    notificationEvents = [];
+    renderNotificationChannels();
+    renderNotificationEvents();
     updateScopeUI({ fromSettings: true });
   }
   if (activeRunId && authContext.user && (authContext.isAdmin || authContext.membershipActive)) {
@@ -5141,6 +5626,14 @@ function bindEvents() {
   ].forEach((input) => {
     input?.addEventListener('input', () => markSchedulerDirty());
   });
+
+  inputs.notificationForm?.addEventListener('submit', submitNotificationChannel);
+  inputs.refreshNotificationsBtn?.addEventListener('click', () => {
+    refreshNotificationData({ silent: false }).catch((error) => {
+      console.error('Failed to refresh notification channels', error);
+    });
+  });
+  inputs.notificationsSection?.addEventListener('click', handleNotificationAction);
 
   inputs.followupForm?.addEventListener('submit', submitFollowupRequest);
   inputs.followupRefreshBtn?.addEventListener('click', () => {

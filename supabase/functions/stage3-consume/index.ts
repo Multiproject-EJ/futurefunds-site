@@ -37,6 +37,7 @@ import {
   type FactorSnapshot,
   type EnsembleSummary
 } from '../_shared/ensembles.ts';
+import { dispatchHighConvictionAlerts } from '../_shared/notifications.ts';
 
 type JsonRecord = Record<string, unknown>;
 
@@ -760,7 +761,7 @@ serve(async (req) => {
 
   const { data: runRow, error: runError } = await supabaseAdmin
     .from('runs')
-    .select('id, status, stop_requested, notes')
+    .select('id, status, stop_requested, notes, watchlist_id')
     .eq('id', runId)
     .maybeSingle();
 
@@ -1365,6 +1366,45 @@ serve(async (req) => {
         })
         .eq('run_id', runRow.id)
         .eq('ticker', ticker);
+
+      const runLabel = (() => {
+        const planner = (plannerNotes?.planner ?? {}) as JsonRecord;
+        if (typeof planner?.label === 'string' && planner.label.trim()) return planner.label.trim();
+        if (typeof planner?.name === 'string' && planner.name.trim()) return planner.name.trim();
+        const scope = (planner?.scope ?? {}) as JsonRecord;
+        if (typeof scope?.label === 'string' && scope.label.trim()) return scope.label.trim();
+        if (typeof scope?.name === 'string' && scope.name.trim()) return scope.name.trim();
+        return null;
+      })();
+
+      try {
+        await dispatchHighConvictionAlerts(supabaseAdmin, {
+          runId: runRow.id,
+          watchlistId: typeof runRow.watchlist_id === 'string' ? runRow.watchlist_id : null,
+          ticker,
+          company: typeof meta?.name === 'string' ? meta.name : null,
+          verdict:
+            typeof summaryJson.verdict === 'string'
+              ? summaryJson.verdict
+              : typeof summaryJson.rating === 'string'
+                ? summaryJson.rating
+                : typeof summaryJson.outlook === 'string'
+                  ? summaryJson.outlook
+                  : null,
+          conviction:
+            typeof summaryJson.conviction === 'string'
+              ? summaryJson.conviction
+              : typeof summaryJson.confidence === 'string'
+                ? summaryJson.confidence
+                : null,
+          summaryText: thesisText ?? (typeof summaryJson.summary === 'string' ? summaryJson.summary : null),
+          dimensionSummaries,
+          stage3Summary: summaryJson,
+          runLabel
+        });
+      } catch (error) {
+        console.warn(`Notification dispatch failed for ${ticker}`, error);
+      }
 
       results.push({
         ticker,

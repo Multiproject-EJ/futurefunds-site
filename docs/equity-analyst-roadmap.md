@@ -110,7 +110,9 @@ incrementally.
   - Factor catalogue (`scoring_factors`), per-ticker snapshots, and dimension-factor weights now feed the Stage 3 consumer.
   - Planner/ticker dashboards surface ensemble chips and factor breakdowns alongside the updated scoreboard.
 - [x] User-triggered “Focus questions” appended post Stage 3.
-- [ ] Automated notification system (email / Slack) when high-conviction names found.
+- [x] Automated notification system (email / Slack) when high-conviction names found.
+  - `notification_channels` + `notification_events` tables capture delivery rules and audit the Stage 3 alert stream.
+  - Planner admins can configure email or Slack targets, conviction thresholds, and watchlist scopes with live status reporting.
 
 ---
 

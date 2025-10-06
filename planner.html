@@ -2248,6 +2248,108 @@
         </p>
       </section>
 
+      <section class="notification-center" aria-label="Notification preferences" id="notificationsSection" hidden>
+        <div class="notification-center__intro">
+          <h3>Alerts &amp; notifications</h3>
+          <p>Trigger email or Slack alerts when Stage 3 surfaces high-conviction tickers. Configure delivery targets and guardrails below.</p>
+        </div>
+
+        <form class="notification-form" id="notificationForm">
+          <fieldset>
+            <legend>Add notification channel</legend>
+            <div class="notification-form__grid">
+              <label>
+                <span>Channel type</span>
+                <select id="notificationType">
+                  <option value="email">Email</option>
+                  <option value="slack_webhook">Slack webhook</option>
+                </select>
+              </label>
+              <label>
+                <span>Label</span>
+                <input type="text" id="notificationLabel" placeholder="Investment committee" maxlength="80" />
+              </label>
+              <label>
+                <span>Destination</span>
+                <input type="text" id="notificationTarget" placeholder="alerts@example.com or https://hooks.slack.com/..." />
+              </label>
+              <label>
+                <span>Minimum ensemble score</span>
+                <input type="number" id="notificationMinScore" min="0" max="100" step="1" placeholder="75" />
+              </label>
+              <fieldset class="notification-form__conviction">
+                <legend>Conviction levels</legend>
+                <label class="notification-checkbox">
+                  <input type="checkbox" id="notificationConvictionVeryHigh" value="very_high" checked />
+                  <span>Very high</span>
+                </label>
+                <label class="notification-checkbox">
+                  <input type="checkbox" id="notificationConvictionHigh" value="high" checked />
+                  <span>High</span>
+                </label>
+                <label class="notification-checkbox">
+                  <input type="checkbox" id="notificationConvictionMedium" value="medium" />
+                  <span>Medium</span>
+                </label>
+              </fieldset>
+              <label>
+                <span>Watchlist filter</span>
+                <select id="notificationWatchlistSelect">
+                  <option value="">All watchlists</option>
+                </select>
+              </label>
+            </div>
+            <div class="notification-form__actions">
+              <button class="btn-primary" type="submit" id="notificationSaveBtn">Save channel</button>
+              <span class="notification-form__status" id="notificationStatus" role="status" aria-live="polite"></span>
+            </div>
+          </fieldset>
+        </form>
+
+        <div class="notification-center__list">
+          <header class="notification-center__header">
+            <h4>Active channels</h4>
+            <button class="btn-secondary" type="button" id="refreshNotificationsBtn">Refresh</button>
+          </header>
+          <table class="notification-table" aria-live="polite">
+            <thead>
+              <tr>
+                <th scope="col">Channel</th>
+                <th scope="col">Destination</th>
+                <th scope="col">Filters</th>
+                <th scope="col">Status</th>
+                <th scope="col" class="notification-actions">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="notificationList">
+              <tr>
+                <td colspan="5" class="notification-empty" id="notificationEmpty">No notification channels configured yet.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="notification-center__events">
+          <h4>Recent alerts</h4>
+          <table class="notification-table" aria-live="polite">
+            <thead>
+              <tr>
+                <th scope="col">Triggered</th>
+                <th scope="col">Ticker</th>
+                <th scope="col">Channel</th>
+                <th scope="col">Conviction</th>
+                <th scope="col">Status</th>
+              </tr>
+            </thead>
+            <tbody id="notificationEventsBody">
+              <tr>
+                <td colspan="5" class="notification-empty" id="notificationEventsEmpty">Alerts will appear after the next deep dive.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
       <section class="recent-results" aria-live="polite">
         <h3>Latest classifications</h3>
         <table class="recent-table">

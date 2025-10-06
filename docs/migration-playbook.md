@@ -31,6 +31,10 @@ migration up`, or any PostgreSQL client that runs the statements in order.
   factor snapshots, and new ensemble columns on `analysis_dimension_scores`.
   Run it before deploying the updated Stage 3 worker so Supabase has the tables
   and view the code expects.
+- `sql/017_notifications.sql` provisions `notification_channels`,
+  `notification_events`, and the supporting policies/view required for Stage 3
+  alerting. Run it before deploying the notification helper so planner admins
+  can configure email/Slack channels.
 
 ## Suggested commands
 

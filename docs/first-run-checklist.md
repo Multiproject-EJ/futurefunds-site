@@ -19,6 +19,9 @@ scheduler drive hourly batches on your Supabase project.
 1. Copy `.env.example` to `.env` and populate each value with the credentials for
    your Supabase project and model providers. If you plan to run the roster
    refresher, also add `TICKER_FEED_URL` (and optionally `TICKER_FEED_API_KEY`).
+   Populate the notification secrets (`ALERTS_PUBLIC_BASE_URL`, `RESEND_API_KEY`,
+   and `RESEND_FROM_EMAIL`) so Stage 3 can send email or Slack alerts when
+   finalists are promoted.
 2. Run `supabase login` and authenticate with the same account that owns the
    project.
 3. Export the project reference for convenience when running CLI commands:
@@ -37,8 +40,9 @@ scheduler drive hourly batches on your Supabase project.
       schema lives in `001_core.sql` and includes the tables consumed by the
       edge workers. `013_watchlists.sql` adds the roster/watchlist tables used by
       the planner scope controls, `014_cached_completions.sql` provisions the
-      response cache reused by Stage 1–3, and `016_scoring_ensembles.sql` wires
-      the deterministic factor catalogue plus ensemble columns.
+      response cache reused by Stage 1–3, `016_scoring_ensembles.sql` wires the
+      deterministic factor catalogue plus ensemble columns, and
+      `017_notifications.sql` introduces the automated alert tables.
 - [ ] Confirm the seed data exists: `tickers`, `sector_prompts`, and the question
       registry should all contain rows once migrations finish. Check
       `scoring_factors` for the seeded factor catalogue before letting Stage 3
@@ -78,6 +82,15 @@ scheduler drive hourly batches on your Supabase project.
 3. Monitor spend and task throughput from the planner dashboard; adjust
    `RUNS_DAILY_LIMIT` or budgets as required.
 
+## 7. Configure alerts
+
+- [ ] From the planner’s **Alerts & notifications** panel, add at least one
+      notification channel (email or Slack) with the conviction thresholds and
+      watchlist scopes that match your run strategy.
+- [ ] Trigger a Stage 3 batch and confirm the matching `notification_events`
+      row is written and the email/webhook receives the alert.
+
 Once these steps are complete the system is production-ready for automated
-hourly coverage. Future enhancements (notifications, scoring ensembles, cached
-context) can be layered on without disturbing the core pipeline above.
+hourly coverage. Future enhancements (additional scoring models, richer alert
+rules, deeper analyst workflows) can be layered on without disturbing the core
+pipeline above.

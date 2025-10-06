@@ -46,6 +46,8 @@ multi-stage model runs and reporting:
 | `scoring_factors` | Deterministic factor catalogue (growth, leverage, valuation metrics) referenced by ensembles. |
 | `dimension_factor_links` | Mapping table tying analysis dimensions to deterministic factors with weights. |
 | `ticker_factor_snapshots` | Per-ticker factor values/score snapshots populated by ingestion jobs and feeds. |
+| `notification_channels` | Stores email/webhook alert rules, conviction thresholds, and watchlist scopes for Stage 3 alerts. |
+| `notification_events` | Delivery log for automated alerts (status, ticker, conviction, channel) emitted by Stage 3. |
 
 The analyst dashboard queries a handful of helper functions to avoid shipping large
 payloads to the browser:
@@ -894,3 +896,50 @@ Composite primary key: `(ticker, factor_id, as_of)`.
 | `created_at` | `timestamptz` | Timestamp inserted. |
 
 The helper view `ticker_factor_latest` selects the most recent snapshot per `(ticker, factor_id)` for fast access inside Supabase edge functions.
+
+### `notification_channels`
+
+Primary key: `id uuid` (default `gen_random_uuid()`).
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | `uuid` | Unique identifier for the alert channel. |
+| `type` | `text` | Enum (`email`, `slack_webhook`) describing the delivery target. |
+| `label` | `text` | Human-friendly label surfaced in the planner UI. |
+| `target` | `text` | Email address list or webhook URL. Stored verbatim; restrict access via RLS. |
+| `is_active` | `boolean` | Defaults to `true`. Paused channels are ignored by Stage 3. |
+| `min_score` | `numeric(5,2)` | Optional ensemble-score threshold required before firing. |
+| `conviction_levels` | `text[]` | Optional list of conviction tiers (`very_high`, `high`, `medium`, `low`) that should trigger alerts. Empty ⇒ all. |
+| `watchlist_ids` | `uuid[]` | Optional subset of watchlists this channel applies to. Empty ⇒ all watchlists/runs. |
+| `metadata` | `jsonb` | Reserved for future targeting metadata. Currently stores `{ "source": "planner" }` for UI-created rows. |
+| `created_by` | `uuid` | References `auth.users(id)`; stamped by the planner when admins create channels. |
+| `created_by_email` | `text` | Convenience copy of the operator’s email. |
+| `created_at` / `updated_at` | `timestamptz` | Timestamps managed via `touch_updated_at()`. |
+
+**Policies**
+
+- `SELECT` / `INSERT` / `UPDATE` / `DELETE`: restricted to `public.is_admin(auth.uid())`. Service-role edge functions bypass RLS when Stage 3 automation reads channels.
+
+### `notification_events`
+
+Primary key: `id uuid` (default `gen_random_uuid()`).
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | `uuid` | Unique identifier for the delivery log entry. |
+| `channel_id` | `uuid` | References `notification_channels(id)`; nullable if the channel was deleted. |
+| `run_id` | `uuid` | References `runs(id)` for traceability. |
+| `ticker` | `text` | Symbol that triggered the alert. |
+| `stage` | `int` | Stage that emitted the alert (currently `3`). |
+| `conviction` | `text` | Conviction label recorded in the Stage 3 summary payload. |
+| `verdict` | `text` | Final Stage 3 verdict when present. |
+| `ensemble_score` | `numeric(5,2)` | Weighted ensemble score at dispatch time. |
+| `payload` | `jsonb` | Snapshot of the Stage 3 summary, dimension breakdown, and planner metadata sent downstream. |
+| `status` | `text` | Enum (`pending`, `sent`, `failed`). Stage 3 writes `sent` or `failed` depending on the delivery result. |
+| `error` | `text` | Delivery error message captured when `status = 'failed'`. |
+| `dispatched_at` | `timestamptz` | Timestamp when the webhook/email call succeeded. |
+| `created_at` | `timestamptz` | Timestamp inserted. |
+
+**Policies**
+
+- `SELECT` / `INSERT` / `UPDATE` / `DELETE`: restricted to `public.is_admin(auth.uid())`. Edge functions insert rows using the service role. Admins query the `notification_event_summaries` view from the planner for recent history.

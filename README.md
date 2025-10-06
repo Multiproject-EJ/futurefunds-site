@@ -7,9 +7,10 @@ universe, and internal tooling.
 ## Getting started
 
 1. Copy `.env.example` to `.env` and supply your Supabase URL, anon key,
-   service role key, and model credentials. Mirror these values inside the
-   Supabase dashboard (`Project Settings → Configuration → Secrets`) so deployed
-   edge functions can read them.
+   service role key, model credentials, and notification settings
+   (`ALERTS_PUBLIC_BASE_URL`, `RESEND_API_KEY`, `RESEND_FROM_EMAIL`). Mirror
+   these values inside the Supabase dashboard (`Project Settings →
+   Configuration → Secrets`) so deployed edge functions can read them.
 2. Install the [Supabase CLI](https://supabase.com/docs/reference/cli/overview)
    and authenticate with `supabase login`. The included `package.json` exposes
    helper commands such as `npm run db:push` and `npm run functions:deploy` to
@@ -34,6 +35,9 @@ universe, and internal tooling.
    `scoring_factors`, schedule ingestion into `ticker_factor_snapshots`, and the
    planner/ticker dashboards will display blended LLM + factor scores with per-factor
    breakdowns.
+8. Configure Stage 3 alerts from the planner’s **Alerts & notifications** panel
+   once migrations are applied. Add email or Slack channels, set conviction
+   thresholds, and verify alerts arrive when finalists are promoted.
 
 ## Developer docs
 
