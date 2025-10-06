@@ -25,11 +25,17 @@ multi-stage model runs and reporting:
 | Table | Purpose |
 | --- | --- |
 | `tickers` | Canonical universe of symbols the automation can draw from, one row per ticker. |
+| `watchlists` | Named collections of tickers that the planner can target. |
+| `watchlist_entries` | Join table linking watchlists to tickers with optional ordering. |
+| `ticker_events` | Audit log of roster changes emitted by ingestion jobs. |
 | `sector_prompts` | Optional sector-specific prompt augmentations injected into Stage 2+. |
 | `runs` | High-level batch execution log for each analysis sweep (start time, status, budget flags). |
 | `run_items` | Per-ticker processing state tracking the current stage, label, and spend. |
+| `run_schedules` | Stores per-run automation cadence, batch limits, and activation state for the background dispatcher. |
+| `run_feedback` | Captures post-run follow-up questions submitted by members or automation for analyst review. |
 | `answers` | Stores structured and narrative outputs produced at each stage of the pipeline. |
 | `cost_ledger` | Aggregated token usage and USD cost per stage/run for budget monitoring. |
+| `cached_completions` | Persistent cache of deterministic model outputs reused across runs to avoid duplicate spend. |
 | `doc_chunks` | Optional retrieval corpus of text snippets (10-Ks, transcripts, etc.) used for RAG. |
 | `analysis_dimensions` | Registry of scoring dimensions (financial resilience, leadership, etc.) with color/weight metadata. |
 | `analysis_questions` | Question bank powering Stage&nbsp;3 prompts, dependency graphing, and verdict schemas. |
@@ -38,6 +44,15 @@ multi-stage model runs and reporting:
 
 The analyst dashboard queries a handful of helper functions to avoid shipping large
 payloads to the browser:
+
+## Prompt templates & model registry
+
+- Markdown prompt templates now live under `/prompts`, grouped by stage. Each template supports
+  mustache-style interpolation tokens (e.g., `{{ticker}}`, `{{stage1_block}}`) rendered at runtime by
+  `supabase/functions/_shared/prompt-loader.ts`.
+- Static model metadata and stage-level request policies live in `config/models.json`. Edge functions
+  call `shared/model-config.js` to resolve default and fallback models, preferred cache settings, and
+  retry policies when Supabase lookups are unavailable.
 
 | Function | Purpose |
 | --- | --- |
@@ -48,6 +63,7 @@ payloads to the browser:
 | `run_cost_breakdown(run_id uuid)` | Summarises `cost_ledger` spend by stage/model for budget monitoring. |
 | `run_cost_summary(run_id uuid)` | Provides overall spend and token totals for a run. |
 | `run_latest_activity(run_id uuid, limit int)` | Streams the latest answers (stage, ticker, summary) for the activity feed. |
+| `run_feedback_for_run(run_id uuid)` | Returns the manual follow-up queue for a given run ordered by submission time. |
 | `run_universe_rows(run_id uuid, ...)` | Paginates ticker-level snapshots (stage, label, spend, Stage 1–3 JSON) for the universe dashboard. |
 | `run_universe_facets(run_id uuid, ...)` | Returns stage/label/sector counts that power the filter badges in `/universe.html`. |
 | `run_ticker_details(run_id uuid, ticker text)` | Fetches the full dossier (Stage 1–3 outputs) for the ticker drilldown page. |
@@ -391,14 +407,92 @@ Keep the following schemas in sync with `/sql/001_core.sql` when running migrati
 | --- | --- | --- | --- |
 | `ticker` | `text` | — | Upper-case trading symbol (e.g., `AAPL`). |
 | `name` | `text` | `null` | Company name used in prompts and UI. |
-| `exchange` | `text` | `null` | Listing exchange (NASDAQ, LSE, etc.). |
+| `exchange` | `text` | `null` | Listing exchange (NASDAQ, LSE, HKEX, etc.). |
 | `country` | `text` | `null` | Country code or descriptor. |
 | `sector` | `text` | `null` | High-level sector grouping. |
 | `industry` | `text` | `null` | Optional finer industry classification. |
+| `status` | `text` | `'active'` | Lifecycle marker used by the automation (`active`, `inactive`, `delisted`, `pending`, `unknown`). |
+| `listed_at` | `date` | `null` | Optional IPO/listing date used for bookkeeping. |
+| `delisted_at` | `date` | `null` | Populated when the roster maintenance job infers a delisting. |
+| `aliases` | `text[]` | `'{}'` | Prior names/tickers captured when maintenance detects a rename. |
+| `last_seen_at` | `timestamptz` | `now()` | Updated by ingestion jobs to note the latest roster refresh. |
+| `source` | `text` | `null` | Origin of the last update (`planner:watchlist`, `tickers-refresh`, etc.). |
+| `metadata` | `jsonb` | `'{}'::jsonb` | Arbitrary structured fields (FIGI, ISIN, listing MIC, etc.). |
 | `created_at` | `timestamptz` | `now()` | Auto timestamp. |
-| `updated_at` | `timestamptz` | `now()` | Maintain with trigger or app logic when editing. |
+| `updated_at` | `timestamptz` | `now()` | Managed by trigger `touch_updated_at` so manual edits stay fresh. |
 
-Seed the table with `/sql/002_seed.sql` for local development when you need sample data.
+Seed `/sql/002_seed.sql` for local smoke tests, then run `/sql/013_watchlists.sql` to enable roster maintenance triggers, `ticker_events`, and watchlist policies.
+
+Row-level security allows anonymous reads but restricts inserts/updates/deletes to admins (enforced by the `is_admin(uid)` helper). The `tickers-refresh` worker (`supabase/functions/tickers-refresh`) upserts records in bulk, records `ticker_events`, and marks missing exchange constituents as `delisted` when `mark_missing=true`.
+
+### `watchlists`
+
+*Primary key*: `id uuid` (`gen_random_uuid()`).
+
+| Column | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `id` | `uuid` | `gen_random_uuid()` | Identifier referenced by planner scope settings and runs. |
+| `name` | `text` | — | Human-readable name surfaced in the planner. |
+| `slug` | `text` | — | Unique slug used for API lookups. |
+| `description` | `text` | `null` | Optional summary shown in the planner. |
+| `is_system` | `boolean` | `false` | Marks built-in/shared watchlists. |
+| `is_public` | `boolean` | `false` | Exposes the watchlist to all authenticated users (read-only). |
+| `created_by` | `uuid` | `null` | Admin who created the list. |
+| `created_by_email` | `text` | `null` | Snapshot of the creator’s email for audit trails. |
+| `created_at` | `timestamptz` | `now()` | Auto timestamp. |
+| `updated_at` | `timestamptz` | `now()` | Managed by `touch_updated_at`. |
+
+Admins (per `is_admin(uid)`) can insert/update/delete; members can read public watchlists. The planner UI (`planner.html`) surfaces CRUD controls for admins, while non-admins fall back to the full-universe mode.
+
+### `watchlist_entries`
+
+Composite primary key: `(watchlist_id, ticker)`.
+
+| Column | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `watchlist_id` | `uuid` | — | References `watchlists(id)` with cascade delete. |
+| `ticker` | `text` | — | References `tickers(ticker)`; planner will upsert tickers before insertion. |
+| `rank` | `int` | `null` | Optional ordering hint used for display. |
+| `notes` | `text` | `null` | Stage guidance or reminders captured alongside the ticker. |
+| `added_at` | `timestamptz` | `now()` | Automatically populated on insert. |
+| `removed_at` | `timestamptz` | `null` | Soft-delete marker so history can be audited. |
+
+Non-admins can read entries belonging to public watchlists they can see; admins or watchlist owners can insert/update/delete.
+
+### `ticker_events`
+
+*Primary key*: `id bigserial`.
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `ticker` | `text` | References `tickers(ticker)`; cascade delete when the ticker is removed. |
+| `event_type` | `text` | `created`, `name_changed`, `exchange_updated`, `delisted_inferred`, etc. |
+| `details` | `jsonb` | Payload describing the change (previous/current values, actor, timestamp). |
+| `created_at` | `timestamptz` | Auto timestamp. |
+
+Every upsert the roster worker performs emits events so operators can audit rename/delist actions. The planner does not expose this table yet, but it is handy for future reporting/alerts.
+
+### `watchlist_summaries`
+
+View that exposes watchlists with ticker counts for lightweight client queries:
+
+```
+select
+  id,
+  name,
+  slug,
+  description,
+  is_system,
+  is_public,
+  created_by,
+  created_by_email,
+  created_at,
+  updated_at,
+  coalesce((select count(*) from public.watchlist_entries we where we.watchlist_id = w.id and we.removed_at is null), 0) as ticker_count
+from public.watchlists w;
+```
+
+Use it to avoid counting entries client-side when populating dropdowns. RLS inherits from the base tables.
 
 ### `sector_prompts`
 
@@ -418,6 +512,13 @@ Seed the table with `/sql/002_seed.sql` for local development when you need samp
 | `status` | `text` | `'queued'` | Allowed values: `queued`, `running`, `done`, `failed`. |
 | `notes` | `text` | `null` | Optional metadata (e.g., user, budget). |
 | `stop_requested` | `boolean` | `false` | Workers should check this before processing the next batch. |
+| `created_by` | `uuid` | `null` | Populated by the `runs-create` edge function to record who launched the batch for quota enforcement.【F:supabase/functions/runs-create/index.ts†L232-L330】 |
+| `created_by_email` | `text` | `null` | Snapshot of the operator’s email for audit trails.【F:supabase/functions/runs-create/index.ts†L232-L330】 |
+| `watchlist_id` | `uuid` | `null` | References `watchlists(id)` whenever a run targets a named list so history can be replayed or audited.【F:supabase/functions/runs-create/index.ts†L321-L363】 |
+
+Indexes on `created_by` and `created_at` support daily quota checks (`sql/009_member_access.sql`).【F:sql/009_member_access.sql†L1-L6】
+
+Set `RUNS_DAILY_LIMIT` (default `5`) in the edge runtime to cap how many batches a user can initiate within a rolling 24‑hour window; exceeding the quota triggers a `429` from `runs-create`.【F:supabase/functions/runs-create/index.ts†L104-L194】
 
 ### `run_items`
 
@@ -433,6 +534,57 @@ Composite primary key: `(run_id, ticker)`.
 | `status` | `text` | `'pending'` | `pending`, `ok`, `skipped`, or `failed`. |
 | `spend_est_usd` | `numeric(12,4)` | `0` | Running total of estimated spend for this ticker. |
 | `updated_at` | `timestamptz` | `now()` | Touch on each stage completion. |
+
+### `run_schedules`
+
+*Primary key*: `id uuid`.
+
+| Column | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `id` | `uuid` | `gen_random_uuid()` | Stable identifier for the schedule row. |
+| `run_id` | `uuid` | — | References `runs(id)` and must be unique so each run has at most one schedule. |
+| `label` | `text` | — | Optional operator-friendly descriptor for admin UIs. |
+| `cadence_seconds` | `integer` | `3600` | Minimum of 60 seconds. Controls how frequently the dispatcher invokes `runs-continue`. |
+| `stage1_limit` | `integer` | `8` | Batch size for Stage&nbsp;1 when the scheduler triggers (1–25). |
+| `stage2_limit` | `integer` | `4` | Batch size for Stage&nbsp;2 when the scheduler triggers. |
+| `stage3_limit` | `integer` | `2` | Batch size for Stage&nbsp;3 when the scheduler triggers. |
+| `max_cycles` | `integer` | `1` | Number of sequential `runs-continue` cycles per dispatch (1–10). |
+| `active` | `boolean` | `true` | Whether the dispatcher should consider this schedule. |
+| `last_triggered_at` | `timestamptz` | — | Updated whenever the dispatcher runs; used to enforce cadence spacing. |
+| `created_at` | `timestamptz` | `now()` | Creation timestamp. |
+| `updated_at` | `timestamptz` | `now()` | Updated by edge functions when the schedule changes. |
+
+`sql/011_run_schedules.sql` provisions the table, indexes, and validation constraints. Operators call
+the `runs-schedule` edge function to create or update rows, while the unattended dispatcher
+(`runs-dispatch`) polls this table on a cron cadence and invokes `runs-continue` with the
+stored limits. Both endpoints expect an `AUTOMATION_SERVICE_SECRET` environment variable so
+service-to-service calls can bypass interactive auth without exposing the Supabase service role key.
+
+### `run_feedback`
+
+*Primary key*: `id uuid` generated via `gen_random_uuid()`.
+
+| Column | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `id` | `uuid` | `gen_random_uuid()` | Stable identifier for the follow-up item. |
+| `run_id` | `uuid` | — | References `runs(id)`; cascades on delete. |
+| `ticker` | `text` | `null` | Optional ticker reference. A `SET NULL` constraint keeps the request if a ticker is removed. |
+| `question_text` | `text` | — | Required free-form prompt submitted by the operator/member. |
+| `status` | `text` | `'pending'` | Enum enforced by a check constraint: `pending`, `in_progress`, `resolved`, or `dismissed`. |
+| `response_text` | `text` | `null` | Optional analyst response or resolution note. |
+| `context` | `jsonb` | `null` | Arbitrary metadata (UI origin, browser hints, automation context). |
+| `created_by` | `uuid` | `null` | References `auth.users(id)` when a member submits the request. |
+| `created_by_email` | `text` | `null` | Captured for quick triage in dashboards. |
+| `resolved_by` | `uuid` | `null` | References `auth.users(id)` if an admin resolves/dismisses the item. |
+| `resolved_by_email` | `text` | `null` | Audit trail for the resolver. |
+| `created_at` | `timestamptz` | `now()` | Submission timestamp. |
+| `updated_at` | `timestamptz` | `now()` | Touched on insert/update. |
+| `resolved_at` | `timestamptz` | `null` | Populated when `status` transitions to `resolved` or `dismissed`. |
+
+`sql/012_run_feedback.sql` provisions the table, indexes by run/status/actor, and exposes the
+`run_feedback_for_run` helper for the planner UI. The `runs-feedback` edge function verifies the
+caller (member or automation secret), validates the ticker belongs to the run, inserts rows, and
+returns both the fresh item and, on `GET`, the full queue for operators monitoring manual follow-ups.
 
 ### `answers`
 
@@ -463,16 +615,89 @@ Composite primary key: `(run_id, ticker)`.
 | `cost_usd` | `numeric(12,4)` | USD spend at logging time. |
 | `created_at` | `timestamptz` | Timestamp of the ledger entry. |
 
+### `cached_completions`
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | `uuid` | Primary key generated via `gen_random_uuid()`. |
+| `model_slug` | `text` | Identifier for the model that produced the response. |
+| `cache_key` | `text` | Stage/ticker hash that groups equivalent prompts. Unique per model. |
+| `prompt_hash` | `text` | SHA-256 hash of the request payload for audit/debugging. |
+| `request_body` | `jsonb` | Exact body sent to the model (messages, temperature, etc.). |
+| `response_body` | `jsonb` | Full model response (choices, usage metadata). |
+| `usage` | `jsonb` | Raw token usage captured from the provider. |
+| `context` | `jsonb` | Optional metadata (retrieval citations, dependency notes) saved alongside the response. |
+| `tags` | `text[]` | Reserved for future segmentation of cache entries. |
+| `hit_count` | `int` | Number of times the cache entry has been reused. |
+| `last_hit_at` | `timestamptz` | Timestamp of the most recent cache reuse. |
+| `expires_at` | `timestamptz` | Optional expiry timestamp computed from the TTL controls. |
+| `created_at` | `timestamptz` | Insert timestamp. |
+
+Stage 1–3 workers consult this table before making model calls. When the request body matches
+an existing `cache_key`, the worker reuses the stored response, marks the hit, and records zero
+incremental cost for the run. Otherwise the fresh response is inserted with a TTL governed by
+`AI_CACHE_TTL_MINUTES` (or the stage-specific overrides) so deterministic prompts can be reused
+across future batches without double spending.
+
+### `docs`
+
+*Primary key*: `id uuid` generated with `gen_random_uuid()`.
+
+| Column | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `ticker` | `text` | — | References `tickers(ticker)`; nullable for general-market research. |
+| `title` | `text` | — | Human-readable label shown in the uploader and citations. |
+| `source_type` | `text` | `null` | Free-form category (10-K, investor letter, transcript, etc.). |
+| `published_at` | `timestamptz` | `null` | Optional publication timestamp surfaced in the UI. |
+| `source_url` | `text` | `null` | Canonical URL for the underlying document. |
+| `storage_path` | `text` | — | Supabase Storage path (e.g., `raw/MSFT/2024-10-10-letter.pdf`). |
+| `uploaded_by` | `uuid` | `null` | References `auth.users(id)` for audit trails. |
+| `status` | `text` | `'pending'` | Processing lifecycle (`pending`, `processed`, `failed`). |
+| `chunk_count` | `int` | `0` | Populated by the chunking job. |
+| `token_count` | `int` | `0` | Sum of token estimates across stored chunks. |
+| `last_error` | `text` | `null` | Last processing failure captured by the edge worker. |
+| `processed_at` | `timestamptz` | `null` | Timestamp of the most recent successful chunk+embed run. |
+| `created_at` / `updated_at` | `timestamptz` | `now()` | Managed timestamps. |
+
+Uploads are saved to the Supabase Storage bucket `docs` under `raw/<ticker>/...` by the admin console at `/docs/index.html`.
+
 ### `doc_chunks`
 
 | Column | Type | Notes |
 | --- | --- | --- |
 | `id` | `bigserial` | Primary key. |
-| `ticker` | `text` | References `tickers`. |
-| `source` | `text` | Describes the document source (10-K 2024, investor letter, etc.). |
+| `doc_id` | `uuid` | References `docs(id)`; cascades on delete. |
+| `ticker` | `text` | Denormalised symbol for fast filtering. |
+| `source` | `text` | Optional legacy label retained for back-compat. |
+| `chunk_index` | `int` | Sequential index (0-based) assigned by the chunking worker. |
 | `chunk` | `text` | Plain-text snippet used for retrieval-augmented prompts. |
+| `token_length` | `int` | Approximate token count used for budgeting. |
+| `embedding` | `vector(1536)` | pgvector representation generated via `text-embedding-3-small`. |
 
-When enabling pgvector for semantic search, add an `embedding vector` column via a follow-up migration.
+An IVFFlat index on `embedding` accelerates similarity search for the retrieval helper.
+
+### `error_logs`
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | `bigserial` | Primary key. |
+| `context` | `text` | Logical component (e.g., `docs-process`). |
+| `message` | `text` | Short description of the failure. |
+| `payload` | `jsonb` | Structured blob (request params, stack traces). |
+| `run_id` | `uuid` | Optional pointer to the affected run. |
+| `ticker` | `text` | Optional ticker reference for per-run issues. |
+| `stage` | `int` | Stage that generated the failure (`null` for ingestion or misc). |
+| `prompt_id` | `text` | Prompt or function identifier captured by the worker. |
+| `retry_count` | `int` | Number of attempts recorded when the worker retried. |
+| `status_code` | `int` | HTTP status returned by the worker (if applicable). |
+| `metadata` | `jsonb` | Supplemental structured context (e.g., doc ID, embeddings). |
+| `created_at` | `timestamptz` | Defaults to `now()`. |
+
+Reuse this table for worker instrumentation (Stages 12–13) by logging run/ticker context, prompt identifiers, and structured payloads for observability dashboards.
+
+The Postgres RPC `match_doc_chunks(query_embedding double precision[], query_ticker text, match_limit int)` converts an array
+of floats into a `vector(1536)` and returns the top-k snippets ordered by cosine distance alongside document metadata. Workers
+invoke it after computing embeddings so they can inject `[D1]`-style citations into prompts.
 
 ### `analysis_dimensions`
 
