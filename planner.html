@@ -2393,6 +2393,58 @@
       </table>
     </section>
   </section>
+
+  <section class="panel controller-panel" id="observabilityPanel" hidden>
+    <header>
+      <h2>Observability &amp; safety</h2>
+      <p>Verify worker health and inspect recent automation failures before triggering unattended runs.</p>
+    </header>
+
+    <div class="health-grid" id="healthStatus">
+      <article class="health-card" id="healthDatabaseCard" data-status="unknown">
+        <h3>Database</h3>
+        <p id="healthDatabaseStatus">Not checked</p>
+        <small id="healthDatabaseDetail">Run a check to confirm Supabase connectivity.</small>
+      </article>
+      <article class="health-card" id="healthOpenAICard" data-status="unknown">
+        <h3>OpenAI</h3>
+        <p id="healthOpenAIStatus">Not checked</p>
+        <small id="healthOpenAIDetail">We ping the models API to ensure credentials work.</small>
+      </article>
+    </div>
+
+    <div class="health-actions">
+      <button class="btn-secondary" type="button" id="refreshHealthBtn">Refresh health</button>
+      <span class="health-timestamp" id="healthCheckedAt">Health checks have not run yet.</span>
+    </div>
+
+    <section class="error-log" aria-live="polite">
+      <header class="error-log__header">
+        <h3>Recent error logs</h3>
+        <div class="error-log__actions">
+          <button class="btn-secondary" type="button" id="refreshErrorsBtn">Refresh log</button>
+          <span class="error-log__status" id="errorLogStatus"></span>
+        </div>
+      </header>
+      <table class="error-log__table">
+        <thead>
+          <tr>
+            <th scope="col">When</th>
+            <th scope="col">Stage</th>
+            <th scope="col">Ticker</th>
+            <th scope="col">Prompt</th>
+            <th scope="col">Message</th>
+            <th scope="col">Retries</th>
+          </tr>
+        </thead>
+        <tbody id="errorLogBody">
+          <tr class="error-log__empty">
+            <td colspan="6">No failures recorded in the last 50 entries.</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+  </section>
   <div
     id="credentialModal"
     class="credential-modal"
