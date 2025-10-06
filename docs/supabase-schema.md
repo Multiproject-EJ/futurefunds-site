@@ -43,6 +43,9 @@ multi-stage model runs and reporting:
 | `analysis_questions` | Question bank powering Stage&nbsp;3 prompts, dependency graphing, and verdict schemas. |
 | `analysis_question_results` | Per-question outputs (verdict, score, tags) stored per run/ticker for browser caching. |
 | `analysis_dimension_scores` | Aggregated dimension verdicts and weights derived from question results for dashboards. |
+| `scoring_factors` | Deterministic factor catalogue (growth, leverage, valuation metrics) referenced by ensembles. |
+| `dimension_factor_links` | Mapping table tying analysis dimensions to deterministic factors with weights. |
+| `ticker_factor_snapshots` | Per-ticker factor values/score snapshots populated by ingestion jobs and feeds. |
 
 The analyst dashboard queries a handful of helper functions to avoid shipping large
 payloads to the browser:
@@ -826,12 +829,68 @@ Composite primary key: `(run_id, ticker, dimension_id)`.
 | `ticker` | `text` | References `tickers`. |
 | `dimension_id` | `uuid` | References `analysis_dimensions`. |
 | `verdict` | `text` | Weighted verdict computed across question results. |
-| `score` | `numeric(8,4)` | Weighted average score (0–100) when available. |
-| `weight` | `numeric(8,4)` | Total weight aggregated for the dimension. |
+| `score` | `numeric(8,4)` | Final ensemble score rendered in dashboards (0–100). |
+| `ensemble_score` | `numeric(8,4)` | Duplicate of `score` for clarity in downstream exports. |
+| `llm_score` | `numeric(8,4)` | Raw LLM-weighted score prior to deterministic blending. |
+| `factor_score` | `numeric(8,4)` | Deterministic factor contribution (0–100) averaged across linked factors. |
+| `weight` | `numeric(8,4)` | Total weight aggregated for the dimension (LLM + factor weights). |
+| `llm_weight` | `numeric(8,4)` | Weight attributed to LLM evidence in the ensemble. |
+| `factor_weight` | `numeric(8,4)` | Weight attributed to deterministic factors in the ensemble. |
 | `color` | `text` | Tone used in dashboards (defaults to the dimension palette). |
 | `summary` | `text` | Concise roll-up summarising the dimension. |
 | `tags` | `text[]` | Union of tags from contributing questions. |
 | `details` | `jsonb` | Array of question-level metadata (verdict, score, answer snapshot). |
+| `factor_breakdown` | `jsonb` | Array of factor contributors `{ slug, name, score, value, as_of, metadata }`. |
 | `created_at` / `updated_at` | `timestamptz` | Timestamped at aggregation time. |
 
 The Universe and ticker dashboards read from this table to render color-coded scorecards without parsing raw answer blobs.
+The new ensemble fields expose how LLM reasoning and deterministic factors blended for each dimension.
+
+### `scoring_factors`
+
+*Primary key*: `id uuid` (generated).
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `slug` | `text` | Stable identifier (e.g., `revenue_growth_yoy`). |
+| `name` | `text` | Human-friendly label surfaced in the UI. |
+| `description` | `text` | Optional summary of what the factor measures. |
+| `category` | `text` | Optional grouping (growth, leverage, valuation, etc.). |
+| `direction` | `text` | Either `higher_better` or `lower_better` to guide scoring. |
+| `scale_min` / `scale_max` | `numeric` | Optional bounds used to normalise raw values to 0–100. |
+| `weight` | `numeric(10,4)` | Default influence when blended into dimension ensembles. |
+| `metadata` | `jsonb` | Arbitrary configuration (units, ideal thresholds, tolerances). |
+| `created_at` / `updated_at` | `timestamptz` | Managed automatically (trigger `touch_updated_at`). |
+
+Add or update rows here whenever you introduce new deterministic metrics that should influence the ensemble score.
+
+### `dimension_factor_links`
+
+Composite primary key: `(dimension_id, factor_id)`.
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `dimension_id` | `uuid` | References `analysis_dimensions`. |
+| `factor_id` | `uuid` | References `scoring_factors`. |
+| `weight` | `numeric(10,4)` | Relative influence of this factor for the dimension. |
+| `created_at` / `updated_at` | `timestamptz` | Managed automatically. |
+
+Stage 3 workers load this mapping once per run to understand which factors to pull when blending ensemble scores.
+
+### `ticker_factor_snapshots`
+
+Composite primary key: `(ticker, factor_id, as_of)`.
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `ticker` | `text` | References `tickers`. |
+| `factor_id` | `uuid` | References `scoring_factors`. |
+| `as_of` | `date` | Effective date for the metric (default `current_date`). |
+| `value` | `numeric` | Raw numeric measurement (same units as defined in `scoring_factors`). |
+| `score` | `numeric` | Optional pre-computed 0–100 score (otherwise derived from value + metadata). |
+| `source` | `text` | Source identifier (e.g., `alphavantage`, `manual`, `seed`). |
+| `notes` | `text` | Optional commentary from the ingestion job. |
+| `metadata` | `jsonb` | Feed-specific payload (currency, adjustments, etc.). |
+| `created_at` | `timestamptz` | Timestamp inserted. |
+
+The helper view `ticker_factor_latest` selects the most recent snapshot per `(ticker, factor_id)` for fast access inside Supabase edge functions.

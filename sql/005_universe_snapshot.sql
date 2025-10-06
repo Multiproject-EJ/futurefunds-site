@@ -121,10 +121,16 @@ as $$
         'name', dim.name,
         'verdict', score.verdict,
         'score', score.score,
+        'ensemble_score', score.ensemble_score,
+        'llm_score', score.llm_score,
+        'factor_score', score.factor_score,
         'weight', score.weight,
+        'llm_weight', score.llm_weight,
+        'factor_weight', score.factor_weight,
         'color', score.color,
         'summary', score.summary,
-        'tags', score.tags
+        'tags', score.tags,
+        'factor_breakdown', score.factor_breakdown
       ) order by dim.order_index asc), '[]'::jsonb) as dimension_scores
       from public.analysis_dimension_scores score
       join public.analysis_dimensions dim on dim.id = score.dimension_id
@@ -290,11 +296,17 @@ as $$
         'name', dim.name,
         'verdict', score.verdict,
         'score', score.score,
+        'ensemble_score', score.ensemble_score,
+        'llm_score', score.llm_score,
+        'factor_score', score.factor_score,
         'weight', score.weight,
+        'llm_weight', score.llm_weight,
+        'factor_weight', score.factor_weight,
         'color', score.color,
         'summary', score.summary,
         'tags', score.tags,
-        'details', score.details
+        'details', score.details,
+        'factor_breakdown', score.factor_breakdown
       ) order by dim.order_index asc), '[]'::jsonb) as rows
       from public.analysis_dimension_scores score
       join public.analysis_dimensions dim on dim.id = score.dimension_id

@@ -30,6 +30,10 @@ universe, and internal tooling.
    post–Stage 3 focus questions from the planner. Admins can mix reusable templates
    with ad-hoc prompts per ticker, and automation will record answers with citations
    alongside the Stage 4 ledger entries.
+7. Feed deterministic metrics into the new scoring ensemble tables. Seed rows for
+   `scoring_factors`, schedule ingestion into `ticker_factor_snapshots`, and the
+   planner/ticker dashboards will display blended LLM + factor scores with per-factor
+   breakdowns.
 
 ## Developer docs
 

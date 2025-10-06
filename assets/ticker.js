@@ -201,6 +201,63 @@ function normalizeArray(value) {
   return [];
 }
 
+function parseScore(value) {
+  const num = Number(value);
+  return Number.isFinite(num) ? num : null;
+}
+
+function factorEntries(entry) {
+  const raw = Array.isArray(entry?.factor_breakdown)
+    ? entry.factor_breakdown
+    : Array.isArray(entry?.factors)
+      ? entry.factors
+      : [];
+  return raw
+    .map((item) => {
+      if (!item || typeof item !== 'object') return null;
+      const metadata = item.metadata && typeof item.metadata === 'object' ? item.metadata : {};
+      return {
+        slug: item.slug ?? null,
+        name: item.name ?? item.slug ?? 'Factor',
+        score: parseScore(item.score),
+        value: parseScore(item.value),
+        rawValue: item.value ?? null,
+        asOf: item.as_of ?? item.asOf ?? null,
+        direction: item.direction ?? 'higher_better',
+        source: item.source ?? null,
+        notes: item.notes ?? null,
+        metadata
+      };
+    })
+    .filter(Boolean);
+}
+
+function formatFactorValue(entry) {
+  if (!entry) return null;
+  const numeric = parseScore(entry.value);
+  if (numeric == null) {
+    if (entry.rawValue != null && entry.rawValue !== '') {
+      return String(entry.rawValue);
+    }
+    return null;
+  }
+  const metadata = entry.metadata && typeof entry.metadata === 'object' ? entry.metadata : {};
+  const unitRaw = typeof metadata.unit === 'string' ? metadata.unit.toLowerCase() : null;
+  if (unitRaw === 'pct' || unitRaw === 'percentage') {
+    return `${(numeric * 100).toFixed(1)}%`;
+  }
+  if (unitRaw === 'bp' || unitRaw === 'bps') {
+    return `${Math.round(numeric)} bps`;
+  }
+  if (unitRaw === 'x' || unitRaw === 'multiple') {
+    return `${numeric.toFixed(2)}×`;
+  }
+  if (unitRaw === 'stdev' || unitRaw === 'sigma') {
+    return numeric.toFixed(2);
+  }
+  return numeric.toFixed(2);
+}
+
 function verdictTone(value) {
   const text = String(value ?? '').toLowerCase();
   if (!text) return 'neutral';
@@ -547,11 +604,32 @@ function renderScorecard(rows = []) {
     title.textContent = entry?.name ?? entry?.dimension ?? 'Dimension';
     card.append(title);
 
-    if (Number.isFinite(Number(entry?.score))) {
+    const ensembleScore = parseScore(entry?.score ?? entry?.ensemble_score);
+    if (ensembleScore != null) {
       const score = document.createElement('div');
       score.className = 'score';
-      score.textContent = `${Math.round(Number(entry.score))}`;
+      score.textContent = `${Math.round(ensembleScore)}`;
       card.append(score);
+    }
+
+    const llmScore = parseScore(entry?.llm_score ?? entry?.llmScore);
+    const factorScore = parseScore(entry?.factor_score ?? entry?.factorScore);
+    if (llmScore != null || factorScore != null) {
+      const breakdown = document.createElement('div');
+      breakdown.className = 'scorecard-breakdown';
+      if (llmScore != null) {
+        const llmChip = document.createElement('span');
+        llmChip.className = 'scorecard-chip';
+        llmChip.textContent = `LLM ${Math.round(llmScore)}`;
+        breakdown.append(llmChip);
+      }
+      if (factorScore != null) {
+        const factorChip = document.createElement('span');
+        factorChip.className = 'scorecard-chip';
+        factorChip.textContent = `Factors ${Math.round(factorScore)}`;
+        breakdown.append(factorChip);
+      }
+      card.append(breakdown);
     }
 
     if (entry?.summary) {
@@ -571,6 +649,65 @@ function renderScorecard(rows = []) {
         tagRow.append(span);
       });
       card.append(tagRow);
+    }
+
+    const factors = factorEntries(entry);
+    if (factors.length) {
+      const list = document.createElement('ul');
+      list.className = 'factor-list';
+      factors.forEach((factor) => {
+        const item = document.createElement('li');
+        item.className = 'factor-item';
+
+        const header = document.createElement('div');
+        header.className = 'factor-header';
+        const name = document.createElement('span');
+        name.className = 'factor-name';
+        name.textContent = factor.name;
+        header.append(name);
+        if (factor.score != null) {
+          const scoreBadge = document.createElement('span');
+          scoreBadge.className = 'factor-score';
+          scoreBadge.textContent = `${Math.round(factor.score)}`;
+          header.append(scoreBadge);
+        }
+        item.append(header);
+
+        const meta = document.createElement('div');
+        meta.className = 'factor-meta';
+        const valueText = formatFactorValue(factor);
+        if (valueText) {
+          const valueSpan = document.createElement('span');
+          valueSpan.className = 'factor-value';
+          valueSpan.textContent = valueText;
+          meta.append(valueSpan);
+        }
+        if (factor.asOf) {
+          const dateSpan = document.createElement('span');
+          dateSpan.className = 'factor-date';
+          dateSpan.textContent = formatDateOnly(factor.asOf);
+          meta.append(dateSpan);
+        }
+        if (factor.source) {
+          const sourceSpan = document.createElement('span');
+          sourceSpan.className = 'factor-source';
+          sourceSpan.textContent = factor.source;
+          meta.append(sourceSpan);
+        }
+        if (meta.childElementCount) {
+          item.append(meta);
+        }
+
+        if (factor.notes) {
+          const notes = document.createElement('p');
+          notes.className = 'factor-notes';
+          notes.textContent = factor.notes;
+          item.append(notes);
+        }
+
+        list.append(item);
+      });
+      card.append(list);
     }
 
     elements.stage3Scorecard.append(card);

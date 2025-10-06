@@ -27,6 +27,10 @@ migration up`, or any PostgreSQL client that runs the statements in order.
 - `sql/007_question_registry.sql` replaced Python-style `[...]` literals with
   `jsonb_build_array(...)` calls inside the dimension metadata seeds. Apply the
   migration if you have not run it since that fix.
+- `sql/016_scoring_ensembles.sql` adds the deterministic factor registry, ticker
+  factor snapshots, and new ensemble columns on `analysis_dimension_scores`.
+  Run it before deploying the updated Stage 3 worker so Supabase has the tables
+  and view the code expects.
 
 ## Suggested commands
 

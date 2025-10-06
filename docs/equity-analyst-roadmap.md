@@ -106,7 +106,9 @@ incrementally.
 
 ## 15. Stretch Enhancements (Backlog)
 - [x] Cached context via OpenAI Responses API to reuse deterministic summaries.
-- [ ] Advanced scoring ensembles (blend LLM output with deterministic factors).
+- [x] Advanced scoring ensembles (blend LLM output with deterministic factors).
+  - Factor catalogue (`scoring_factors`), per-ticker snapshots, and dimension-factor weights now feed the Stage 3 consumer.
+  - Planner/ticker dashboards surface ensemble chips and factor breakdowns alongside the updated scoreboard.
 - [x] User-triggered “Focus questions” appended post Stage 3.
 - [ ] Automated notification system (email / Slack) when high-conviction names found.
 

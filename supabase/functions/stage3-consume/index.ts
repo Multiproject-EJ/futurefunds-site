@@ -29,6 +29,14 @@ import {
 } from '../_shared/model-config.ts';
 import { loadPromptTemplate, renderTemplate } from '../_shared/prompt-loader.ts';
 import { resolveServiceAuth } from '../_shared/service-auth.ts';
+import {
+  blendDimensionSummaries,
+  loadDimensionFactorMap,
+  loadTickerFactorSnapshots,
+  type FactorLink,
+  type FactorSnapshot,
+  type EnsembleSummary
+} from '../_shared/ensembles.ts';
 
 type JsonRecord = Record<string, unknown>;
 
@@ -640,16 +648,23 @@ function computeDimensionSummaries(outcomes: QuestionOutcome[]) {
 
 async function buildSummaryPrompt(
   context: { ticker: string; meta: Record<string, unknown>; stage1: string; stage2: string; docs: string },
-  dimensionSummaries: ReturnType<typeof computeDimensionSummaries>
+  dimensionSummaries: EnsembleSummary[]
 ) {
   const scoreboard = dimensionSummaries.map((entry) => ({
     dimension: entry.dimension.slug,
     name: entry.dimension.name,
     verdict: entry.verdict,
     score: entry.score,
+    ensemble_score: entry.ensembleScore ?? entry.score,
+    llm_score: entry.llmScore ?? entry.score,
+    factor_score: entry.factorScore,
     weight: entry.weight,
+    llm_weight: entry.llmWeight,
+    factor_weight: entry.factorWeight,
+    color: entry.color,
     summary: entry.summary,
-    tags: entry.tags
+    tags: entry.tags,
+    factors: entry.factorBreakdown
   }));
 
   const payload = {
@@ -821,6 +836,14 @@ serve(async (req) => {
       results: [],
       message: 'No Stage 3 questions configured. Add analysis_questions entries to continue.'
     });
+  }
+
+  let dimensionFactorMap: Map<string, FactorLink[]> = new Map();
+  try {
+    dimensionFactorMap = await loadDimensionFactorMap(supabaseAdmin);
+  } catch (error) {
+    console.warn('Failed to load deterministic factor configuration', error);
+    dimensionFactorMap = new Map();
   }
 
   let embeddingModelRecord: Awaited<ReturnType<typeof resolveModel>> | null = null;
@@ -1213,7 +1236,16 @@ serve(async (req) => {
         }
       }
 
-      const dimensionSummaries = computeDimensionSummaries(outcomes);
+      const baseDimensionSummaries = computeDimensionSummaries(outcomes);
+      let snapshotMap: Map<string, FactorSnapshot> = new Map();
+      if (dimensionFactorMap.size > 0) {
+        try {
+          snapshotMap = await loadTickerFactorSnapshots(supabaseAdmin, ticker);
+        } catch (error) {
+          console.warn(`Failed to load factor snapshots for ${ticker}`, error);
+        }
+      }
+      const dimensionSummaries = blendDimensionSummaries(baseDimensionSummaries, dimensionFactorMap, snapshotMap);
 
       if (dimensionSummaries.length) {
         await supabaseAdmin
@@ -1225,11 +1257,17 @@ serve(async (req) => {
               dimension_id: entry.dimension.id,
               verdict: entry.verdict,
               score: entry.score,
+              ensemble_score: entry.ensembleScore ?? entry.score,
+              llm_score: entry.llmScore ?? entry.score,
+              factor_score: entry.factorScore,
               weight: entry.weight,
+              llm_weight: entry.llmWeight,
+              factor_weight: entry.factorWeight,
               color: entry.color,
               summary: entry.summary,
               tags: entry.tags,
               details: entry.details,
+              factor_breakdown: entry.factorBreakdown,
               created_at: startedAt,
               updated_at: startedAt
             })),
@@ -1268,18 +1306,22 @@ serve(async (req) => {
         summaryJson.cache_hit = true;
       }
 
-      if (!summaryJson.scoreboard) {
-        summaryJson.scoreboard = dimensionSummaries.map((entry) => ({
-          dimension: entry.dimension.slug,
-          name: entry.dimension.name,
-          verdict: entry.verdict,
-          score: entry.score,
-          weight: entry.weight,
-          color: entry.color,
-          summary: entry.summary,
-          tags: entry.tags
-        }));
-      }
+      summaryJson.scoreboard = dimensionSummaries.map((entry) => ({
+        dimension: entry.dimension.slug,
+        name: entry.dimension.name,
+        verdict: entry.verdict,
+        score: entry.score,
+        ensemble_score: entry.ensembleScore ?? entry.score,
+        llm_score: entry.llmScore ?? entry.score,
+        factor_score: entry.factorScore,
+        weight: entry.weight,
+        llm_weight: entry.llmWeight,
+        factor_weight: entry.factorWeight,
+        color: entry.color,
+        summary: entry.summary,
+        tags: entry.tags,
+        factors: entry.factorBreakdown
+      }));
 
       const thesisText =
         typeof summaryJson.thesis === 'string'
