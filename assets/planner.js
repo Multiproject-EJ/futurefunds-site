@@ -1548,6 +1548,7 @@ function initCredentialManager() {
   const saveBtn = modal.querySelector('#credentialSave');
   const newBtn = modal.querySelector('#credentialNew');
   const refreshBtn = modal.querySelector('#credentialRefresh');
+  const testBtn = modal.querySelector('#credentialTest');
   const closeButtons = Array.from(modal.querySelectorAll('[data-credential-close]'));
 
   let credentials = [];
@@ -1574,6 +1575,34 @@ function initCredentialManager() {
     if (!statusEl) return;
     statusEl.textContent = text || '';
     statusEl.dataset.tone = text ? tone : '';
+  };
+
+  const connectionTargets = {
+    openai: {
+      label: 'OpenAI',
+      endpoint: 'https://api.openai.com/v1/models',
+      headers: (key) => ({
+        Authorization: `Bearer ${key}`,
+        Accept: 'application/json'
+      })
+    },
+    openrouter: {
+      label: 'OpenRouter',
+      endpoint: 'https://openrouter.ai/api/v1/models',
+      headers: (key) => ({
+        Authorization: `Bearer ${key}`,
+        Accept: 'application/json'
+      })
+    },
+    anthropic: {
+      label: 'Anthropic',
+      endpoint: 'https://api.anthropic.com/v1/models',
+      headers: (key) => ({
+        'x-api-key': key,
+        'anthropic-version': '2023-06-01',
+        Accept: 'application/json'
+      })
+    }
   };
 
   const applyLockedContent = (reason) => {
@@ -1987,6 +2016,100 @@ function initCredentialManager() {
     }
   };
 
+  const testConnection = async () => {
+    const allowed = await ensureAdmin();
+    if (!allowed) return;
+
+    const { provider, apiKey } = collectFormValues();
+    const normalizedProvider = (provider || '').trim().toLowerCase();
+    if (!normalizedProvider) {
+      setStatus('Add a provider id (e.g., openrouter) before testing the connection.', 'error');
+      providerInput?.focus();
+      return;
+    }
+
+    if (!apiKey) {
+      setStatus('Add an API key before testing the connection.', 'error');
+      keyInput?.focus();
+      return;
+    }
+
+    const key = normalizedProvider.replace(/[^a-z0-9]/g, '');
+    const target = connectionTargets[key] || connectionTargets[normalizedProvider];
+    if (!target) {
+      setStatus(`Connection test not configured for provider “${normalizedProvider}”.`, 'error');
+      return;
+    }
+
+    if (testBtn) {
+      testBtn.setAttribute('disabled', 'true');
+    }
+
+    setStatus(`Checking ${target.label} connection…`, 'info');
+
+    try {
+      const headers = target.headers(apiKey);
+      const controller =
+        typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function'
+          ? AbortSignal.timeout(8000)
+          : null;
+      const response = await fetch(target.endpoint, {
+        method: 'GET',
+        headers,
+        signal: controller ?? undefined
+      });
+
+      let detail = '';
+      try {
+        const clone = response.clone();
+        const contentType = clone.headers.get('content-type') ?? '';
+        if (contentType.includes('application/json')) {
+          const data = await clone.json();
+          detail =
+            (typeof data?.error === 'string' && data.error) ||
+            (typeof data?.error?.message === 'string' && data.error.message) ||
+            (typeof data?.message === 'string' && data.message) ||
+            '';
+        } else {
+          const text = await clone.text();
+          detail = text ? text.slice(0, 200).trim() : '';
+        }
+      } catch (parseError) {
+        detail = '';
+      }
+
+      if (response.ok) {
+        setStatus(`${target.label} connection succeeded.`, 'success');
+        logStatus(`${target.label} credential check succeeded.`);
+      } else {
+        const status = `${response.status} ${response.statusText || ''}`.trim();
+        const reason = detail ? `${status} — ${detail}` : status;
+        const authFailure = response.status === 401 || response.status === 403;
+        setStatus(
+          authFailure
+            ? `${target.label} rejected the key (${status}). Confirm the API key and scopes.`
+            : `Connection test failed: ${reason}`,
+          'error'
+        );
+        console.error('Credential connection test failed', {
+          provider: target.label,
+          status: response.status,
+          detail
+        });
+      }
+    } catch (error) {
+      const message = error?.name === 'AbortError'
+        ? 'Connection test timed out after 8 seconds.'
+        : `Connection error: ${error?.message || 'Unknown failure'}`;
+      setStatus(message, 'error');
+      console.error('Credential connection test error', error);
+    } finally {
+      if (testBtn) {
+        testBtn.removeAttribute('disabled');
+      }
+    }
+  };
+
   const handleListClick = (event) => {
     const button = event.target.closest('[data-credential-id]');
     if (!button || isSaving) return;
@@ -2013,6 +2136,7 @@ function initCredentialManager() {
     isDirty = true;
   });
   copyBtn?.addEventListener('click', copyKey);
+  testBtn?.addEventListener('click', testConnection);
   discardBtn?.addEventListener('click', discardChanges);
   newBtn?.addEventListener('click', async () => {
     const allowed = await ensureAdmin();
