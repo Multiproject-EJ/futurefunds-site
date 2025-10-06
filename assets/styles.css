@@ -461,18 +461,22 @@ body.theme-dark .btn.theme-toggle:hover{
   display:flex;
   flex-direction:column;
   gap:1.4rem;
+  align-items:center;
+  text-align:center;
 }
 .hero-copy .hero-question{
-  text-align:left;
-  margin-left:0;
+  text-align:center;
+  margin:0 auto 1rem;
 }
 .hero-copy .hero-sub{
-  margin-left:0;
-  margin-right:0;
-  text-align:left;
+  margin:0.75rem auto 1.5rem;
+  text-align:center;
+}
+.hero-copy .chips{
+  justify-content:center;
 }
 .hero-copy .hero-ctas{
-  justify-content:flex-start;
+  justify-content:center;
   flex-wrap:wrap;
 }
 .hero-copy .hero-ctas .btn{
