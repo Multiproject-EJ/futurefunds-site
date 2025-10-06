@@ -64,7 +64,16 @@ function hasAdminMarker(record: Record<string, unknown> | null | undefined) {
     'is_superadmin',
     'superuser',
     'staff',
-    'is_staff'
+    'is_staff',
+    'claims_admin',
+    'admin_claims',
+    'is_operator',
+    'operator',
+    'operator_access',
+    'ops',
+    'ops_admin',
+    'is_ops',
+    'staff_access'
   ];
   return flagKeys.some((key) => Boolean((record as Record<string, unknown>)[key]));
 }
@@ -86,6 +95,13 @@ function isAdminContext(context: {
   collectRoles((profile as JsonRecord | null)?.roles, bucket);
   collectRoles((profile as JsonRecord | null)?.role_tags, bucket);
   collectRoles((profile as JsonRecord | null)?.access_level, bucket);
+  collectRoles((profile as JsonRecord | null)?.plan, bucket);
+  collectRoles((profile as JsonRecord | null)?.tier, bucket);
+  collectRoles((profile as JsonRecord | null)?.team, bucket);
+  collectRoles((profile as JsonRecord | null)?.department, bucket);
+  collectRoles((profile as JsonRecord | null)?.groups, bucket);
+  collectRoles((profile as JsonRecord | null)?.labels, bucket);
+  collectRoles((profile as JsonRecord | null)?.tags, bucket);
 
   collectRoles(user?.app_metadata, bucket);
   collectRoles(user?.user_metadata, bucket);
@@ -93,8 +109,27 @@ function isAdminContext(context: {
   collectRoles(membership?.role, bucket);
   collectRoles(membership?.roles, bucket);
   collectRoles(membership?.access_level, bucket);
+  collectRoles(membership?.plan, bucket);
+  collectRoles(membership?.plan_name, bucket);
+  collectRoles(membership?.tier, bucket);
+  collectRoles((membership as JsonRecord | null)?.labels, bucket);
+  collectRoles((membership as JsonRecord | null)?.tags, bucket);
 
-  const privileged = new Set(['admin', 'administrator', 'superadmin', 'owner', 'editor', 'staff']);
+  const privileged = new Set([
+    'admin',
+    'administrator',
+    'superadmin',
+    'owner',
+    'editor',
+    'staff',
+    'operator',
+    'operations',
+    'ops',
+    'internal',
+    'maintainer',
+    'automation',
+    'builder'
+  ]);
   for (const role of bucket) {
     if (privileged.has(role)) {
       return true;
