@@ -4,6 +4,20 @@ This repository hosts the static marketing and member experience for FutureFunds
 pages under `/assets` provide the interactive logic for authentication, the research
 universe, and internal tooling.
 
+## Getting started
+
+1. Copy `.env.example` to `.env` and supply your Supabase URL, anon key,
+   service role key, and model credentials. Mirror these values inside the
+   Supabase dashboard (`Project Settings → Configuration → Secrets`) so deployed
+   edge functions can read them.
+2. Install the [Supabase CLI](https://supabase.com/docs/reference/cli/overview)
+   and authenticate with `supabase login`. The included `package.json` exposes
+   helper commands such as `npm run db:push` and `npm run functions:deploy` to
+   bootstrap a new environment quickly.
+3. Work through the [first run checklist](docs/first-run-checklist.md) to apply
+   the SQL migrations, deploy the edge functions, and exercise the planner UI
+   before enabling unattended schedules.
+
 ## Developer docs
 
 - [Supabase database reference](docs/supabase-schema.md) — canonical contract for the

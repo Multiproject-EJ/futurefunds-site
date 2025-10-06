@@ -5,16 +5,16 @@ plan. Treat each phase as a small, reviewable milestone so the Codex workflow ca
 incrementally.
 
 ## 0. Foundations (Week 0)
-- [ ] **Repository scaffolding** – confirm `/web`, `/api`, `/sql`, `/docs` folders exist and add
+- [x] **Repository scaffolding** – confirm `/web`, `/api`, `/sql`, `/docs` folders exist and add
       `.env.example` with `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `OPENAI_API_KEY`.
-- [ ] **Dependencies** – ensure Supabase and OpenAI SDKs installed where server code will run.
-- [ ] **Design brief** – circulate this roadmap + equity_analyst.html overview with stakeholders.
+- [x] **Dependencies** – ensure Supabase and OpenAI SDKs installed where server code will run.
+- [x] **Design brief** – circulate this roadmap + equity_analyst.html overview with stakeholders.
 
 ## 1. Data Contract & Seed (Week 1)
-- [ ] `sql/001_core.sql` – create `tickers`, `runs`, `run_items`, `answers`, `cost_ledger`,
+- [x] `sql/001_core.sql` – create `tickers`, `runs`, `run_items`, `answers`, `cost_ledger`,
       `sector_prompts`, and `doc_chunks` tables.
-- [ ] `sql/002_seed.sql` – seed 10 flagship tickers across sectors.
-- [ ] Add Supabase migration scripts / npm tasks to run migrations locally and in staging.
+- [x] `sql/002_seed.sql` – seed 10 flagship tickers across sectors.
+- [x] Add Supabase migration scripts / npm tasks to run migrations locally and in staging.
 
 ## 2. Planner Experience (Week 1–2)
 - [x] Build `web/admin/planner.html` with live cost estimator (universe slider, survival sliders,
