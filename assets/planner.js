@@ -484,7 +484,20 @@ function updateScopeUI({ fromSettings = false } = {}) {
     inputs.refreshWatchlistsBtn.disabled = watchlistLoading;
   }
   if (inputs.customTickers) {
-    inputs.customTickers.disabled = mode !== 'custom';
+    const isCustom = mode === 'custom';
+    inputs.customTickers.disabled = !isCustom;
+    if (isCustom) {
+      inputs.customTickers.removeAttribute('aria-disabled');
+      if (!fromSettings) {
+        try {
+          inputs.customTickers.focus({ preventScroll: true });
+        } catch (error) {
+          inputs.customTickers.focus();
+        }
+      }
+    } else {
+      inputs.customTickers.setAttribute('aria-disabled', 'true');
+    }
   }
 
   if (inputs.universe) {
