@@ -4,8 +4,31 @@ import {
   resolveModel,
   resolveCredential,
   computeUsageCost,
-  requestChatCompletion
+  requestChatCompletion,
+  requestEmbedding,
+  withRetry
 } from '../_shared/ai.ts';
+import {
+  hashRequestBody,
+  buildCacheKey,
+  fetchCachedCompletion,
+  storeCachedCompletion,
+  markCachedCompletionHit,
+  resolveCacheTtlMinutes
+} from '../_shared/cache.ts';
+import {
+  validateStage3QuestionResponse,
+  validateStage3SummaryResponse,
+  explainValidation
+} from '../_shared/prompt-validators.ts';
+import { recordErrorLog } from '../_shared/observability.ts';
+import {
+  applyRequestSettings,
+  getStageConfig,
+  unpackRetrySettings
+} from '../_shared/model-config.ts';
+import { loadPromptTemplate, renderTemplate } from '../_shared/prompt-loader.ts';
+import { resolveServiceAuth } from '../_shared/service-auth.ts';
 
 type JsonRecord = Record<string, unknown>;
 
@@ -15,6 +38,11 @@ type Stage3Result = {
   summary: string;
   updated_at: string;
   status: 'ok' | 'failed';
+  retrieval?: {
+    hits: number;
+    citations: RetrievedCitation[];
+  };
+  cache_hit?: boolean;
 };
 
 type Stage3Metrics = {
@@ -23,11 +51,6 @@ type Stage3Metrics = {
   completed: number;
   failed: number;
   spend?: number;
-};
-
-type DocChunk = {
-  source: string | null;
-  chunk: string | null;
 };
 
 type DimensionDefinition = {
@@ -67,6 +90,26 @@ type QuestionOutcome = {
   raw: JsonRecord;
 };
 
+type RetrievedSnippet = {
+  ref: string;
+  chunk: string;
+  source_type: string | null;
+  title: string | null;
+  published_at: string | null;
+  source_url: string | null;
+  similarity: number | null;
+  token_length: number;
+};
+
+type RetrievedCitation = {
+  ref: string;
+  title: string | null;
+  source_type: string | null;
+  published_at: string | null;
+  source_url: string | null;
+  similarity: number | null;
+};
+
 const DEFAULT_SCHEMA = {
   question: 'slug',
   verdict: 'bad|neutral|good',
@@ -88,7 +131,20 @@ const jsonHeaders = {
   'Cache-Control': 'no-store'
 };
 
-const DEFAULT_STAGE3_MODEL = 'openrouter/gpt-5-preview';
+const stageDefaults = getStageConfig('stage3');
+const DEFAULT_STAGE3_MODEL = stageDefaults?.default_model ?? 'openrouter/gpt-5-preview';
+const FALLBACK_STAGE3_MODEL = stageDefaults?.fallback_model ?? 'openrouter/gpt-5-mini';
+const EMBEDDING_MODEL_SLUG = stageDefaults?.embedding_model ?? 'openai/text-embedding-3-small';
+const stageRequestSettings = stageDefaults?.request ?? null;
+const stageRetry = unpackRetrySettings(stageDefaults?.retry);
+const stageCacheTtlMinutes = resolveCacheTtlMinutes('stage3');
+const questionCacheTtlMinutes = resolveCacheTtlMinutes('stage3_question', stageCacheTtlMinutes);
+const summaryCacheTtlMinutes = resolveCacheTtlMinutes('stage3_summary', stageCacheTtlMinutes);
+const questionSystemTemplate = loadPromptTemplate('stage3/question-system');
+const questionUserTemplate = loadPromptTemplate('stage3/question-user');
+const summarySystemTemplate = loadPromptTemplate('stage3/summary-system');
+const summaryUserTemplate = loadPromptTemplate('stage3/summary-user');
+const MAX_RETRIEVAL_SNIPPETS = 8;
 
 function jsonResponse(status: number, body: JsonRecord) {
   return new Response(JSON.stringify(body), { status, headers: jsonHeaders });
@@ -226,15 +282,15 @@ async function fetchStageAnswer(
   return (data?.answer_json ?? null) as JsonRecord | null;
 }
 
-async function fetchDocChunks(client: ReturnType<typeof createClient>, ticker: string, limit = 6) {
-  const { data, error } = await client
-    .from('doc_chunks')
-    .select('source, chunk')
-    .eq('ticker', ticker)
-    .order('id', { ascending: false })
-    .limit(limit);
-  if (error) throw error;
-  return (data ?? []) as DocChunk[];
+function snippetsToCitations(snippets: RetrievedSnippet[]): RetrievedCitation[] {
+  return snippets.map((snippet) => ({
+    ref: snippet.ref,
+    title: snippet.title,
+    source_type: snippet.source_type,
+    published_at: snippet.published_at,
+    source_url: snippet.source_url,
+    similarity: snippet.similarity
+  }));
 }
 
 function formatStage1Summary(answer: JsonRecord | null) {
@@ -271,13 +327,100 @@ function formatStage2Summary(answer: JsonRecord | null) {
   return lines.length ? lines.join('\n') : 'Stage 2 scores unavailable.';
 }
 
-function formatDocSnippets(chunks: DocChunk[]) {
-  if (!chunks.length) return 'No external excerpts supplied.';
-  return chunks
-    .map((chunk, index) => {
-      const source = chunk.source ? String(chunk.source) : 'Unknown source';
-      const text = (chunk.chunk ?? '').toString().slice(0, 800);
-      return `Snippet ${index + 1} — ${source}:\n${text}`;
+function buildRetrievalQuery(
+  ticker: string,
+  meta: Record<string, unknown>,
+  stage1: JsonRecord | null,
+  stage2: JsonRecord | null
+) {
+  const lines: string[] = [];
+  lines.push(`Ticker: ${ticker}`);
+  if (meta.name) lines.push(`Name: ${String(meta.name)}`);
+  if (meta.exchange) lines.push(`Exchange: ${String(meta.exchange)}`);
+  if (meta.country) lines.push(`Country: ${String(meta.country)}`);
+  if (meta.sector) lines.push(`Sector: ${String(meta.sector)}`);
+  if (meta.industry) lines.push(`Industry: ${String(meta.industry)}`);
+
+  if (stage1?.summary) lines.push(`Stage 1 summary: ${String(stage1.summary)}`);
+  const stage1Reasons = Array.isArray(stage1?.reasons)
+    ? (stage1?.reasons as unknown[]).slice(0, 4).map((reason) => String(reason))
+    : [];
+  if (stage1Reasons.length) lines.push(`Stage 1 reasons: ${stage1Reasons.join('; ')}`);
+
+  if (stage2?.verdict && typeof (stage2.verdict as JsonRecord)?.summary === 'string') {
+    lines.push(`Stage 2 verdict: ${String((stage2.verdict as JsonRecord).summary)}`);
+  }
+  if (Array.isArray(stage2?.next_steps) && stage2.next_steps.length) {
+    const nextSteps = (stage2.next_steps as unknown[]).slice(0, 3).map((step) => String(step));
+    lines.push(`Stage 2 next steps: ${nextSteps.join('; ')}`);
+  }
+
+  return lines.join('\n');
+}
+
+async function fetchRetrievedSnippets(
+  client: ReturnType<typeof createClient>,
+  ticker: string,
+  query: string,
+  options: {
+    model: Awaited<ReturnType<typeof resolveModel>> | null;
+    credential: Awaited<ReturnType<typeof resolveCredential>> | null;
+    limit?: number;
+  }
+): Promise<{ snippets: RetrievedSnippet[]; citations: RetrievedCitation[]; tokens: number }> {
+  if (!query || !query.trim() || !options.model || !options.credential) {
+    return { snippets: [], citations: [], tokens: 0 };
+  }
+
+  const embeddingResponse = await requestEmbedding(options.model, options.credential, query.slice(0, 6_000));
+  const vector = embeddingResponse?.data?.[0]?.embedding as number[] | undefined;
+  if (!vector) {
+    return { snippets: [], citations: [], tokens: 0 };
+  }
+
+  const { data, error } = await client.rpc('match_doc_chunks', {
+    query_embedding: vector,
+    query_ticker: ticker || null,
+    match_limit: Math.max(1, Math.min(options.limit ?? MAX_RETRIEVAL_SNIPPETS, 20))
+  });
+  if (error) throw error;
+
+  const rows = Array.isArray(data) ? data : [];
+  const snippets: RetrievedSnippet[] = rows.map((row: Record<string, unknown>, index: number) => {
+    const text = String(row.chunk ?? '').trim();
+    const truncated = text.length > 1200 ? `${text.slice(0, 1200)}…` : text;
+    return {
+      ref: `D${index + 1}`,
+      chunk: truncated,
+      source_type: (row.source_type ?? row.source ?? null) as string | null,
+      title: (row.title ?? null) as string | null,
+      published_at: (row.published_at ?? null) as string | null,
+      source_url: (row.source_url ?? null) as string | null,
+      similarity: row.similarity != null ? Number(row.similarity) : null,
+      token_length: Number(row.token_length ?? 0)
+    };
+  });
+
+  const usage = (embeddingResponse?.usage ?? {}) as Record<string, unknown>;
+  const tokens = Number(usage.total_tokens ?? usage.prompt_tokens ?? 0);
+
+  return {
+    snippets,
+    citations: snippetsToCitations(snippets),
+    tokens: Number.isFinite(tokens) ? tokens : 0
+  };
+}
+
+function formatDocSnippets(snippets: RetrievedSnippet[]) {
+  if (!snippets.length) return 'No external excerpts supplied.';
+  return snippets
+    .map((snippet) => {
+      const parts: string[] = [];
+      if (snippet.title) parts.push(snippet.title);
+      if (snippet.source_type) parts.push(snippet.source_type);
+      if (snippet.published_at) parts.push(new Date(snippet.published_at).toISOString().slice(0, 10));
+      const meta = parts.length ? parts.join(' · ') : 'Source metadata unavailable';
+      return `[${snippet.ref}] ${snippet.chunk}\nSource: ${meta}${snippet.source_url ? `\nURL: ${snippet.source_url}` : ''}`;
     })
     .join('\n---\n');
 }
@@ -386,42 +529,33 @@ function digestDependencies(question: QuestionDefinition, cache: Map<string, Que
   return lines.join('\n');
 }
 
-function buildQuestionPrompt(
+async function buildQuestionPrompt(
   context: { ticker: string; meta: Record<string, unknown>; stage1: string; stage2: string; docs: string },
   question: QuestionDefinition,
   dependencyDigest: string
 ) {
-  const header = [
-    `Ticker: ${context.ticker}`,
-    `Name: ${context.meta.name ?? 'Unknown'}`,
-    `Exchange: ${context.meta.exchange ?? 'n/a'}`,
-    `Country: ${context.meta.country ?? 'n/a'}`,
-    `Sector: ${context.meta.sector ?? 'n/a'}`,
-    `Industry: ${context.meta.industry ?? 'n/a'}`,
-    '',
-    'Stage 1 triage:',
-    context.stage1,
-    '',
-    'Stage 2 medium verdict:',
-    context.stage2,
-    '',
-    'Supporting excerpts:',
-    context.docs,
-    '',
-    'Dependency notes:',
-    dependencyDigest
-  ].join('\n');
-
+  const [systemTemplate, userTemplate] = await Promise.all([questionSystemTemplate, questionUserTemplate]);
   const schema = JSON.stringify(question.answer_schema ?? DEFAULT_SCHEMA, null, 2);
-  const guidance = question.guidance ? `\nGuidance: ${question.guidance}` : '';
-
+  const guidanceBlock = question.guidance ? `Guidance: ${question.guidance}` : '';
   return {
-    system:
-      'You are a senior equity researcher. Respond ONLY with strict JSON following the provided schema. Do not add prose outside JSON.',
-    user:
-      `${header}\n\nDimension focus: ${question.dimension.name} (${question.dimension.slug})` +
-      `\nObjective: ${question.prompt}${guidance}` +
-      `\n\nReturn JSON with this schema:\n${schema}`
+    system: systemTemplate,
+    user: renderTemplate(userTemplate, {
+      ticker: context.ticker,
+      name: String(context.meta.name ?? 'Unknown'),
+      exchange: String(context.meta.exchange ?? 'n/a'),
+      country: String(context.meta.country ?? 'n/a'),
+      sector: String(context.meta.sector ?? 'n/a'),
+      industry: String(context.meta.industry ?? 'n/a'),
+      stage1: context.stage1,
+      stage2: context.stage2,
+      docs: context.docs,
+      dependencies: dependencyDigest,
+      dimension_name: question.dimension.name,
+      dimension_slug: question.dimension.slug,
+      objective: question.prompt,
+      guidance_block: guidanceBlock,
+      schema
+    })
   };
 }
 
@@ -504,7 +638,7 @@ function computeDimensionSummaries(outcomes: QuestionOutcome[]) {
   });
 }
 
-function buildSummaryPrompt(
+async function buildSummaryPrompt(
   context: { ticker: string; meta: Record<string, unknown>; stage1: string; stage2: string; docs: string },
   dimensionSummaries: ReturnType<typeof computeDimensionSummaries>
 ) {
@@ -527,12 +661,12 @@ function buildSummaryPrompt(
     scoreboard
   };
 
+  const [systemTemplate, userTemplate] = await Promise.all([summarySystemTemplate, summaryUserTemplate]);
   return {
-    system:
-      'You are preparing an investment memo. Respond ONLY in JSON matching {"verdict": "bad|neutral|good", "confidence": int, "thesis": string, "watch_items": [string], "next_actions": [string], "scoreboard": array}.' +
-      ' Confidence must be 0-100. Thesis <= 220 words. Watch_items and next_actions max 5 entries each.',
-    user:
-      `Context:\n${JSON.stringify(payload, null, 2)}\n\nCompose final verdict, conviction, thesis, watch items, next actions, and echo the supplied scoreboard.`
+    system: systemTemplate,
+    user: renderTemplate(userTemplate, {
+      context_json: JSON.stringify(payload, null, 2)
+    })
   };
 }
 
@@ -568,41 +702,45 @@ serve(async (req) => {
     return jsonResponse(400, { error: 'Invalid or missing run_id' });
   }
 
+  const serviceAuth = resolveServiceAuth(req);
   const authHeader = req.headers.get('Authorization') ?? '';
   const tokenMatch = authHeader.match(/^Bearer\s+(.+)$/i);
   const accessToken = tokenMatch?.[1]?.trim();
-  if (!accessToken) {
-    return jsonResponse(401, { error: 'Missing bearer token' });
-  }
 
   const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, { auth: { persistSession: false } });
 
-  const { data: userData, error: userError } = await supabaseAdmin.auth.getUser(accessToken);
-  if (userError || !userData?.user) {
-    console.error('Invalid session token', userError);
-    return jsonResponse(401, { error: 'Invalid or expired session token' });
-  }
+  if (!serviceAuth.authorized) {
+    if (!accessToken) {
+      return jsonResponse(401, { error: 'Missing bearer token' });
+    }
 
-  const [profileResult, membershipResult] = await Promise.all([
-    supabaseAdmin.from('profiles').select('*').eq('id', userData.user.id).maybeSingle(),
-    supabaseAdmin.from('memberships').select('*').eq('user_id', userData.user.id).maybeSingle()
-  ]);
+    const { data: userData, error: userError } = await supabaseAdmin.auth.getUser(accessToken);
+    if (userError || !userData?.user) {
+      console.error('Invalid session token', userError);
+      return jsonResponse(401, { error: 'Invalid or expired session token' });
+    }
 
-  if (profileResult.error) {
-    console.error('Failed to load profile', profileResult.error);
-  }
-  if (membershipResult.error) {
-    console.error('Failed to load membership', membershipResult.error);
-  }
+    const [profileResult, membershipResult] = await Promise.all([
+      supabaseAdmin.from('profiles').select('*').eq('id', userData.user.id).maybeSingle(),
+      supabaseAdmin.from('memberships').select('*').eq('user_id', userData.user.id).maybeSingle()
+    ]);
 
-  const isAdmin = isAdminContext({
-    user: userData.user,
-    profile: profileResult.data ?? null,
-    membership: membershipResult.data ?? null
-  });
+    if (profileResult.error) {
+      console.error('Failed to load profile', profileResult.error);
+    }
+    if (membershipResult.error) {
+      console.error('Failed to load membership', membershipResult.error);
+    }
 
-  if (!isAdmin) {
-    return jsonResponse(403, { error: 'Admin privileges required' });
+    const isAdmin = isAdminContext({
+      user: userData.user,
+      profile: profileResult.data ?? null,
+      membership: membershipResult.data ?? null
+    });
+
+    if (!isAdmin) {
+      return jsonResponse(403, { error: 'Admin privileges required' });
+    }
   }
 
   const { data: runRow, error: runError } = await supabaseAdmin
@@ -632,8 +770,9 @@ serve(async (req) => {
   const stageConfig = extractStageConfig(plannerNotes, 'stage3');
 
   let modelRecord;
+  const desiredModel = stageConfig.model?.trim() || DEFAULT_STAGE3_MODEL;
   try {
-    modelRecord = await resolveModel(supabaseAdmin, stageConfig.model ?? '', DEFAULT_STAGE3_MODEL);
+    modelRecord = await resolveModel(supabaseAdmin, desiredModel, FALLBACK_STAGE3_MODEL);
   } catch (error) {
     console.error('Stage 3 model configuration error', error);
     return jsonResponse(500, {
@@ -684,27 +823,186 @@ serve(async (req) => {
     });
   }
 
-  const runJsonPrompt = async (systemPrompt: string, userPrompt: string) => {
-    const completion = await requestChatCompletion(modelRecord, credentialRecord, {
-      temperature: 0.1,
-      response_format: { type: 'json_object' },
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt }
-      ]
-    });
+  let embeddingModelRecord: Awaited<ReturnType<typeof resolveModel>> | null = null;
+  let embeddingCredentialRecord: Awaited<ReturnType<typeof resolveCredential>> | null = null;
+  try {
+    embeddingModelRecord = await resolveModel(supabaseAdmin, EMBEDDING_MODEL_SLUG, EMBEDDING_MODEL_SLUG);
+  } catch (error) {
+    console.warn('Stage 3 retrieval embedding model unavailable', error);
+  }
 
-    const rawMessage = completion?.choices?.[0]?.message?.content ?? '{}';
-    let parsed: JsonRecord;
+  if (embeddingModelRecord) {
     try {
-      parsed = JSON.parse(rawMessage);
+      embeddingCredentialRecord = await resolveCredential(supabaseAdmin, {
+        credentialId: null,
+        provider: embeddingModelRecord.provider,
+        preferScopes: ['automation', 'rag', 'editor'],
+        allowEnvFallback: true,
+        envKeys: ['OPENAI_API_KEY']
+      });
     } catch (error) {
-      throw new Error(`Failed to parse model response JSON: ${error instanceof Error ? error.message : String(error)}`);
+      console.warn('Stage 3 retrieval embedding credential unavailable', error);
+      embeddingCredentialRecord = null;
     }
+  }
 
-    const usage = completion?.usage ?? {};
-    const { cost, promptTokens, completionTokens } = computeUsageCost(modelRecord, usage);
-    return { parsed, cost, promptTokens, completionTokens };
+  const runJsonPrompt = async (
+    systemPrompt: string,
+    userPrompt: string,
+    {
+      promptId,
+      ticker,
+      validator,
+      metadata
+    }: {
+      promptId: string;
+      ticker: string;
+      validator?: (payload: JsonRecord) => { valid: boolean; errors: string[] };
+      metadata?: JsonRecord | null;
+    }
+  ) => {
+    let rawMessage = '{}';
+    try {
+      const requestBody = applyRequestSettings(
+        {
+          response_format: { type: 'json_object' },
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userPrompt }
+          ]
+        },
+        stageRequestSettings
+      );
+      const promptHash = await hashRequestBody(requestBody);
+      const scope = cacheScope ?? promptId;
+      const cacheKey = buildCacheKey(['stage3', ticker, scope, promptHash]);
+      const ttlMinutes = scope === 'stage3-summary' ? summaryCacheTtlMinutes : questionCacheTtlMinutes;
+
+      let cacheHit = false;
+      let usage: Record<string, unknown> | null = null;
+      let completion: Record<string, unknown> | null = null;
+
+      try {
+        const cached = await fetchCachedCompletion(supabaseAdmin, modelRecord.slug, cacheKey);
+        if (cached) {
+          cacheHit = true;
+          usage = cached.usage ?? null;
+          completion = cached.response_body ?? null;
+          await markCachedCompletionHit(supabaseAdmin, cached.id);
+        }
+      } catch (error) {
+        console.warn('Stage 3 cache lookup failed', error);
+      }
+
+      if (!completion) {
+        completion = await withRetry(
+          stageRetry.attempts,
+          stageRetry.backoffMs,
+          () => requestChatCompletion(modelRecord, credentialRecord, requestBody),
+          { jitter: stageRetry.jitter }
+        );
+        const completionAny = completion as { usage?: Record<string, unknown> };
+        usage = completionAny?.usage ?? null;
+        try {
+          await storeCachedCompletion(
+            supabaseAdmin,
+            modelRecord.slug,
+            cacheKey,
+            promptHash,
+            requestBody,
+            completion as Record<string, unknown>,
+            usage ?? null,
+            { ttlMinutes, context: cacheContext ?? metadata ?? undefined }
+          );
+        } catch (error) {
+          console.warn('Stage 3 cache write failed', error);
+        }
+      }
+
+      const completionAny = completion as {
+        choices?: Array<{ message?: { content?: string } }>;
+      };
+
+      rawMessage = completionAny?.choices?.[0]?.message?.content ?? '{}';
+      let parsed: JsonRecord;
+      try {
+        parsed = JSON.parse(rawMessage);
+      } catch (error) {
+        const parseMessage = error instanceof Error ? error.message : String(error);
+        const logPayload: JsonRecord = { raw_response: rawMessage, parse_error: parseMessage, metadata };
+        await recordErrorLog(supabaseAdmin, {
+          context: 'stage3-consume',
+          message: `Failed to parse model response JSON: ${parseMessage}`,
+          runId: runRow.id,
+          ticker,
+          stage: 3,
+          promptId,
+          payload: logPayload
+        });
+        const parseError = new Error(`Failed to parse model response JSON: ${parseMessage}`);
+        (parseError as Error & { logPayload?: JsonRecord; logged?: boolean }).logPayload = logPayload;
+        (parseError as Error & { logged?: boolean }).logged = true;
+        throw parseError;
+      }
+
+      if (validator) {
+        const validation = validator(parsed);
+        if (!validation.valid) {
+          const details = explainValidation(validation);
+          const logPayload: JsonRecord = {
+            raw_response: rawMessage,
+            validation_errors: validation.errors,
+            parsed,
+            metadata
+          };
+          await recordErrorLog(supabaseAdmin, {
+            context: 'stage3-consume',
+            message: `Stage 3 schema validation failed: ${details}`,
+            runId: runRow.id,
+            ticker,
+            stage: 3,
+            promptId,
+            payload: logPayload
+          });
+          const validationError = new Error(`Stage 3 schema validation failed: ${details}`);
+          (validationError as Error & { logPayload?: JsonRecord; logged?: boolean }).logPayload = logPayload;
+          (validationError as Error & { logged?: boolean }).logged = true;
+          throw validationError;
+        }
+      }
+
+      const effectiveUsage = cacheHit ? {} : (usage ?? {});
+      const { cost, promptTokens, completionTokens } = computeUsageCost(modelRecord, effectiveUsage);
+      return { parsed, cost, promptTokens, completionTokens, cacheHit };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      const basePayload: JsonRecord =
+        error && typeof (error as { logPayload?: JsonRecord }).logPayload === 'object'
+          ? { ...(error as { logPayload?: JsonRecord }).logPayload }
+          : {};
+      if (!basePayload.raw_response) {
+        basePayload.raw_response = rawMessage;
+      }
+      if (metadata && !basePayload.metadata) {
+        basePayload.metadata = metadata;
+      }
+
+      if (!(error as { logged?: boolean }).logged) {
+        await recordErrorLog(supabaseAdmin, {
+          context: 'stage3-consume',
+          message,
+          runId: runRow.id,
+          ticker,
+          stage: 3,
+          promptId,
+          payload: basePayload
+        });
+        (error as { logged?: boolean }).logged = true;
+      }
+
+      (error as { logPayload?: JsonRecord }).logPayload = basePayload;
+      throw error;
+    }
   };
 
   const { data: pending, error: pendingError } = await supabaseAdmin
@@ -742,25 +1040,40 @@ serve(async (req) => {
   const results: Stage3Result[] = [];
   let processed = 0;
   let failures = 0;
+  let totalRetrievalHits = 0;
+  let totalEmbeddingTokens = 0;
+  let cacheHits = 0;
 
   for (const item of items) {
     const ticker = item.ticker;
     const startedAt = new Date().toISOString();
 
     try {
-      const [meta, stage1Answer, stage2Answer, docChunks] = await Promise.all([
+      const [meta, stage1Answer, stage2Answer] = await Promise.all([
         fetchTickerMeta(supabaseAdmin, ticker),
         fetchStageAnswer(supabaseAdmin, runRow.id, ticker, 1),
-        fetchStageAnswer(supabaseAdmin, runRow.id, ticker, 2),
-        fetchDocChunks(supabaseAdmin, ticker)
+        fetchStageAnswer(supabaseAdmin, runRow.id, ticker, 2)
       ]);
+
+      const retrieval = await fetchRetrievedSnippets(
+        supabaseAdmin,
+        ticker,
+        buildRetrievalQuery(ticker, meta ?? {}, stage1Answer, stage2Answer),
+        {
+          model: embeddingModelRecord,
+          credential: embeddingCredentialRecord,
+          limit: MAX_RETRIEVAL_SNIPPETS
+        }
+      );
+      totalRetrievalHits += retrieval.snippets.length;
+      totalEmbeddingTokens += retrieval.tokens;
 
       const context = {
         ticker,
         meta,
         stage1: formatStage1Summary(stage1Answer),
         stage2: formatStage2Summary(stage2Answer),
-        docs: formatDocSnippets(docChunks)
+        docs: formatDocSnippets(retrieval.snippets)
       };
 
       const questionCache = new Map<string, QuestionOutcome>();
@@ -769,9 +1082,37 @@ serve(async (req) => {
 
       for (const question of questionDefinitions) {
         const dependencyNotes = digestDependencies(question, questionCache);
-        const prompt = buildQuestionPrompt(context, question, dependencyNotes);
-        const { parsed, cost, promptTokens, completionTokens } = await runJsonPrompt(prompt.system, prompt.user);
+        const prompt = await buildQuestionPrompt(context, question, dependencyNotes);
+        const {
+          parsed,
+          cost,
+          promptTokens,
+          completionTokens,
+          cacheHit
+        } = await runJsonPrompt(
+          prompt.system,
+          prompt.user,
+          {
+            promptId: question.slug,
+            ticker,
+            validator: validateStage3QuestionResponse,
+            metadata: {
+              question: question.slug,
+              dimension: question.dimension.slug,
+              depends_on: question.depends_on
+            },
+            cacheScope: `stage3-question-${question.slug}`,
+            cacheContext: {
+              retrieval: retrieval.citations,
+              dependencies: dependencyNotes,
+              context
+            }
+          }
+        );
         totalCost += cost;
+        if (cacheHit) {
+          cacheHits += 1;
+        }
 
         const verdict = normalizeVerdictValue(
           (parsed as JsonRecord)?.verdict ?? (parsed as JsonRecord)?.rating ?? (parsed as JsonRecord)?.outlook
@@ -802,6 +1143,14 @@ serve(async (req) => {
         );
         const color = pickColor(verdict, question.dimension);
 
+        const enrichedAnswer: JsonRecord = {
+          ...parsed,
+          context_citations: retrieval.citations
+        };
+        if (cacheHit) {
+          enrichedAnswer.cache_hit = true;
+        }
+
         const outcome: QuestionOutcome = {
           definition: question,
           verdict,
@@ -809,7 +1158,7 @@ serve(async (req) => {
           summary,
           tags,
           color,
-          raw: parsed
+          raw: enrichedAnswer
         };
 
         outcomes.push(outcome);
@@ -830,7 +1179,7 @@ serve(async (req) => {
               weight: question.weight,
               color,
               summary,
-              answer: parsed,
+              answer: enrichedAnswer,
               tags,
               dependencies: question.depends_on,
               created_at: startedAt,
@@ -844,22 +1193,24 @@ serve(async (req) => {
           ticker,
           stage: 3,
           question_group: question.slug,
-          answer_json: parsed,
+          answer_json: enrichedAnswer,
           tokens_in: promptTokens,
           tokens_out: completionTokens,
           cost_usd: cost,
           created_at: startedAt
         });
 
-        await supabaseAdmin.from('cost_ledger').insert({
-          run_id: runRow.id,
-          stage: 3,
-          model: modelRecord.slug,
-          tokens_in: promptTokens,
-          tokens_out: completionTokens,
-          cost_usd: cost,
-          created_at: startedAt
-        });
+        if (cost > 0) {
+          await supabaseAdmin.from('cost_ledger').insert({
+            run_id: runRow.id,
+            stage: 3,
+            model: modelRecord.slug,
+            tokens_in: promptTokens,
+            tokens_out: completionTokens,
+            cost_usd: cost,
+            created_at: startedAt
+          });
+        }
       }
 
       const dimensionSummaries = computeDimensionSummaries(outcomes);
@@ -886,14 +1237,36 @@ serve(async (req) => {
           );
       }
 
-      const summaryPrompt = buildSummaryPrompt(context, dimensionSummaries);
+      const summaryPrompt = await buildSummaryPrompt(context, dimensionSummaries);
       const {
         parsed: summaryJson,
         cost: summaryCost,
         promptTokens: summaryPromptTokens,
-        completionTokens: summaryCompletionTokens
-      } = await runJsonPrompt(summaryPrompt.system, summaryPrompt.user);
+        completionTokens: summaryCompletionTokens,
+        cacheHit: summaryCacheHit
+      } = await runJsonPrompt(summaryPrompt.system, summaryPrompt.user, {
+        promptId: 'stage3-summary',
+        ticker,
+        validator: validateStage3SummaryResponse,
+        metadata: {
+          ticker,
+          question_count: questionDefinitions.length
+        },
+        cacheScope: 'stage3-summary',
+        cacheContext: {
+          retrieval: retrieval.citations,
+          dimensions: dimensionSummaries
+        }
+      });
       totalCost += summaryCost;
+      if (summaryCacheHit) {
+        cacheHits += 1;
+      }
+
+      summaryJson.context_citations = retrieval.citations;
+      if (summaryCacheHit) {
+        summaryJson.cache_hit = true;
+      }
 
       if (!summaryJson.scoreboard) {
         summaryJson.scoreboard = dimensionSummaries.map((entry) => ({
@@ -928,15 +1301,17 @@ serve(async (req) => {
         created_at: startedAt
       });
 
-      await supabaseAdmin.from('cost_ledger').insert({
-        run_id: runRow.id,
-        stage: 3,
-        model: modelRecord.slug,
-        tokens_in: summaryPromptTokens,
-        tokens_out: summaryCompletionTokens,
-        cost_usd: summaryCost,
-        created_at: startedAt
-      });
+      if (summaryCost > 0) {
+        await supabaseAdmin.from('cost_ledger').insert({
+          run_id: runRow.id,
+          stage: 3,
+          model: modelRecord.slug,
+          tokens_in: summaryPromptTokens,
+          tokens_out: summaryCompletionTokens,
+          cost_usd: summaryCost,
+          created_at: startedAt
+        });
+      }
 
       await supabaseAdmin
         .from('run_items')
@@ -954,13 +1329,45 @@ serve(async (req) => {
         verdict: typeof summaryJson.verdict === 'string' ? summaryJson.verdict : summaryJson.rating?.toString() ?? null,
         summary: thesisText ?? (typeof summaryJson.summary === 'string' ? summaryJson.summary : '—'),
         updated_at: startedAt,
-        status: 'ok'
+        status: 'ok',
+        retrieval: {
+          hits: retrieval.snippets.length,
+          citations: retrieval.citations
+        },
+        cache_hit: summaryCacheHit
       });
       processed += 1;
     } catch (error) {
       console.error(`Stage 3 processing failed for ${ticker}`, error);
       failures += 1;
       const message = error instanceof Error ? error.message : String(error);
+
+      const basePayload: JsonRecord =
+        error && typeof (error as { logPayload?: JsonRecord }).logPayload === 'object'
+          ? { ...(error as { logPayload?: JsonRecord }).logPayload }
+          : {};
+      if (!(error as { logged?: boolean }).logged) {
+        if (!basePayload.ticker) basePayload.ticker = ticker;
+        basePayload.run_item = {
+          status: item.status,
+          stage: item.stage,
+          spend_est_usd: item.spend_est_usd
+        };
+        await recordErrorLog(supabaseAdmin, {
+          context: 'stage3-consume',
+          message,
+          runId: runRow.id,
+          ticker,
+          stage: 3,
+          promptId: 'stage3-run',
+          payload: basePayload,
+          metadata: {
+            planner_model: stageConfig.model,
+            planner_credential: stageConfig.credentialId
+          }
+        });
+        (error as { logged?: boolean }).logged = true;
+      }
 
       await supabaseAdmin
         .from('run_items')
@@ -992,8 +1399,9 @@ serve(async (req) => {
   }
   const metricsWithSpend: Stage3Metrics = { ...metrics, spend };
 
+  const cacheNote = cacheHits > 0 ? ` (${cacheHits} cached)` : '';
   const message = processed > 0
-    ? `Processed ${processed} finalist${processed === 1 ? '' : 's'}. Pending deep dives: ${metrics.pending}.`
+    ? `Processed ${processed} finalist${processed === 1 ? '' : 's'}${cacheNote}. Pending deep dives: ${metrics.pending}.`
     : 'No finalists processed.';
 
   return jsonResponse(200, {
@@ -1003,6 +1411,11 @@ serve(async (req) => {
     model: modelRecord.slug,
     metrics: metricsWithSpend,
     results,
-    message
+    message,
+    cache_hits: cacheHits,
+    retrieval: {
+      total_hits: totalRetrievalHits,
+      embedding_tokens: totalEmbeddingTokens
+    }
   });
 });

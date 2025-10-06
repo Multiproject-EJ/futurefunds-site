@@ -1,0 +1,12 @@
+{
+  "name": "futurefunds-site",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test",
+    "db:push": "supabase db push --env-file .env",
+    "db:reset": "supabase db reset --env-file .env",
+    "functions:deploy": "supabase functions deploy --project-ref $SUPABASE_PROJECT_REF",
+    "functions:serve": "supabase functions serve --env-file .env --no-verify-jwt"
+  }
+}
