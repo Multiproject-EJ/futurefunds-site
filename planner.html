@@ -1832,17 +1832,19 @@
           <fieldset class="scope-field" id="runScopeFieldset">
             <legend>Run scope</legend>
             <div class="scope-options">
-              <label class="scope-option">
-                <input type="radio" name="runScope" value="universe" checked />
-                <span>Entire ticker universe</span>
-                <small id="scopeUniverseSummary">Use the universe slider to cap Stage 1 intake.</small>
-              </label>
-              <div class="scope-option scope-option--watchlist">
-                <label>
-                  <input type="radio" name="runScope" value="watchlist" />
-                  <span>Watchlist</span>
+              <div class="scope-option scope-option--universe">
+                <label class="scope-option__choice">
+                  <input type="radio" name="runScope" value="universe" checked />
+                  <span class="scope-option__label">Entire ticker universe</span>
                 </label>
-                <div class="scope-option__control">
+                <p class="muted" id="scopeUniverseSummary">Use the universe slider to cap Stage 1 intake.</p>
+              </div>
+              <div class="scope-option scope-option--watchlist">
+                <label class="scope-option__choice">
+                  <input type="radio" name="runScope" value="watchlist" />
+                  <span class="scope-option__label">Watchlist</span>
+                </label>
+                <div class="scope-option__body">
                   <label class="sr-only" for="watchlistSelect">Watchlist</label>
                   <select id="watchlistSelect" disabled>
                     <option value="">Select watchlist…</option>
@@ -1852,11 +1854,18 @@
                 <p class="muted" id="watchlistSummary" aria-live="polite">Choose a watchlist to see membership and size.</p>
               </div>
               <div class="scope-option scope-option--custom">
-                <label>
+                <label class="scope-option__choice">
                   <input type="radio" name="runScope" value="custom" />
-                  <span>Custom symbols</span>
+                  <span class="scope-option__label">Custom symbols</span>
                 </label>
-                <textarea id="customTickersInput" rows="2" placeholder="AAPL, MSFT, 0700.HK" disabled></textarea>
+                <div class="scope-option__body">
+                  <textarea
+                    id="customTickersInput"
+                    rows="2"
+                    placeholder="AAPL, MSFT, 0700.HK"
+                    aria-disabled="true"
+                  ></textarea>
+                </div>
               </div>
               <p class="muted" id="scopeStatus" aria-live="polite"></p>
             </div>
