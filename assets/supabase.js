@@ -65,7 +65,9 @@ function normalizeRole(value) {
     return Object.values(value).flatMap((entry) => normalizeRole(entry));
   }
   return String(value ?? '')
-    .split(/[\s,]+/)
+    .replace(/[\u2013\u2014]/g, '-')
+    .split(/[\s,;]+/)
+    .flatMap((part) => part.split(/[-_/|]+/))
     .map((part) => part.trim().toLowerCase())
     .filter(Boolean);
 }
@@ -161,6 +163,9 @@ function hasAdminRole(context = {}) {
     'builder'
   ]);
   for (const role of buckets) {
+    if (role.includes('admin')) {
+      return true;
+    }
     if (role === 'admin' || elevated.has(role)) {
       return true;
     }
