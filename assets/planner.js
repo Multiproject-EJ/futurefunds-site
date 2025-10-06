@@ -485,8 +485,9 @@ function updateScopeUI({ fromSettings = false } = {}) {
   }
   if (inputs.customTickers) {
     const isCustom = mode === 'custom';
-    inputs.customTickers.disabled = !isCustom;
     if (isCustom) {
+      inputs.customTickers.disabled = false;
+      inputs.customTickers.removeAttribute('disabled');
       inputs.customTickers.removeAttribute('aria-disabled');
       if (!fromSettings) {
         try {
@@ -496,13 +497,16 @@ function updateScopeUI({ fromSettings = false } = {}) {
         }
       }
     } else {
+      inputs.customTickers.disabled = true;
+      inputs.customTickers.setAttribute('disabled', '');
       inputs.customTickers.setAttribute('aria-disabled', 'true');
     }
   }
 
   if (inputs.universe) {
     if (mode === 'watchlist') {
-      const count = watchlist?.tickerCount ?? plannerScope.watchlistCount ?? Number(inputs.universe.value) || 0;
+      const fallbackUniverse = Number(inputs.universe.value) || 0;
+      const count = watchlist?.tickerCount ?? plannerScope.watchlistCount ?? fallbackUniverse;
       inputs.universe.value = count;
       inputs.universe.disabled = true;
     } else if (mode === 'custom') {
