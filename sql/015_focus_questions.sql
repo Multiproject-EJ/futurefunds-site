@@ -71,6 +71,6 @@ $$;
 insert into public.focus_question_templates (slug, label, question)
 values
   ('capital-allocation', 'Capital allocation discipline', 'Assess how effectively management has allocated capital over the last three years and whether their stated priorities align with shareholder value creation.'),
-  ('growth-durability', 'Growth durability check', 'Evaluate the durability of the company\'s revenue growth and identify the leading indicators that could cause a break in the trend.'),
-  ('risk-checklist', 'Key risk checklist', 'Outline the top three fundamental risks that could invalidate the bullish thesis and how we\'d monitor them.')
+  ('growth-durability', 'Growth durability check', 'Evaluate the durability of the company''s revenue growth and identify the leading indicators that could cause a break in the trend.'),
+  ('risk-checklist', 'Key risk checklist', 'Outline the top three fundamental risks that could invalidate the bullish thesis and how we''d monitor them.')
 on conflict (slug) do nothing;
