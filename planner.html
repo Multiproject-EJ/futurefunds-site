@@ -1272,7 +1272,8 @@
       background: var(--panel,#fff);
       box-shadow: 0 26px 68px rgba(15,23,42,.22);
       padding: clamp(18px, 3vw, 26px);
-      display: grid;
+      display: flex;
+      flex-direction: column;
       gap: 20px;
     }
     .credential-modal__header {
@@ -1293,6 +1294,10 @@
     .credential-modal__body {
       display: grid;
       gap: 18px;
+      flex: 1;
+      min-height: 0;
+      overflow: auto;
+      padding-right: 4px;
     }
     @media (min-width: 880px) {
       .credential-modal__body {
@@ -1308,7 +1313,8 @@
       gap: 14px;
       align-content: start;
       max-height: 420px;
-      overflow: hidden;
+      overflow: auto;
+      min-height: 0;
     }
     .credential-modal__sidebar-actions {
       display: flex;
