@@ -1551,6 +1551,18 @@ function initCredentialManager() {
   const testBtn = modal.querySelector('#credentialTest');
   const closeButtons = Array.from(modal.querySelectorAll('[data-credential-close]'));
 
+  if (lockedLoginEl && typeof window !== 'undefined') {
+    try {
+      const loginUrl = new URL('/login.html', window.location.origin);
+      const basePath = `${window.location.pathname}${window.location.search}` || '/planner.html';
+      const redirectTarget = basePath.startsWith('/planner') ? `${basePath}#api-registry` : '/planner.html#api-registry';
+      loginUrl.searchParams.set('redirect', redirectTarget);
+      lockedLoginEl.href = `${loginUrl.pathname}${loginUrl.search}`;
+    } catch (error) {
+      console.warn('Unable to prepare credential login redirect', error);
+    }
+  }
+
   let credentials = [];
   let activeId = null;
   let isOpen = false;
@@ -2169,6 +2181,25 @@ function initCredentialManager() {
   modal.ffCredentialManager = manager;
   if (typeof window !== 'undefined') {
     window.ffCredentialManager = manager;
+    const maybeOpenFromHash = () => {
+      if (window.location.hash === '#api-registry') {
+        setTimeout(() => {
+          manager.open();
+          try {
+            if (history.replaceState) {
+              history.replaceState(null, '', `${window.location.pathname}${window.location.search}`);
+            } else {
+              window.location.hash = '';
+            }
+          } catch (error) {
+            console.warn('Unable to clear api registry hash', error);
+          }
+        }, 80);
+      }
+    };
+
+    maybeOpenFromHash();
+    window.addEventListener('hashchange', maybeOpenFromHash, { once: true });
   }
 
   return manager;
