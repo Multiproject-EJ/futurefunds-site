@@ -5,16 +5,16 @@ plan. Treat each phase as a small, reviewable milestone so the Codex workflow ca
 incrementally.
 
 ## 0. Foundations (Week 0)
-- [ ] **Repository scaffolding** – confirm `/web`, `/api`, `/sql`, `/docs` folders exist and add
+- [x] **Repository scaffolding** – confirm `/web`, `/api`, `/sql`, `/docs` folders exist and add
       `.env.example` with `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `OPENAI_API_KEY`.
-- [ ] **Dependencies** – ensure Supabase and OpenAI SDKs installed where server code will run.
-- [ ] **Design brief** – circulate this roadmap + equity_analyst.html overview with stakeholders.
+- [x] **Dependencies** – ensure Supabase and OpenAI SDKs installed where server code will run.
+- [x] **Design brief** – circulate this roadmap + equity_analyst.html overview with stakeholders.
 
 ## 1. Data Contract & Seed (Week 1)
-- [ ] `sql/001_core.sql` – create `tickers`, `runs`, `run_items`, `answers`, `cost_ledger`,
+- [x] `sql/001_core.sql` – create `tickers`, `runs`, `run_items`, `answers`, `cost_ledger`,
       `sector_prompts`, and `doc_chunks` tables.
-- [ ] `sql/002_seed.sql` – seed 10 flagship tickers across sectors.
-- [ ] Add Supabase migration scripts / npm tasks to run migrations locally and in staging.
+- [x] `sql/002_seed.sql` – seed 10 flagship tickers across sectors.
+- [x] Add Supabase migration scripts / npm tasks to run migrations locally and in staging.
 
 ## 2. Planner Experience (Week 1–2)
 - [x] Build `web/admin/planner.html` with live cost estimator (universe slider, survival sliders,
@@ -28,7 +28,7 @@ incrementally.
       in `answers` and `cost_ledger`, update `run_items`.
 - [x] Planner UI: add **Process Stage 1 batch** control and progress stats (processed / total /
       remaining).
-- [ ] Add retry/backoff (429, 5xx) and structured error logging for failed items.
+- [x] Add retry/backoff (429, 5xx) and structured error logging for failed items.
 
 ## 4. Stage 2 – Thematic Scoring (Week 3)
 - [x] Survivor filter: only `label` in (`consider`, `borderline`).
@@ -68,32 +68,43 @@ incrementally.
 - [x] Add sparkline / bar chart for stage-level spend (client-side or lightweight chart lib).
 
 ## 9. Automation Loop (Week 6)
-- [ ] `/api/runs/continue` endpoint to sequentially trigger Stage 1 → 3 until batch limit / stop.
-- [ ] Planner toggle for **Auto continue** that polls the endpoint every N seconds.
-- [ ] Optional: schedule nightly cron (Supabase Edge) to run small watchlists.
+- [x] `/api/runs/continue` endpoint to sequentially trigger Stage 1 → 3 until batch limit / stop.
+- [x] Planner toggle for **Auto continue** that polls the endpoint every N seconds.
+- [x] Background scheduler + cron-friendly dispatcher to keep hourly watchlists running without the planner.
 
 ## 10. Retrieval Augmentation (Week 6–7)
-- [ ] `docs` uploader UI to add filings, transcripts, letters; chunk + embed into `doc_chunks`.
-- [ ] Retrieval helper RPC (e.g., `match_doc_chunks`) returning top-k snippets per query.
-- [ ] Integrate retrieved snippets into Stage 2 & 3 prompts with citation metadata.
+- [x] `docs` uploader UI to add filings, transcripts, letters; chunk + embed into `doc_chunks`.
+- [x] Retrieval helper RPC (e.g., `match_doc_chunks`) returning top-k snippets per query.
+- [x] Integrate retrieved snippets into Stage 2 & 3 prompts with citation metadata.
 
 ## 11. Member Experience & Auth (Week 7)
-- [ ] Gate analyst pages behind Supabase Auth; provide onboarding flow for new members.
-- [ ] Track per-user quotas (e.g., runs per day) using Supabase policies or server logic.
-- [ ] Post-run feedback widget so members can trigger manual follow-up questions (optional).
+- [x] Gate analyst pages behind Supabase Auth; provide onboarding flow for new members.
+- [x] Track per-user quotas (e.g., runs per day) using Supabase policies or server logic.
+- [x] Post-run feedback widget so members can trigger manual follow-up questions (optional).
 
-## 12. Observability & Safety (Week 8)
-- [ ] `/api/health` endpoint (DB + OpenAI status) for uptime monitors.
-- [ ] `error_logs` table + viewer UI capturing payloads, prompt ids, retry counts.
-- [ ] Automated regression tests for prompt output schemas and JSON validators.
+## 12. Watchlists & Universe Maintenance (Week 8)
+- [x] Provision `watchlists`, `watchlist_entries`, and `ticker_events` tables plus
+      RLS policies so admins can curate multiple scopes while members view
+      shared lists.
+- [x] Extend `runs-create` to accept watchlist/custom scopes, auto-provision
+      missing tickers, and persist the selected watchlist on each run.
+- [x] Ship the `tickers-refresh` edge worker to ingest exchange rosters or CSV/JSON
+      payloads, mark inferred delistings, and emit audit events.
+- [x] Planner UI: allow admins to manage watchlists, switch run scopes, and
+      trigger roster refresh jobs (with read-only fallbacks for members).
 
-## 13. Prompt & Model Registry (Week 8–9)
-- [ ] Store prompt templates as markdown files with interpolation tokens.
-- [ ] Central config (e.g., `config/models.json`) containing price per model, default temperature,
+## 13. Observability & Safety (Week 8)
+- [x] `/api/health` endpoint (DB + OpenAI status) for uptime monitors.
+- [x] `error_logs` table + viewer UI capturing payloads, prompt ids, retry counts.
+- [x] Automated regression tests for prompt output schemas and JSON validators.
+
+## 14. Prompt & Model Registry (Week 8–9)
+- [x] Store prompt templates as markdown files with interpolation tokens.
+- [x] Central config (e.g., `config/models.json`) containing price per model, default temperature,
       cache policy, retry settings.
-- [ ] Loader utility to compose prompts per sector & stage and to map usage -> cost ledger.
+- [x] Loader utility to compose prompts per sector & stage and to map usage -> cost ledger.
 
-## 14. Stretch Enhancements (Backlog)
+## 15. Stretch Enhancements (Backlog)
 - [ ] Cached context via OpenAI Responses API to reuse deterministic summaries.
 - [ ] Advanced scoring ensembles (blend LLM output with deterministic factors).
 - [ ] User-triggered “Focus questions” appended post Stage 3.

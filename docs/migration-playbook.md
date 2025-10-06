@@ -15,6 +15,9 @@ migration up`, or any PostgreSQL client that runs the statements in order.
 
 ## Recent changes
 
+- `sql/013_watchlists.sql` introduces watchlists, ticker events, and helper
+  functions/policies. Apply it before deploying the planner scope UI or the
+  `tickers-refresh` worker.
 - `sql/006_ai_registry.sql` now keeps its `ON CONFLICT` clause attached to the seeded
   `INSERT` statement. Re-run it only if you want the corrected upsert logic in your
   database.
@@ -26,10 +29,10 @@ migration up`, or any PostgreSQL client that runs the statements in order.
 
 ```
 # reset the full schema (drops and recreates everything)
-supabase db reset
+npm run db:reset
 
 # apply migrations that have not been run yet
-supabase db migration up
+npm run db:push
 
 # run an individual script
 psql "$SUPABASE_DB_URL" -f sql/007_question_registry.sql
