@@ -485,9 +485,16 @@ function updateScopeUI({ fromSettings = false } = {}) {
   }
   if (inputs.customTickers) {
     const isCustom = mode === 'custom';
-    inputs.customTickers.readOnly = !isCustom;
+    inputs.customTickers.disabled = !isCustom;
     if (isCustom) {
       inputs.customTickers.removeAttribute('aria-disabled');
+      if (!fromSettings) {
+        try {
+          inputs.customTickers.focus({ preventScroll: true });
+        } catch (error) {
+          inputs.customTickers.focus();
+        }
+      }
     } else {
       inputs.customTickers.setAttribute('aria-disabled', 'true');
     }
