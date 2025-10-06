@@ -116,6 +116,16 @@ const inputs = {
   stage3ContextHits: $('stage3ContextHits'),
   stage3ContextTokens: $('stage3ContextTokens'),
   stage3RecentBody: $('stage3RecentBody'),
+  followupPanel: $('followupPanel'),
+  followupForm: $('followupForm'),
+  followupTicker: $('followupTicker'),
+  followupQuestion: $('followupQuestion'),
+  followupStatus: $('followupStatus'),
+  followupPanelStatus: $('followupPanelStatus'),
+  followupTableBody: $('followupTableBody'),
+  followupCount: $('followupCount'),
+  followupRefreshBtn: $('refreshFollowupsBtn'),
+  submitFollowupBtn: $('submitFollowupBtn'),
   sectorNotesList: $('sectorNotesList'),
   sectorNotesEmpty: $('sectorNotesEmpty'),
   refreshRegistryBtn: $('refreshRegistryBtn'),
@@ -146,6 +156,7 @@ const STAGE3_CONSUME_ENDPOINT = `${FUNCTIONS_BASE}/stage3-consume`;
 const RUNS_STOP_ENDPOINT = `${FUNCTIONS_BASE}/runs-stop`;
 const RUNS_CONTINUE_ENDPOINT = `${FUNCTIONS_BASE}/runs-continue`;
 const RUNS_SCHEDULE_ENDPOINT = `${FUNCTIONS_BASE}/runs-schedule`;
+const RUNS_FEEDBACK_ENDPOINT = `${FUNCTIONS_BASE}/runs-feedback`;
 const HEALTH_ENDPOINT = `${FUNCTIONS_BASE}/health`;
 const RUN_STORAGE_KEY = 'ff-active-run-id';
 
@@ -164,6 +175,17 @@ let runChannel = null;
 let stage1RefreshTimer = null;
 let stage2RefreshTimer = null;
 let stage3RefreshTimer = null;
+let followupRefreshTimer = null;
+
+const followupStatusLabels = {
+  pending: 'Pending review',
+  in_progress: 'In progress',
+  resolved: 'Resolved',
+  dismissed: 'Dismissed'
+};
+
+let followupLoading = false;
+let followupTickers = [];
 let sectorNotesChannel = null;
 let sectorNotesReady = false;
 let modelOptions = [];
@@ -1315,6 +1337,7 @@ function unsubscribeFromRunChannel() {
   clearStage1RefreshTimer();
   clearStage2RefreshTimer();
   clearStage3RefreshTimer();
+  clearFollowupRefreshTimer();
   if (runChannel) {
     try {
       supabase.removeChannel(runChannel);
@@ -1341,6 +1364,9 @@ function subscribeToRunChannel(runId) {
       scheduleStage2Refresh();
       scheduleStage3Refresh();
     })
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'run_feedback', filter: `run_id=eq.${runId}` }, () => {
+      scheduleFollowupRefresh();
+    })
     .on('postgres_changes', { event: '*', schema: 'public', table: 'runs', filter: `id=eq.${runId}` }, () => {
       fetchRunMeta({ silent: true }).catch((error) => {
         console.error('Realtime run meta refresh failed', error);
@@ -1351,6 +1377,7 @@ function subscribeToRunChannel(runId) {
         scheduleStage1Refresh({ immediate: true });
         scheduleStage2Refresh({ immediate: true });
         scheduleStage3Refresh({ immediate: true });
+        scheduleFollowupRefresh({ immediate: true });
         fetchRunMeta({ silent: true }).catch((error) => {
           console.error('Initial run meta load failed', error);
         });
@@ -2284,6 +2311,361 @@ function renderStage3Reports(entries = []) {
   });
 }
 
+function setFollowupStatus(message, tone = '') {
+  if (!inputs.followupStatus) return;
+  inputs.followupStatus.textContent = message || '';
+  if (tone) {
+    inputs.followupStatus.dataset.tone = tone;
+  } else {
+    delete inputs.followupStatus.dataset.tone;
+  }
+}
+
+function setFollowupPanelStatus(message) {
+  if (!inputs.followupPanelStatus) return;
+  inputs.followupPanelStatus.textContent = message || '';
+}
+
+function populateFollowupTickers(tickers) {
+  const select = inputs.followupTicker;
+  if (!select) return;
+
+  const previous = select.value;
+  select.innerHTML = '';
+
+  const defaultOption = document.createElement('option');
+  defaultOption.value = '';
+  defaultOption.textContent = 'General follow-up';
+  select.append(defaultOption);
+
+  followupTickers = Array.from(new Set((tickers ?? []).filter(Boolean))).sort();
+  followupTickers.forEach((ticker) => {
+    const option = document.createElement('option');
+    option.value = ticker;
+    option.textContent = ticker;
+    select.append(option);
+  });
+
+  if (previous && followupTickers.includes(previous)) {
+    select.value = previous;
+  } else {
+    select.value = '';
+  }
+}
+
+function renderFollowupTable(rows) {
+  const tbody = inputs.followupTableBody;
+  if (!tbody) return;
+
+  tbody.innerHTML = '';
+  const entries = Array.isArray(rows) ? rows : [];
+  const total = entries.length;
+
+  if (inputs.followupCount) {
+    inputs.followupCount.textContent = String(total);
+  }
+
+  if (!total) {
+    const emptyRow = document.createElement('tr');
+    const cell = document.createElement('td');
+    cell.colSpan = 5;
+    cell.textContent = 'No feedback logged yet. Start by submitting a question above.';
+    emptyRow.append(cell);
+    tbody.append(emptyRow);
+    return;
+  }
+
+  entries.forEach((entry) => {
+    const row = document.createElement('tr');
+
+    const createdCell = document.createElement('td');
+    if (entry.created_at) {
+      createdCell.textContent = formatRelativeTimestamp(entry.created_at);
+      createdCell.title = new Date(entry.created_at).toLocaleString();
+    } else {
+      createdCell.textContent = '—';
+    }
+    row.append(createdCell);
+
+    const tickerCell = document.createElement('td');
+    tickerCell.textContent = entry.ticker ?? '—';
+    row.append(tickerCell);
+
+    const questionCell = document.createElement('td');
+    const question = document.createElement('div');
+    question.className = 'followup-question';
+    question.textContent = entry.question_text ?? '—';
+    questionCell.append(question);
+    row.append(questionCell);
+
+    const statusCell = document.createElement('td');
+    const state = typeof entry.status === 'string' ? entry.status.toLowerCase() : 'pending';
+    const label = document.createElement('span');
+    label.className = 'followup-status-label';
+    label.dataset.state = state;
+    label.textContent = followupStatusLabels[state] ?? state.replace(/_/g, ' ');
+    statusCell.append(label);
+    row.append(statusCell);
+
+    const updatedCell = document.createElement('td');
+    const updatedAt = entry.updated_at ?? entry.created_at;
+    if (updatedAt) {
+      updatedCell.textContent = formatRelativeTimestamp(updatedAt);
+      updatedCell.title = new Date(updatedAt).toLocaleString();
+    } else {
+      updatedCell.textContent = '—';
+    }
+    row.append(updatedCell);
+
+    tbody.append(row);
+  });
+}
+
+async function refreshFollowupTickers({ silent = false } = {}) {
+  if (!inputs.followupTicker) return;
+
+  if (!activeRunId) {
+    populateFollowupTickers([]);
+    if (!silent) setFollowupPanelStatus('Select a run to view follow-up questions.');
+    return;
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('run_items')
+      .select('ticker')
+      .eq('run_id', activeRunId)
+      .order('ticker', { ascending: true });
+    if (error) throw error;
+    const tickers = (data ?? []).map((row) => (row?.ticker ? String(row.ticker).toUpperCase() : null)).filter(Boolean);
+    populateFollowupTickers(tickers);
+  } catch (error) {
+    console.warn('Failed to load follow-up tickers', error);
+  }
+}
+
+function clearFollowupRefreshTimer() {
+  if (followupRefreshTimer) {
+    clearTimeout(followupRefreshTimer);
+    followupRefreshTimer = null;
+  }
+}
+
+function scheduleFollowupRefresh({ immediate = false } = {}) {
+  if (immediate) {
+    clearFollowupRefreshTimer();
+    refreshFollowupList({ silent: true }).catch((error) => {
+      console.error('Follow-up refresh failed', error);
+    });
+    return;
+  }
+
+  if (followupRefreshTimer) return;
+  followupRefreshTimer = window.setTimeout(() => {
+    followupRefreshTimer = null;
+    refreshFollowupList({ silent: true }).catch((error) => {
+      console.error('Follow-up refresh failed', error);
+    });
+  }, 500);
+}
+
+function resetFollowupUI(message = '') {
+  populateFollowupTickers([]);
+  renderFollowupTable([]);
+  setFollowupPanelStatus(message);
+  if (!message) {
+    setFollowupStatus('');
+  }
+}
+
+async function refreshFollowupList({ silent = false } = {}) {
+  if (!inputs.followupTableBody) return;
+
+  if (!activeRunId) {
+    resetFollowupUI('Select a run to view follow-up questions.');
+    return;
+  }
+
+  if (!authContext.user) {
+    resetFollowupUI('Sign in to view follow-up questions.');
+    return;
+  }
+
+  if (!authContext.isAdmin && !authContext.membershipActive) {
+    resetFollowupUI('Membership required to view follow-up questions.');
+    return;
+  }
+
+  if (!authContext.token) {
+    if (!silent) setFollowupPanelStatus('Session expired. Refresh or sign in again to load follow-ups.');
+    return;
+  }
+
+  if (followupLoading) return;
+  followupLoading = true;
+
+  if (!silent) {
+    setFollowupPanelStatus('Loading follow-up requests…');
+  }
+
+  try {
+    const url = new URL(RUNS_FEEDBACK_ENDPOINT);
+    url.searchParams.set('run_id', activeRunId);
+    const response = await fetch(url.toString(), {
+      headers: {
+        Authorization: `Bearer ${authContext.token}`
+      }
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      const message = payload?.error || `Failed to load follow-up requests (${response.status})`;
+      throw new Error(message);
+    }
+    const items = Array.isArray(payload?.items) ? payload.items : [];
+    renderFollowupTable(items);
+    if (!silent) {
+      setFollowupPanelStatus(items.length ? '' : 'No follow-up questions yet.');
+    }
+  } catch (error) {
+    console.error('Failed to load follow-up requests', error);
+    setFollowupPanelStatus(error instanceof Error ? error.message : String(error));
+  } finally {
+    followupLoading = false;
+  }
+}
+
+function updateFollowupAccess() {
+  const hasRun = Boolean(activeRunId);
+  const signedIn = Boolean(authContext.user);
+  const hasMembership = authContext.isAdmin || authContext.membershipActive;
+  const canSubmit = hasRun && signedIn && hasMembership;
+
+  if (inputs.followupQuestion) {
+    inputs.followupQuestion.disabled = !canSubmit;
+  }
+  if (inputs.followupTicker) {
+    inputs.followupTicker.disabled = !canSubmit;
+  }
+  if (inputs.submitFollowupBtn) {
+    inputs.submitFollowupBtn.disabled = !canSubmit;
+  }
+
+  if (!signedIn) {
+    setFollowupStatus('Sign in to submit follow-up questions.', 'error');
+    setFollowupPanelStatus('Sign in to view follow-up questions.');
+    return;
+  }
+
+  if (!hasRun) {
+    setFollowupStatus('Select an active run to submit feedback.');
+    setFollowupPanelStatus('Select a run to view follow-up questions.');
+    return;
+  }
+
+  if (!hasMembership) {
+    setFollowupStatus('Activate a membership to send follow-up questions.', 'error');
+    setFollowupPanelStatus('Membership required to view follow-up questions.');
+    return;
+  }
+
+  if (inputs.followupStatus?.dataset.tone !== 'success') {
+    setFollowupStatus('');
+  }
+  setFollowupPanelStatus('');
+}
+
+async function submitFollowupRequest(event) {
+  event.preventDefault();
+
+  if (!activeRunId) {
+    setFollowupStatus('Select an active run first.', 'error');
+    return;
+  }
+
+  if (!authContext.user) {
+    setFollowupStatus('Sign in to submit follow-up questions.', 'error');
+    return;
+  }
+
+  if (!authContext.isAdmin && !authContext.membershipActive) {
+    setFollowupStatus('Membership required to submit follow-up questions.', 'error');
+    return;
+  }
+
+  if (!authContext.token) {
+    setFollowupStatus('Session expired. Refresh and try again.', 'error');
+    await syncAccess({ preserveStatus: true });
+    return;
+  }
+
+  const questionValue = (inputs.followupQuestion?.value ?? '').trim();
+  const tickerValue = (inputs.followupTicker?.value ?? '').trim();
+
+  if (questionValue.length < 8) {
+    setFollowupStatus('Follow-up question must be at least 8 characters.', 'error');
+    return;
+  }
+
+  if (inputs.submitFollowupBtn) {
+    inputs.submitFollowupBtn.disabled = true;
+  }
+  if (inputs.followupTicker) {
+    inputs.followupTicker.disabled = true;
+  }
+  if (inputs.followupQuestion) {
+    inputs.followupQuestion.disabled = true;
+  }
+
+  setFollowupStatus('Submitting follow-up…');
+
+  try {
+    const response = await fetch(RUNS_FEEDBACK_ENDPOINT, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${authContext.token}`
+      },
+      body: JSON.stringify({
+        run_id: activeRunId,
+        ticker: tickerValue || undefined,
+        question: questionValue,
+        context: {
+          origin: window.location.origin,
+          pathname: window.location.pathname,
+          submitted_at: new Date().toISOString()
+        }
+      })
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      const message = payload?.error || `Failed to submit follow-up (${response.status})`;
+      throw new Error(message);
+    }
+
+    setFollowupStatus('Follow-up logged. Check the table below for updates.', 'success');
+    if (inputs.followupQuestion) {
+      inputs.followupQuestion.value = '';
+    }
+    if (inputs.followupTicker) {
+      inputs.followupTicker.value = tickerValue && followupTickers.includes(tickerValue) ? tickerValue : '';
+    }
+    scheduleFollowupRefresh({ immediate: true });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    setFollowupStatus(message, 'error');
+  } finally {
+    if (inputs.submitFollowupBtn) {
+      inputs.submitFollowupBtn.disabled = false;
+    }
+    if (inputs.followupTicker) {
+      inputs.followupTicker.disabled = false;
+    }
+    if (inputs.followupQuestion) {
+      inputs.followupQuestion.disabled = false;
+    }
+  }
+}
+
 async function fetchStage1Summary({ silent = false } = {}) {
   if (!inputs.stage1Status) return;
 
@@ -2554,6 +2936,7 @@ function setActiveRunId(value, { announce = true, silent = false } = {}) {
     renderStage2Insights([]);
     updateStage3Metrics();
     renderStage3Reports([]);
+    resetFollowupUI('No active run selected.');
     applySchedulerUI(null);
     hideSchedulerToast();
     if (announce && inputs.stage1Status) {
@@ -2609,6 +2992,13 @@ function setActiveRunId(value, { announce = true, silent = false } = {}) {
   fetchStage3Summary({ silent }).catch((error) => {
     console.error('Failed to refresh Stage 3 summary', error);
     if (inputs.stage3Status) inputs.stage3Status.textContent = 'Failed to load Stage 3 progress.';
+  });
+
+  refreshFollowupTickers({ silent: true }).catch((error) => {
+    console.warn('Failed to load follow-up tickers', error);
+  });
+  refreshFollowupList({ silent }).catch((error) => {
+    console.warn('Failed to load follow-up requests', error);
   });
 
   return changed;
@@ -3097,6 +3487,7 @@ function applyAccessState({ preserveStatus = false } = {}) {
   const haltRequested = (currentRunMeta?.stop_requested ?? false) || (currentRunMeta?.budget_exhausted ?? false);
 
   updateAutoContinueAvailability();
+  updateFollowupAccess();
 
   const schedulerReady = state === 'admin-ok' && Boolean(activeRunId);
   const schedulerDisabled = !schedulerReady || schedulerLoading;
@@ -3274,6 +3665,14 @@ async function refreshAuthContext() {
 async function syncAccess(options = {}) {
   await refreshAuthContext();
   applyAccessState(options);
+  if (activeRunId && authContext.user && (authContext.isAdmin || authContext.membershipActive)) {
+    refreshFollowupTickers({ silent: true }).catch((error) => {
+      console.warn('Failed to refresh follow-up tickers during access sync', error);
+    });
+    refreshFollowupList({ silent: true }).catch((error) => {
+      console.warn('Failed to refresh follow-up requests during access sync', error);
+    });
+  }
 }
 
 async function startRun() {
@@ -3643,6 +4042,13 @@ function bindEvents() {
   ].forEach((input) => {
     input?.addEventListener('input', () => markSchedulerDirty());
   });
+
+  inputs.followupForm?.addEventListener('submit', submitFollowupRequest);
+  inputs.followupRefreshBtn?.addEventListener('click', () => {
+    refreshFollowupList({ silent: false }).catch((error) => {
+      console.error('Failed to refresh follow-up requests', error);
+    });
+  });
 }
 
 async function bootstrap() {
@@ -3674,6 +4080,7 @@ async function bootstrap() {
     updateStage3Metrics();
     renderStage3Reports([]);
     if (inputs.stage3Status) inputs.stage3Status.textContent = 'No active run selected.';
+    resetFollowupUI('No active run selected.');
   }
 
   await syncAccess();
@@ -3689,6 +4096,12 @@ async function bootstrap() {
     if (activeRunId) {
       fetchRunSchedule({ silent: true }).catch((error) => {
         console.error('Failed to refresh run schedule after auth change', error);
+      });
+      refreshFollowupList({ silent: true }).catch((error) => {
+        console.warn('Failed to refresh follow-up requests after auth change', error);
+      });
+      refreshFollowupTickers({ silent: true }).catch((error) => {
+        console.warn('Failed to refresh follow-up tickers after auth change', error);
       });
     }
   });

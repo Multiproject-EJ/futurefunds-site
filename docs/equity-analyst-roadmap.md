@@ -28,7 +28,7 @@ incrementally.
       in `answers` and `cost_ledger`, update `run_items`.
 - [x] Planner UI: add **Process Stage 1 batch** control and progress stats (processed / total /
       remaining).
-- [ ] Add retry/backoff (429, 5xx) and structured error logging for failed items.
+- [x] Add retry/backoff (429, 5xx) and structured error logging for failed items.
 
 ## 4. Stage 2 – Thematic Scoring (Week 3)
 - [x] Survivor filter: only `label` in (`consider`, `borderline`).
@@ -80,7 +80,7 @@ incrementally.
 ## 11. Member Experience & Auth (Week 7)
 - [x] Gate analyst pages behind Supabase Auth; provide onboarding flow for new members.
 - [x] Track per-user quotas (e.g., runs per day) using Supabase policies or server logic.
-- [ ] Post-run feedback widget so members can trigger manual follow-up questions (optional).
+- [x] Post-run feedback widget so members can trigger manual follow-up questions (optional).
 
 ## 12. Observability & Safety (Week 8)
 - [x] `/api/health` endpoint (DB + OpenAI status) for uptime monitors.

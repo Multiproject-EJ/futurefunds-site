@@ -29,6 +29,7 @@ multi-stage model runs and reporting:
 | `runs` | High-level batch execution log for each analysis sweep (start time, status, budget flags). |
 | `run_items` | Per-ticker processing state tracking the current stage, label, and spend. |
 | `run_schedules` | Stores per-run automation cadence, batch limits, and activation state for the background dispatcher. |
+| `run_feedback` | Captures post-run follow-up questions submitted by members or automation for analyst review. |
 | `answers` | Stores structured and narrative outputs produced at each stage of the pipeline. |
 | `cost_ledger` | Aggregated token usage and USD cost per stage/run for budget monitoring. |
 | `doc_chunks` | Optional retrieval corpus of text snippets (10-Ks, transcripts, etc.) used for RAG. |
@@ -58,6 +59,7 @@ payloads to the browser:
 | `run_cost_breakdown(run_id uuid)` | Summarises `cost_ledger` spend by stage/model for budget monitoring. |
 | `run_cost_summary(run_id uuid)` | Provides overall spend and token totals for a run. |
 | `run_latest_activity(run_id uuid, limit int)` | Streams the latest answers (stage, ticker, summary) for the activity feed. |
+| `run_feedback_for_run(run_id uuid)` | Returns the manual follow-up queue for a given run ordered by submission time. |
 | `run_universe_rows(run_id uuid, ...)` | Paginates ticker-level snapshots (stage, label, spend, Stage 1–3 JSON) for the universe dashboard. |
 | `run_universe_facets(run_id uuid, ...)` | Returns stage/label/sector counts that power the filter badges in `/universe.html`. |
 | `run_ticker_details(run_id uuid, ticker text)` | Fetches the full dossier (Stage 1–3 outputs) for the ticker drilldown page. |
@@ -474,6 +476,32 @@ the `runs-schedule` edge function to create or update rows, while the unattended
 (`runs-dispatch`) polls this table on a cron cadence and invokes `runs-continue` with the
 stored limits. Both endpoints expect an `AUTOMATION_SERVICE_SECRET` environment variable so
 service-to-service calls can bypass interactive auth without exposing the Supabase service role key.
+
+### `run_feedback`
+
+*Primary key*: `id uuid` generated via `gen_random_uuid()`.
+
+| Column | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `id` | `uuid` | `gen_random_uuid()` | Stable identifier for the follow-up item. |
+| `run_id` | `uuid` | — | References `runs(id)`; cascades on delete. |
+| `ticker` | `text` | `null` | Optional ticker reference. A `SET NULL` constraint keeps the request if a ticker is removed. |
+| `question_text` | `text` | — | Required free-form prompt submitted by the operator/member. |
+| `status` | `text` | `'pending'` | Enum enforced by a check constraint: `pending`, `in_progress`, `resolved`, or `dismissed`. |
+| `response_text` | `text` | `null` | Optional analyst response or resolution note. |
+| `context` | `jsonb` | `null` | Arbitrary metadata (UI origin, browser hints, automation context). |
+| `created_by` | `uuid` | `null` | References `auth.users(id)` when a member submits the request. |
+| `created_by_email` | `text` | `null` | Captured for quick triage in dashboards. |
+| `resolved_by` | `uuid` | `null` | References `auth.users(id)` if an admin resolves/dismisses the item. |
+| `resolved_by_email` | `text` | `null` | Audit trail for the resolver. |
+| `created_at` | `timestamptz` | `now()` | Submission timestamp. |
+| `updated_at` | `timestamptz` | `now()` | Touched on insert/update. |
+| `resolved_at` | `timestamptz` | `null` | Populated when `status` transitions to `resolved` or `dismissed`. |
+
+`sql/012_run_feedback.sql` provisions the table, indexes by run/status/actor, and exposes the
+`run_feedback_for_run` helper for the planner UI. The `runs-feedback` edge function verifies the
+caller (member or automation secret), validates the ticker belongs to the run, inserts rows, and
+returns both the fresh item and, on `GET`, the full queue for operators monitoring manual follow-ups.
 
 ### `answers`
 
