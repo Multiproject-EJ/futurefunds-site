@@ -71,7 +71,24 @@ function normalizeRole(value) {
 }
 
 function hasAdminMarker(source = {}) {
-  const flagKeys = ['is_admin', 'admin', 'isAdmin', 'is_superadmin', 'superuser', 'staff', 'is_staff'];
+  const flagKeys = [
+    'is_admin',
+    'admin',
+    'isAdmin',
+    'is_superadmin',
+    'superuser',
+    'staff',
+    'is_staff',
+    'claims_admin',
+    'admin_claims',
+    'is_operator',
+    'operator',
+    'operator_access',
+    'ops',
+    'ops_admin',
+    'is_ops',
+    'staff_access'
+  ];
   return flagKeys.some((key) => Boolean(source?.[key]));
 }
 
@@ -93,27 +110,56 @@ function hasAdminRole(context = {}) {
   collect(profile.access_level);
   collect(profile.roles);
   collect(profile.role_tags);
+  collect(profile.plan);
+  collect(profile.tier);
+  collect(profile.team);
+  collect(profile.department);
+  collect(profile.groups);
+  collect(profile.labels);
+  collect(profile.tags);
 
   collect(appMeta.role);
   collect(appMeta.roles);
   collect(appMeta.access_level);
   collect(appMeta.permissions);
+  collect(appMeta.team);
+  collect(appMeta.groups);
+  collect(appMeta.labels);
 
   collect(userMeta.role);
   collect(userMeta.roles);
   collect(userMeta.access_level);
+  collect(userMeta.team);
+  collect(userMeta.groups);
 
   collect(membership.role);
   collect(membership.roles);
   collect(membership.access_level);
   collect(membership.plan);
   collect(membership.plan_name);
+  collect(membership.tier);
+  collect(membership.labels);
+  collect(membership.tags);
 
   if (hasAdminMarker(profile) || hasAdminMarker(appMeta) || hasAdminMarker(userMeta) || hasAdminMarker(membership)) {
     return true;
   }
 
-  const elevated = new Set(['admin', 'administrator', 'superadmin', 'owner', 'editor', 'staff']);
+  const elevated = new Set([
+    'admin',
+    'administrator',
+    'superadmin',
+    'owner',
+    'editor',
+    'staff',
+    'operator',
+    'operations',
+    'ops',
+    'internal',
+    'maintainer',
+    'automation',
+    'builder'
+  ]);
   for (const role of buckets) {
     if (role === 'admin' || elevated.has(role)) {
       return true;

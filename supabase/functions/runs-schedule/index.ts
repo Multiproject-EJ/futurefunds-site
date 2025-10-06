@@ -35,7 +35,24 @@ function clampInteger(value: unknown, min: number, max: number, fallback: number
 
 function hasAdminMarker(record: Record<string, unknown> | null | undefined) {
   if (!record) return false;
-  const flagKeys = ['is_admin', 'admin', 'isAdmin', 'is_superadmin', 'superuser', 'staff', 'is_staff'];
+  const flagKeys = [
+    'is_admin',
+    'admin',
+    'isAdmin',
+    'is_superadmin',
+    'superuser',
+    'staff',
+    'is_staff',
+    'claims_admin',
+    'admin_claims',
+    'is_operator',
+    'operator',
+    'operator_access',
+    'ops',
+    'ops_admin',
+    'is_ops',
+    'staff_access'
+  ];
   return flagKeys.some((key) => Boolean((record as Record<string, unknown>)[key]));
 }
 
@@ -69,6 +86,13 @@ function isAdminContext(context: { user: Record<string, unknown> | null; profile
   collectRoles((profile as Record<string, unknown> | null)?.roles, bucket);
   collectRoles((profile as Record<string, unknown> | null)?.role_tags, bucket);
   collectRoles((profile as Record<string, unknown> | null)?.access_level, bucket);
+  collectRoles((profile as Record<string, unknown> | null)?.plan, bucket);
+  collectRoles((profile as Record<string, unknown> | null)?.tier, bucket);
+  collectRoles((profile as Record<string, unknown> | null)?.team, bucket);
+  collectRoles((profile as Record<string, unknown> | null)?.department, bucket);
+  collectRoles((profile as Record<string, unknown> | null)?.groups, bucket);
+  collectRoles((profile as Record<string, unknown> | null)?.labels, bucket);
+  collectRoles((profile as Record<string, unknown> | null)?.tags, bucket);
 
   collectRoles(user?.app_metadata, bucket);
   collectRoles(user?.user_metadata, bucket);
@@ -76,8 +100,27 @@ function isAdminContext(context: { user: Record<string, unknown> | null; profile
   collectRoles(membership?.role, bucket);
   collectRoles(membership?.roles, bucket);
   collectRoles(membership?.access_level, bucket);
+  collectRoles(membership?.plan, bucket);
+  collectRoles(membership?.plan_name, bucket);
+  collectRoles(membership?.tier, bucket);
+  collectRoles((membership as Record<string, unknown> | null)?.labels, bucket);
+  collectRoles((membership as Record<string, unknown> | null)?.tags, bucket);
 
-  const privileged = new Set(['admin', 'administrator', 'superadmin', 'owner', 'editor', 'staff']);
+  const privileged = new Set([
+    'admin',
+    'administrator',
+    'superadmin',
+    'owner',
+    'editor',
+    'staff',
+    'operator',
+    'operations',
+    'ops',
+    'internal',
+    'maintainer',
+    'automation',
+    'builder'
+  ]);
   for (const role of bucket) {
     if (privileged.has(role)) {
       return true;
