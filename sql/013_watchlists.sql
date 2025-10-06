@@ -70,6 +70,9 @@ alter table public.watchlists enable row level security;
 alter table public.watchlist_entries enable row level security;
 alter table public.ticker_events enable row level security;
 
+-- Recreate policies explicitly instead of relying on `CREATE POLICY IF NOT EXISTS`,
+-- which PostgreSQL does not support. Dropping first keeps the migration idempotent
+-- while ensuring policy definitions are refreshed on subsequent runs.
 drop policy if exists ticker_events_read on public.ticker_events;
 create policy ticker_events_read on public.ticker_events
   for select
