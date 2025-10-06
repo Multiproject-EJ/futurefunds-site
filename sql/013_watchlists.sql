@@ -70,51 +70,60 @@ alter table public.watchlists enable row level security;
 alter table public.watchlist_entries enable row level security;
 alter table public.ticker_events enable row level security;
 
--- Allow everyone to read ticker events for transparency
-create policy if not exists ticker_events_read on public.ticker_events
+drop policy if exists ticker_events_read on public.ticker_events;
+create policy ticker_events_read on public.ticker_events
   for select
   using (true);
 
 -- Basic ticker policies: read for everyone, modify for admins/service role
 alter table public.tickers enable row level security;
 
-create policy if not exists tickers_read on public.tickers
+drop policy if exists tickers_read on public.tickers;
+create policy tickers_read on public.tickers
   for select
   using (true);
 
-create policy if not exists tickers_admin_write on public.tickers
+drop policy if exists tickers_admin_write on public.tickers;
+create policy tickers_admin_write on public.tickers
   for insert
   with check (public.is_admin(auth.uid()))
   using (public.is_admin(auth.uid()));
 
-create policy if not exists tickers_admin_update on public.tickers
+drop policy if exists tickers_admin_update on public.tickers;
+create policy tickers_admin_update on public.tickers
   for update
   using (public.is_admin(auth.uid()))
   with check (public.is_admin(auth.uid()));
 
-create policy if not exists tickers_admin_delete on public.tickers
+drop policy if exists tickers_admin_delete on public.tickers;
+create policy tickers_admin_delete on public.tickers
   for delete
   using (public.is_admin(auth.uid()));
 
 -- Watchlist policies
-create policy if not exists watchlists_read on public.watchlists
+drop policy if exists watchlists_read on public.watchlists;
+create policy watchlists_read on public.watchlists
   for select
   using (is_public = true or created_by = auth.uid() or public.is_admin(auth.uid()));
 
-create policy if not exists watchlists_insert on public.watchlists
+drop policy if exists watchlists_insert on public.watchlists;
+create policy watchlists_insert on public.watchlists
   for insert
   with check (auth.uid() = created_by and public.is_admin(auth.uid()));
 
-create policy if not exists watchlists_update on public.watchlists
+drop policy if exists watchlists_update on public.watchlists;
+create policy watchlists_update on public.watchlists
   for update
   using (public.is_admin(auth.uid()) or created_by = auth.uid())
   with check (public.is_admin(auth.uid()) or created_by = auth.uid());
 
-create policy if not exists watchlists_delete on public.watchlists
+drop policy if exists watchlists_delete on public.watchlists;
+create policy watchlists_delete on public.watchlists
   for delete
   using (public.is_admin(auth.uid()) or created_by = auth.uid());
 
-create policy if not exists watchlist_entries_read on public.watchlist_entries
+drop policy if exists watchlist_entries_read on public.watchlist_entries;
+create policy watchlist_entries_read on public.watchlist_entries
   for select
   using (
     exists (
@@ -123,9 +132,10 @@ create policy if not exists watchlist_entries_read on public.watchlist_entries
       where w.id = watchlist_entries.watchlist_id
         and (w.is_public = true or w.created_by = auth.uid() or public.is_admin(auth.uid()))
     )
-  );
+);
 
-create policy if not exists watchlist_entries_write on public.watchlist_entries
+drop policy if exists watchlist_entries_write on public.watchlist_entries;
+create policy watchlist_entries_write on public.watchlist_entries
   for all
   using (
     exists (
