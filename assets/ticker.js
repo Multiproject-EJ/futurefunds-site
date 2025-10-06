@@ -1,4 +1,4 @@
-import { supabase, getUser, getProfile, getMembership, hasAdminRole } from './supabase.js';
+import { supabase, getUser, getProfile, getMembership, hasAdminRole, isMembershipActive } from './supabase.js';
 
 const params = new URLSearchParams(window.location.search);
 const state = {
@@ -10,6 +10,7 @@ const state = {
 
 const elements = {
   gate: document.getElementById('tickerGate'),
+  gateMessage: document.getElementById('tickerGateMessage'),
   content: document.getElementById('tickerContent'),
   title: document.getElementById('tickerTitle'),
   subtitle: document.getElementById('tickerSubtitle'),
@@ -26,7 +27,11 @@ const elements = {
   stage2Scores: document.getElementById('stage2Scores'),
   stage2Verdict: document.getElementById('stage2Verdict'),
   stage2Next: document.getElementById('stage2Next'),
+  stage2Citations: document.getElementById('stage2Citations'),
+  stage2CitationList: document.getElementById('stage2CitationList'),
   stage3Summary: document.getElementById('stage3Summary'),
+  stage3Citations: document.getElementById('stage3Citations'),
+  stage3CitationList: document.getElementById('stage3CitationList'),
   stage3Scorecard: document.getElementById('stage3Scorecard'),
   stage3Questions: document.getElementById('stage3Questions')
 };
@@ -49,6 +54,13 @@ function formatDate(value) {
   return date.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
 }
 
+function formatDateOnly(value) {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  return date.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+}
+
 function titleCase(value) {
   if (!value) return '';
   return value
@@ -60,6 +72,123 @@ function titleCase(value) {
 
 const questionMemory = (window.equityQuestionCache = window.equityQuestionCache || new Map());
 
+function extractHostname(url) {
+  if (!url) return '';
+  try {
+    const host = new URL(url).hostname;
+    return host.replace(/^www\./i, '');
+  } catch (error) {
+    console.warn('Failed to parse citation URL', error);
+    return '';
+  }
+}
+
+function normalizeCitations(value) {
+  if (!value) return [];
+  const array = Array.isArray(value) ? value : [];
+  const seen = new Set();
+  const results = [];
+  array.forEach((entry, index) => {
+    if (!entry || typeof entry !== 'object') return;
+    const record = entry;
+    let ref = record.ref ?? record.reference ?? `D${index + 1}`;
+    if (typeof ref !== 'string') ref = String(ref ?? `D${index + 1}`);
+    ref = ref.replace(/[\[\]]/g, '').trim().toUpperCase();
+    if (!ref) ref = `D${results.length + 1}`;
+    const title = record.title != null ? String(record.title) : null;
+    const sourceType = record.source_type != null ? String(record.source_type) : null;
+    const publishedAt = record.published_at != null ? String(record.published_at) : null;
+    const sourceUrl = record.source_url != null ? String(record.source_url) : null;
+    const similarity = record.similarity != null ? Number(record.similarity) : null;
+    const key = `${ref}|${sourceUrl || ''}|${title || ''}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    results.push({
+      ref,
+      title,
+      source_type: sourceType,
+      published_at: publishedAt,
+      source_url: sourceUrl,
+      similarity: Number.isFinite(similarity) ? similarity : null
+    });
+  });
+  return results;
+}
+
+function formatCitationMeta(citation) {
+  const parts = [];
+  if (citation.source_type) parts.push(citation.source_type);
+  const dateLabel = formatDateOnly(citation.published_at);
+  if (dateLabel) parts.push(dateLabel);
+  const host = extractHostname(citation.source_url);
+  if (host) parts.push(host);
+  if (typeof citation.similarity === 'number') {
+    const similarity = citation.similarity >= 0 && citation.similarity <= 1
+      ? citation.similarity.toFixed(2)
+      : citation.similarity.toString();
+    parts.push(`sim ${similarity}`);
+  }
+  return parts.join(' · ');
+}
+
+function createCitationItem(citation) {
+  const li = document.createElement('li');
+  li.className = 'citation-item';
+  li.dataset.ref = citation.ref;
+
+  const refSpan = document.createElement('span');
+  refSpan.className = 'citation-ref';
+  refSpan.textContent = `[${citation.ref}]`;
+  li.append(refSpan);
+
+  const body = document.createElement('div');
+  body.className = 'citation-body';
+
+  const titleLine = document.createElement('div');
+  titleLine.className = 'citation-title';
+  if (citation.source_url) {
+    const link = document.createElement('a');
+    link.href = citation.source_url;
+    link.target = '_blank';
+    link.rel = 'noreferrer noopener';
+    link.textContent = citation.title || citation.source_url;
+    titleLine.append(link);
+  } else {
+    titleLine.textContent = citation.title || 'Untitled source';
+  }
+  body.append(titleLine);
+
+  const meta = formatCitationMeta(citation);
+  if (meta) {
+    const metaLine = document.createElement('div');
+    metaLine.className = 'citation-meta';
+    metaLine.textContent = meta;
+    body.append(metaLine);
+  }
+
+  li.append(body);
+  return li;
+}
+
+function populateCitationList(listEl, citations) {
+  if (!listEl) return;
+  listEl.innerHTML = '';
+  citations.forEach((citation) => {
+    listEl.append(createCitationItem(citation));
+  });
+}
+
+function renderCitationSection(section, listEl, citations) {
+  if (!section || !listEl) return;
+  if (!citations.length) {
+    listEl.innerHTML = '';
+    section.hidden = true;
+    return;
+  }
+  section.hidden = false;
+  populateCitationList(listEl, citations);
+}
+
 function normalizeArray(value) {
   if (!value) return [];
   if (Array.isArray(value)) return value.map((entry) => String(entry)).filter(Boolean);
@@ -70,6 +199,63 @@ function normalizeArray(value) {
       .filter(Boolean);
   }
   return [];
+}
+
+function parseScore(value) {
+  const num = Number(value);
+  return Number.isFinite(num) ? num : null;
+}
+
+function factorEntries(entry) {
+  const raw = Array.isArray(entry?.factor_breakdown)
+    ? entry.factor_breakdown
+    : Array.isArray(entry?.factors)
+      ? entry.factors
+      : [];
+  return raw
+    .map((item) => {
+      if (!item || typeof item !== 'object') return null;
+      const metadata = item.metadata && typeof item.metadata === 'object' ? item.metadata : {};
+      return {
+        slug: item.slug ?? null,
+        name: item.name ?? item.slug ?? 'Factor',
+        score: parseScore(item.score),
+        value: parseScore(item.value),
+        rawValue: item.value ?? null,
+        asOf: item.as_of ?? item.asOf ?? null,
+        direction: item.direction ?? 'higher_better',
+        source: item.source ?? null,
+        notes: item.notes ?? null,
+        metadata
+      };
+    })
+    .filter(Boolean);
+}
+
+function formatFactorValue(entry) {
+  if (!entry) return null;
+  const numeric = parseScore(entry.value);
+  if (numeric == null) {
+    if (entry.rawValue != null && entry.rawValue !== '') {
+      return String(entry.rawValue);
+    }
+    return null;
+  }
+  const metadata = entry.metadata && typeof entry.metadata === 'object' ? entry.metadata : {};
+  const unitRaw = typeof metadata.unit === 'string' ? metadata.unit.toLowerCase() : null;
+  if (unitRaw === 'pct' || unitRaw === 'percentage') {
+    return `${(numeric * 100).toFixed(1)}%`;
+  }
+  if (unitRaw === 'bp' || unitRaw === 'bps') {
+    return `${Math.round(numeric)} bps`;
+  }
+  if (unitRaw === 'x' || unitRaw === 'multiple') {
+    return `${numeric.toFixed(2)}×`;
+  }
+  if (unitRaw === 'stdev' || unitRaw === 'sigma') {
+    return numeric.toFixed(2);
+  }
+  return numeric.toFixed(2);
 }
 
 function verdictTone(value) {
@@ -96,20 +282,30 @@ function recallQuestionGraph() {
   return questionMemory.get(cacheKey()) ?? { dimension_scores: [], question_results: [] };
 }
 
+function setGate(message) {
+  if (elements.gateMessage) {
+    elements.gateMessage.textContent = message;
+  }
+  elements.gate.hidden = false;
+  elements.content.hidden = true;
+}
+
 async function ensureAccess() {
   const user = await getUser();
   if (!user) {
-    elements.gate.hidden = false;
-    elements.content.hidden = true;
+    setGate('Sign in with your FutureFunds.ai membership to open the full Stage 1–3 dossier.');
     return false;
   }
+
   const [profile, membership] = await Promise.all([getProfile(), getMembership()]);
-  if (!hasAdminRole({ user, profile, membership })) {
-    elements.gate.hidden = false;
-    elements.gate.querySelector('p').textContent = 'Only analyst operators and admins can view raw stage outputs. Contact the FutureFunds team to request access.';
-    elements.content.hidden = true;
+  const admin = hasAdminRole({ user, profile, membership });
+  const memberActive = isMembershipActive(membership, { profile, user });
+
+  if (!admin && !memberActive) {
+    setGate('An active FutureFunds.ai membership unlocks raw analyst dossiers and citations.');
     return false;
   }
+
   elements.gate.hidden = true;
   elements.content.hidden = false;
   return true;
@@ -207,8 +403,20 @@ function clearPanels() {
   elements.stage2Scores.textContent = '';
   elements.stage2Verdict.textContent = '';
   elements.stage2Next.textContent = '';
+  if (elements.stage2Citations) {
+    elements.stage2Citations.hidden = true;
+  }
+  if (elements.stage2CitationList) {
+    elements.stage2CitationList.innerHTML = '';
+  }
   elements.stage3Summary.classList.add('muted');
   elements.stage3Summary.textContent = 'Deep dive not yet available.';
+  if (elements.stage3Citations) {
+    elements.stage3Citations.hidden = true;
+  }
+  if (elements.stage3CitationList) {
+    elements.stage3CitationList.innerHTML = '';
+  }
   if (elements.stage3Scorecard) {
     elements.stage3Scorecard.hidden = true;
     elements.stage3Scorecard.innerHTML = '';
@@ -276,6 +484,7 @@ function renderStage2(stage2) {
 
   if (!stage2 || typeof stage2 !== 'object') {
     elements.stage2Scores.innerHTML = '<p class="muted">Stage 2 scoring has not run yet.</p>';
+    renderCitationSection(elements.stage2Citations, elements.stage2CitationList, []);
     return;
   }
 
@@ -340,10 +549,15 @@ function renderStage2(stage2) {
     });
     elements.stage2Next.append(list);
   }
+
+  const stage2Citations = normalizeCitations(
+    stage2.context_citations ?? stage2.verdict?.context_citations ?? []
+  );
+  renderCitationSection(elements.stage2Citations, elements.stage2CitationList, stage2Citations);
 }
 
 function renderStage3(detail) {
-  const summaryJson = detail?.stage3_summary ?? null;
+  const summaryJson = detail?.stage3_summary && typeof detail.stage3_summary === 'object' ? detail.stage3_summary : null;
   const summaryText = detail?.stage3_text ?? null;
   const summary = summaryText || summaryJson?.summary || summaryJson?.thesis || summaryJson?.narrative;
   if (summary) {
@@ -353,6 +567,9 @@ function renderStage3(detail) {
     elements.stage3Summary.classList.add('muted');
     elements.stage3Summary.textContent = 'Deep dive not yet available.';
   }
+
+  const summaryCitations = normalizeCitations(summaryJson?.context_citations ?? []);
+  renderCitationSection(elements.stage3Citations, elements.stage3CitationList, summaryCitations);
 
   const currentDimensions = Array.isArray(detail?.dimension_scores) ? detail.dimension_scores : [];
   const currentQuestions = Array.isArray(detail?.question_results) ? detail.question_results : [];
@@ -387,11 +604,32 @@ function renderScorecard(rows = []) {
     title.textContent = entry?.name ?? entry?.dimension ?? 'Dimension';
     card.append(title);
 
-    if (Number.isFinite(Number(entry?.score))) {
+    const ensembleScore = parseScore(entry?.score ?? entry?.ensemble_score);
+    if (ensembleScore != null) {
       const score = document.createElement('div');
       score.className = 'score';
-      score.textContent = `${Math.round(Number(entry.score))}`;
+      score.textContent = `${Math.round(ensembleScore)}`;
       card.append(score);
+    }
+
+    const llmScore = parseScore(entry?.llm_score ?? entry?.llmScore);
+    const factorScore = parseScore(entry?.factor_score ?? entry?.factorScore);
+    if (llmScore != null || factorScore != null) {
+      const breakdown = document.createElement('div');
+      breakdown.className = 'scorecard-breakdown';
+      if (llmScore != null) {
+        const llmChip = document.createElement('span');
+        llmChip.className = 'scorecard-chip';
+        llmChip.textContent = `LLM ${Math.round(llmScore)}`;
+        breakdown.append(llmChip);
+      }
+      if (factorScore != null) {
+        const factorChip = document.createElement('span');
+        factorChip.className = 'scorecard-chip';
+        factorChip.textContent = `Factors ${Math.round(factorScore)}`;
+        breakdown.append(factorChip);
+      }
+      card.append(breakdown);
     }
 
     if (entry?.summary) {
@@ -411,6 +649,65 @@ function renderScorecard(rows = []) {
         tagRow.append(span);
       });
       card.append(tagRow);
+    }
+
+    const factors = factorEntries(entry);
+    if (factors.length) {
+      const list = document.createElement('ul');
+      list.className = 'factor-list';
+      factors.forEach((factor) => {
+        const item = document.createElement('li');
+        item.className = 'factor-item';
+
+        const header = document.createElement('div');
+        header.className = 'factor-header';
+        const name = document.createElement('span');
+        name.className = 'factor-name';
+        name.textContent = factor.name;
+        header.append(name);
+        if (factor.score != null) {
+          const scoreBadge = document.createElement('span');
+          scoreBadge.className = 'factor-score';
+          scoreBadge.textContent = `${Math.round(factor.score)}`;
+          header.append(scoreBadge);
+        }
+        item.append(header);
+
+        const meta = document.createElement('div');
+        meta.className = 'factor-meta';
+        const valueText = formatFactorValue(factor);
+        if (valueText) {
+          const valueSpan = document.createElement('span');
+          valueSpan.className = 'factor-value';
+          valueSpan.textContent = valueText;
+          meta.append(valueSpan);
+        }
+        if (factor.asOf) {
+          const dateSpan = document.createElement('span');
+          dateSpan.className = 'factor-date';
+          dateSpan.textContent = formatDateOnly(factor.asOf);
+          meta.append(dateSpan);
+        }
+        if (factor.source) {
+          const sourceSpan = document.createElement('span');
+          sourceSpan.className = 'factor-source';
+          sourceSpan.textContent = factor.source;
+          meta.append(sourceSpan);
+        }
+        if (meta.childElementCount) {
+          item.append(meta);
+        }
+
+        if (factor.notes) {
+          const notes = document.createElement('p');
+          notes.className = 'factor-notes';
+          notes.textContent = factor.notes;
+          item.append(notes);
+        }
+
+        list.append(item);
+      });
+      card.append(list);
     }
 
     elements.stage3Scorecard.append(card);
@@ -512,6 +809,20 @@ function renderQuestionGrid(results = []) {
       details.append(pre);
       rawBlock.append(details);
       card.append(rawBlock);
+    }
+
+    const questionCitations = normalizeCitations(entry?.answer?.context_citations ?? entry?.context_citations ?? []);
+    if (questionCitations.length) {
+      const citeBlock = document.createElement('div');
+      citeBlock.className = 'question-citations';
+      const heading = document.createElement('strong');
+      heading.textContent = 'Sources';
+      citeBlock.append(heading);
+      const list = document.createElement('ol');
+      list.className = 'citation-list citation-list--compact';
+      populateCitationList(list, questionCitations);
+      citeBlock.append(list);
+      card.append(citeBlock);
     }
 
     elements.stage3Questions.append(card);

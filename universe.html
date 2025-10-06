@@ -165,22 +165,22 @@
   </nav>
 </header>
 
-<section class="wrap hero">
+  <section class="wrap hero">
   <h1>Automated Analyst Universe</h1>
   <p>Inspect the latest multi-stage equity runs. Filter by stage, label, or sector, export reports, and jump into full dossiers for any ticker.</p>
 </section>
 
 <main class="wrap universe-shell">
   <section id="gate" class="gate" hidden>
-    <h2>Members-only research cockpit</h2>
-    <p>This dashboard exposes raw pipeline outputs and costs. Please sign in with an analyst or admin account to continue.</p>
+    <h2>Member access required</h2>
+    <p id="gateMessage">Sign in with your FutureFunds.ai membership to view the analyst universe.</p>
     <div class="actions">
-      <a class="btn primary" href="/login.html">Sign in</a>
-      <a class="btn" href="/membership.html">Request access</a>
+      <button class="btn primary" type="button" data-open-auth="signin">Sign in</button>
+      <button class="btn" type="button" data-open-auth="signup">Join membership</button>
     </div>
   </section>
 
-  <section id="universeContent" hidden>
+  <section id="universeContent" data-gated="member" hidden>
     <div class="controls-card">
       <div class="controls-grid">
         <label for="runSelect">Run</label>
@@ -271,6 +271,19 @@
       <div class="table-footer">
         <button id="loadMoreBtn" type="button">Load more</button>
         <span class="status-text" id="tableStatus">—</span>
+      </div>
+    </div>
+
+    <div class="gate-cta">
+      <div class="gate-cta__inner">
+        <div>
+          <strong>Members only</strong>
+          <p>Unlock the full analyst universe with an active FutureFunds.ai membership.</p>
+        </div>
+        <div class="gate-cta__actions">
+          <button class="btn primary" type="button" data-open-auth="signup">Join membership</button>
+          <button class="btn" type="button" data-open-auth="signin">Sign in</button>
+        </div>
       </div>
     </div>
   </section>
