@@ -240,17 +240,81 @@ const notices = {
 
 const scopeRadios = Array.from(document.querySelectorAll('input[name="runScope"]'));
 
-const FUNCTIONS_BASE = SUPABASE_URL.replace(/\.supabase\.co$/, '.functions.supabase.co');
-const RUNS_CREATE_ENDPOINT = `${FUNCTIONS_BASE}/runs-create`;
-const STAGE1_CONSUME_ENDPOINT = `${FUNCTIONS_BASE}/stage1-consume`;
-const STAGE2_CONSUME_ENDPOINT = `${FUNCTIONS_BASE}/stage2-consume`;
-const STAGE3_CONSUME_ENDPOINT = `${FUNCTIONS_BASE}/stage3-consume`;
-const RUNS_STOP_ENDPOINT = `${FUNCTIONS_BASE}/runs-stop`;
-const RUNS_CONTINUE_ENDPOINT = `${FUNCTIONS_BASE}/runs-continue`;
-const RUNS_SCHEDULE_ENDPOINT = `${FUNCTIONS_BASE}/runs-schedule`;
-const RUNS_FEEDBACK_ENDPOINT = `${FUNCTIONS_BASE}/runs-feedback`;
-const RUNS_FOCUS_ENDPOINT = `${FUNCTIONS_BASE}/runs-focus`;
-const HEALTH_ENDPOINT = `${FUNCTIONS_BASE}/health`;
+const FUNCTION_NAMES = {
+  runsCreate: 'runs-create',
+  stage1Consume: 'stage1-consume',
+  stage2Consume: 'stage2-consume',
+  stage3Consume: 'stage3-consume',
+  runsStop: 'runs-stop',
+  runsContinue: 'runs-continue',
+  runsSchedule: 'runs-schedule',
+  runsFeedback: 'runs-feedback',
+  runsFocus: 'runs-focus',
+  health: 'health'
+};
+
+const FUNCTION_BASE_CANDIDATES = (() => {
+  const trimmed = (SUPABASE_URL || '').trim().replace(/\/+$, '');
+  const candidates = new Set();
+  if (trimmed) {
+    candidates.add(`${trimmed}/functions/v1`);
+    if (/\.supabase\.co$/i.test(trimmed)) {
+      candidates.add(trimmed.replace(/\.supabase\.co$/i, '.functions.supabase.co'));
+    }
+  }
+  return Array.from(candidates);
+})();
+
+let functionBaseIndex = 0;
+let currentFunctionsBase = FUNCTION_BASE_CANDIDATES[functionBaseIndex] || '';
+
+const functionEndpoints = {};
+
+function refreshFunctionEndpoints() {
+  Object.entries(FUNCTION_NAMES).forEach(([key, name]) => {
+    functionEndpoints[key] = currentFunctionsBase ? `${currentFunctionsBase}/${name}` : '';
+  });
+}
+
+function setFunctionBase(index) {
+  functionBaseIndex = index;
+  currentFunctionsBase = FUNCTION_BASE_CANDIDATES[index] || '';
+  refreshFunctionEndpoints();
+}
+
+function getFunctionEndpoint(key, searchParams) {
+  const base = functionEndpoints[key] || '';
+  if (!base) return '';
+  if (!searchParams) return base;
+
+  try {
+    const url = new URL(base);
+    if (searchParams instanceof URLSearchParams) {
+      searchParams.forEach((value, param) => {
+        if (value !== undefined && value !== null) {
+          url.searchParams.set(param, String(value));
+        }
+      });
+    } else if (typeof searchParams === 'object') {
+      Object.entries(searchParams)
+        .filter(([, value]) => value !== undefined && value !== null)
+        .forEach(([param, value]) => {
+          url.searchParams.set(param, String(value));
+        });
+    } else if (typeof searchParams === 'string') {
+      const params = new URLSearchParams(searchParams);
+      params.forEach((value, param) => {
+        url.searchParams.set(param, value);
+      });
+    }
+    return url.toString();
+  } catch (error) {
+    console.warn('Failed to build Supabase function endpoint URL', error);
+    return base;
+  }
+}
+
+setFunctionBase(functionBaseIndex);
 const RUN_STORAGE_KEY = 'ff-active-run-id';
 
 let authContext = {
@@ -309,6 +373,53 @@ function buildFunctionHeaders({ json = true } = {}) {
     headers['Content-Type'] = 'application/json';
   }
   return headers;
+}
+
+async function callSupabaseFunction(key, options = {}) {
+  const { searchParams, ...fetchOptions } = options || {};
+  if (!FUNCTION_BASE_CANDIDATES.length) {
+    throw new Error('Supabase functions base URL is not configured.');
+  }
+
+  const tried = new Set();
+  let lastError = null;
+
+  while (tried.size < FUNCTION_BASE_CANDIDATES.length) {
+    const endpoint = getFunctionEndpoint(key, searchParams);
+    const baseForAttempt = currentFunctionsBase;
+    tried.add(baseForAttempt);
+
+    if (!endpoint) {
+      lastError = new Error('Supabase function endpoint is not defined.');
+    } else {
+      try {
+        const response = await fetch(endpoint, fetchOptions);
+        return { response, endpoint };
+      } catch (error) {
+        lastError = error;
+        const isNetworkError = error instanceof TypeError || error?.name === 'TypeError';
+        if (!isNetworkError) {
+          throw error;
+        }
+      }
+    }
+
+    const currentIndex = FUNCTION_BASE_CANDIDATES.indexOf(baseForAttempt);
+    const remainingIndex = FUNCTION_BASE_CANDIDATES.findIndex((base, index) => index !== currentIndex && !tried.has(base));
+
+    if (remainingIndex === -1) {
+      break;
+    }
+
+    const previousBase = baseForAttempt;
+    setFunctionBase(remainingIndex);
+    logStatus(`Primary Supabase functions host ${previousBase || '(undefined)'} unreachable. Retrying via ${currentFunctionsBase || '(undefined)'}…`, {
+      level: 'warn'
+    });
+  }
+
+  if (lastError) throw lastError;
+  throw new Error('Supabase function request failed.');
 }
 let priceMap = new Map();
 let credentialOptions = [];
@@ -3117,9 +3228,10 @@ async function toggleRunStop(stopRequested) {
   }
 
   try {
-    const response = await fetch(RUNS_STOP_ENDPOINT, {
+    const headers = buildFunctionHeaders();
+    const { response } = await callSupabaseFunction('runsStop', {
       method: 'POST',
-      headers: buildFunctionHeaders(),
+      headers,
       body: JSON.stringify({
         run_id: activeRunId,
         stop_requested: Boolean(stopRequested),
@@ -3298,9 +3410,10 @@ async function runAutoContinue() {
   updateAutoContinueStatus('Auto continue running…');
 
   try {
-    const response = await fetch(RUNS_CONTINUE_ENDPOINT, {
+    const headers = buildFunctionHeaders();
+    const { response } = await callSupabaseFunction('runsContinue', {
       method: 'POST',
-      headers: buildFunctionHeaders(),
+      headers,
       body: JSON.stringify({
         run_id: activeRunId,
         stage_limits: AUTO_CONTINUE_LIMITS,
@@ -3632,8 +3745,11 @@ async function fetchRunSchedule({ silent = false } = {}) {
   }
 
   try {
-    const response = await fetch(`${RUNS_SCHEDULE_ENDPOINT}?run_id=${activeRunId}`, {
-      headers: buildFunctionHeaders({ json: false })
+    const headers = buildFunctionHeaders({ json: false });
+    const { response } = await callSupabaseFunction('runsSchedule', {
+      method: 'GET',
+      headers,
+      searchParams: { run_id: activeRunId }
     });
 
     const raw = await response.text();
@@ -3736,9 +3852,10 @@ async function saveRunSchedule() {
   inputs.schedulerStatus.textContent = active ? 'Saving scheduler…' : 'Disabling scheduler…';
 
   try {
-    const response = await fetch(RUNS_SCHEDULE_ENDPOINT, {
+    const headers = buildFunctionHeaders();
+    const { response } = await callSupabaseFunction('runsSchedule', {
       method: 'POST',
-      headers: buildFunctionHeaders(),
+      headers,
       body: JSON.stringify({
         run_id: activeRunId,
         cadence_seconds: cadenceSeconds,
@@ -4277,10 +4394,11 @@ async function fetchFocusData({ silent = false } = {}) {
   applyAccessState({ preserveStatus: true });
 
   try {
-    const url = new URL(RUNS_FOCUS_ENDPOINT);
-    url.searchParams.set('run_id', activeRunId);
-    const response = await fetch(url.toString(), {
-      headers: buildFunctionHeaders({ json: false })
+    const headers = buildFunctionHeaders({ json: false });
+    const { response } = await callSupabaseFunction('runsFocus', {
+      method: 'GET',
+      headers,
+      searchParams: { run_id: activeRunId }
     });
 
     if (!response.ok) {
@@ -4361,9 +4479,10 @@ async function submitFocusForm(event) {
       custom_questions: customQuestion ? [customQuestion] : []
     };
 
-    const response = await fetch(RUNS_FOCUS_ENDPOINT, {
+    const headers = buildFunctionHeaders();
+    const { response } = await callSupabaseFunction('runsFocus', {
       method: 'POST',
-      headers: buildFunctionHeaders(),
+      headers,
       body: JSON.stringify(body)
     });
 
@@ -4480,10 +4599,11 @@ async function refreshFollowupList({ silent = false } = {}) {
   }
 
   try {
-    const url = new URL(RUNS_FEEDBACK_ENDPOINT);
-    url.searchParams.set('run_id', activeRunId);
-    const response = await fetch(url.toString(), {
-      headers: buildFunctionHeaders({ json: false })
+    const headers = buildFunctionHeaders({ json: false });
+    const { response } = await callSupabaseFunction('runsFeedback', {
+      method: 'GET',
+      headers,
+      searchParams: { run_id: activeRunId }
     });
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) {
@@ -4588,9 +4708,10 @@ async function submitFollowupRequest(event) {
   setFollowupStatus('Submitting follow-up…');
 
   try {
-    const response = await fetch(RUNS_FEEDBACK_ENDPOINT, {
+    const headers = buildFunctionHeaders();
+    const { response } = await callSupabaseFunction('runsFeedback', {
       method: 'POST',
-      headers: buildFunctionHeaders(),
+      headers,
       body: JSON.stringify({
         run_id: activeRunId,
         ticker: tickerValue || undefined,
@@ -5018,9 +5139,10 @@ async function processStage1Batch() {
   if (inputs.stage1Status) inputs.stage1Status.textContent = 'Processing Stage 1 batch…';
 
   try {
-    const response = await fetch(STAGE1_CONSUME_ENDPOINT, {
+    const headers = buildFunctionHeaders();
+    const { response } = await callSupabaseFunction('stage1Consume', {
       method: 'POST',
-      headers: buildFunctionHeaders(),
+      headers,
       body: JSON.stringify({
         run_id: activeRunId,
         limit: 8,
@@ -5111,9 +5233,10 @@ async function processStage2Batch() {
   if (inputs.stage2Status) inputs.stage2Status.textContent = 'Processing Stage 2 batch…';
 
   try {
-    const response = await fetch(STAGE2_CONSUME_ENDPOINT, {
+    const headers = buildFunctionHeaders();
+    const { response } = await callSupabaseFunction('stage2Consume', {
       method: 'POST',
-      headers: buildFunctionHeaders(),
+      headers,
       body: JSON.stringify({
         run_id: activeRunId,
         limit: 4,
@@ -5212,9 +5335,10 @@ async function processStage3Batch() {
   if (inputs.stage3Status) inputs.stage3Status.textContent = 'Processing Stage 3 batch…';
 
   try {
-    const response = await fetch(STAGE3_CONSUME_ENDPOINT, {
+    const headers = buildFunctionHeaders();
+    const { response } = await callSupabaseFunction('stage3Consume', {
       method: 'POST',
-      headers: buildFunctionHeaders(),
+      headers,
       body: JSON.stringify({
         run_id: activeRunId,
         limit: 2,
@@ -6113,18 +6237,22 @@ async function startRun() {
   logStep(4, 'pass');
 
   logStep(5, 'start');
-  logStatus(`Prepared request for ${RUNS_CREATE_ENDPOINT}`);
+  const initialEndpoint = getFunctionEndpoint('runsCreate');
+  logStatus(`Prepared request for ${initialEndpoint || 'Supabase functions endpoint (auto-resolve)'}`);
   logStep(5, 'pass');
 
   const headers = buildFunctionHeaders();
+  let lastEndpoint = initialEndpoint;
 
   try {
     logStep(6, 'start');
-    const response = await fetch(RUNS_CREATE_ENDPOINT, {
+    const { response, endpoint } = await callSupabaseFunction('runsCreate', {
       method: 'POST',
       headers,
       body: JSON.stringify(requestBody)
     });
+
+    lastEndpoint = endpoint;
 
     if (!response.ok) {
       const text = await response.text();
@@ -6159,8 +6287,9 @@ async function startRun() {
     const online = typeof navigator !== 'undefined' && Object.prototype.hasOwnProperty.call(navigator, 'onLine')
       ? navigator.onLine
       : null;
+    const endpointForDetails = getFunctionEndpoint('runsCreate') || lastEndpoint;
     const details = buildLaunchErrorDetails(error, {
-      endpoint: RUNS_CREATE_ENDPOINT,
+      endpoint: endpointForDetails,
       method: 'POST',
       payload: requestBody,
       online,
@@ -6219,8 +6348,10 @@ async function refreshHealthStatus({ silent = false } = {}) {
     inputs.healthCheckedAt.textContent = 'Checking worker health…';
   }
   try {
-    const response = await fetch(HEALTH_ENDPOINT, {
-      headers: buildFunctionHeaders({ json: false })
+    const headers = buildFunctionHeaders({ json: false });
+    const { response } = await callSupabaseFunction('health', {
+      method: 'GET',
+      headers
     });
     const data = await response.json().catch(() => ({}));
     if (!response.ok) {
