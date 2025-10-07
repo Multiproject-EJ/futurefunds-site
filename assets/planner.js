@@ -1812,6 +1812,12 @@ function initCredentialManager() {
         method: 'POST',
         model: 'gpt-4o-mini',
         modelLabel: 'gpt-4o-mini',
+        models: [
+          { value: 'gpt-4o-mini', label: 'GPT-4o mini (recommended)' },
+          { value: 'gpt-4o', label: 'GPT-4o' },
+          { value: 'gpt-4.1-mini', label: 'GPT-4.1 mini' },
+          { value: 'o3-mini', label: 'o3-mini' }
+        ],
         headers: (key) => ({
           Authorization: `Bearer ${key}`,
           Accept: 'application/json',
@@ -1843,6 +1849,12 @@ function initCredentialManager() {
         method: 'POST',
         model: 'openrouter/auto',
         modelLabel: 'openrouter/auto',
+        models: [
+          { value: 'openrouter/auto', label: 'OpenRouter Auto (recommended)' },
+          { value: 'openrouter/openai/gpt-4o-mini', label: 'OpenAI GPT-4o mini' },
+          { value: 'openrouter/anthropic/claude-3.5-sonnet', label: 'Anthropic Claude 3.5 Sonnet' },
+          { value: 'google/gemini-flash-1.5', label: 'Google Gemini 1.5 Flash' }
+        ],
         headers: (key) => {
           const headers = {
             Authorization: `Bearer ${key}`,
@@ -1885,6 +1897,11 @@ function initCredentialManager() {
         method: 'POST',
         model: 'claude-3-haiku-20240307',
         modelLabel: 'claude-3-haiku-20240307',
+        models: [
+          { value: 'claude-3-haiku-20240307', label: 'Claude 3 Haiku (recommended)' },
+          { value: 'claude-3.5-sonnet-20240620', label: 'Claude 3.5 Sonnet' },
+          { value: 'claude-3-opus-20240229', label: 'Claude 3 Opus' }
+        ],
         headers: (key) => ({
           'x-api-key': key,
           'anthropic-version': '2023-06-01',
@@ -1915,6 +1932,8 @@ function initCredentialManager() {
     }
   };
 
+  const modelField = modal.querySelector('[data-credential-model-field]');
+  const modelSelect = modal.querySelector('#credentialTestModel');
   const promptInput = modal.querySelector('#credentialTestPrompt');
   const responseEl = modal.querySelector('#credentialTestResponse');
   const responseMetaEl = modal.querySelector('#credentialTestMeta');
@@ -1941,17 +1960,27 @@ function initCredentialManager() {
     }
   };
 
-  const updateTestHint = () => {
+  const resolveTargetForProvider = (rawProvider) => {
+    if (!rawProvider) return null;
+    const normalized = rawProvider.toLowerCase();
+    const lookupKey = normalized.replace(/[^a-z0-9]/g, '');
+    return connectionTargets[lookupKey] || connectionTargets[normalized] || null;
+  };
+
+  const getModelOptions = (target) => {
+    if (!target?.prompt) return [];
+    const options = Array.isArray(target.prompt.models) ? target.prompt.models : [];
+    if (options.length) return options;
+    const fallbackValue = target.prompt.model || target.prompt.modelLabel;
+    return fallbackValue ? [{ value: fallbackValue, label: fallbackValue }] : [];
+  };
+
+  const updateTestHint = (rawProvider, target) => {
     if (!testHintEl) return;
-    const rawProvider = (providerInput?.value || '').trim();
     if (!rawProvider) {
       testHintEl.textContent = 'Add a provider id above (for example, openrouter) to see how the connectivity check runs.';
       return;
     }
-
-    const normalized = rawProvider.toLowerCase();
-    const lookupKey = normalized.replace(/[^a-z0-9]/g, '');
-    const target = connectionTargets[lookupKey] || connectionTargets[normalized];
 
     if (!target) {
       testHintEl.textContent = `No automated connection test is configured for “${rawProvider}”.`;
@@ -1964,7 +1993,9 @@ function initCredentialManager() {
     }
     if (target.prompt?.endpoint) {
       const endpointLabel = formatEndpoint(target.prompt.endpoint);
-      const modelLabel = target.prompt.modelLabel || target.prompt.model;
+      const models = getModelOptions(target);
+      const defaultModel = models.find((option) => option.value === target.prompt.model) || models[0];
+      const modelLabel = (defaultModel && defaultModel.label) || target.prompt.modelLabel || target.prompt.model;
       if (modelLabel) {
         details.push(`Sends your question to ${endpointLabel} using ${modelLabel}`);
       } else {
@@ -1980,7 +2011,56 @@ function initCredentialManager() {
     testHintEl.textContent = `${details.join('. ')}.`;
   };
 
-  updateTestHint();
+  const updateModelOptions = (rawProvider, target) => {
+    if (!modelSelect || !modelField) return;
+
+    if (!rawProvider || !target?.prompt) {
+      modelSelect.innerHTML = '';
+      modelSelect.value = '';
+      modelField.hidden = true;
+      return;
+    }
+
+    const options = getModelOptions(target);
+
+    if (!options.length) {
+      modelSelect.innerHTML = '';
+      modelSelect.value = '';
+      modelField.hidden = true;
+      return;
+    }
+
+    const previousValue = modelSelect.value;
+    modelSelect.innerHTML = '';
+
+    options.forEach((option) => {
+      const opt = document.createElement('option');
+      opt.value = option.value;
+      opt.textContent = option.label || option.value;
+      modelSelect.appendChild(opt);
+    });
+
+    const availableValues = options.map((option) => option.value);
+    let selectedValue = previousValue && availableValues.includes(previousValue)
+      ? previousValue
+      : target.prompt.model || options[0].value;
+
+    if (!availableValues.includes(selectedValue)) {
+      selectedValue = options[0].value;
+    }
+
+    modelSelect.value = selectedValue;
+    modelField.hidden = false;
+  };
+
+  const refreshConnectionTestUi = () => {
+    const rawProvider = (providerInput?.value || '').trim();
+    const target = resolveTargetForProvider(rawProvider);
+    updateTestHint(rawProvider, target);
+    updateModelOptions(rawProvider, target);
+  };
+
+  refreshConnectionTestUi();
 
   const hideTestResponse = () => {
     if (responseEl) {
@@ -2010,20 +2090,43 @@ function initCredentialManager() {
 
   if (providerInput) {
     providerInput.addEventListener('input', () => {
-      updateTestHint();
+      refreshConnectionTestUi();
       hideTestResponse();
     });
   }
 
-  const createTimeoutSignal = (ms = 8000) => {
+  modelSelect?.addEventListener('change', () => {
+    hideTestResponse();
+  });
+
+  const createTimeoutController = (ms = 8000) => {
     if (typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function') {
       try {
-        return AbortSignal.timeout(ms);
+        const signal = AbortSignal.timeout(ms);
+        return { signal, cleanup: () => {} };
       } catch (error) {
         console.warn('AbortSignal timeout creation failed', error);
       }
     }
-    return null;
+
+    if (typeof AbortController === 'undefined') {
+      return null;
+    }
+
+    const controller = new AbortController();
+    const timerSource = typeof window !== 'undefined' ? window : globalThis;
+    const timeoutId = timerSource.setTimeout(() => {
+      try {
+        controller.abort(new DOMException('Operation timed out', 'TimeoutError'));
+      } catch (error) {
+        controller.abort();
+      }
+    }, ms);
+
+    const cleanup = () => timerSource.clearTimeout(timeoutId);
+    controller.signal.addEventListener('abort', cleanup, { once: true });
+
+    return { signal: controller.signal, cleanup };
   };
 
   const readResponseSnapshot = async (response) => {
@@ -2049,15 +2152,42 @@ function initCredentialManager() {
     return { payload, detail };
   };
 
+  const pingTimeoutMs = 15000;
+  const promptTimeoutMs = 25000;
+
+  const formatTimeoutSeconds = (ms) => {
+    if (!Number.isFinite(ms) || ms <= 0) return 'several';
+    const seconds = ms / 1000;
+    return Number.isInteger(seconds) ? `${seconds}` : seconds.toFixed(1).replace(/\.0$/, '');
+  };
+
+  const isAbortError = (error) => {
+    if (!error) return false;
+    return error.name === 'AbortError' || error.name === 'TimeoutError';
+  };
+
   const runPingTest = async ({ target, apiKey }) => {
     if (!target?.ping) return null;
     const headers = target.ping.headers(apiKey);
-    const controller = createTimeoutSignal(8000);
-    const response = await fetch(target.ping.endpoint, {
-      method: 'GET',
-      headers,
-      signal: controller ?? undefined
-    });
+    const timeout = createTimeoutController(pingTimeoutMs);
+    let response;
+
+    try {
+      response = await fetch(target.ping.endpoint, {
+        method: 'GET',
+        headers,
+        signal: timeout?.signal ?? undefined
+      });
+    } catch (error) {
+      if (timeout?.cleanup) timeout.cleanup();
+      if (isAbortError(error)) {
+        error.stage = 'ping';
+        error.timeout = pingTimeoutMs;
+      }
+      throw error;
+    }
+
+    if (timeout?.cleanup) timeout.cleanup();
     const { detail } = await readResponseSnapshot(response);
     if (!response.ok) {
       const statusLabel = `${response.status} ${response.statusText || ''}`.trim();
@@ -2072,21 +2202,34 @@ function initCredentialManager() {
     return true;
   };
 
-  const runPromptTest = async ({ target, apiKey, promptText }) => {
+  const runPromptTest = async ({ target, apiKey, promptText, modelId, modelLabel }) => {
     if (!target?.prompt) return { answer: '' };
-    const promptConfig = target.prompt;
+    const promptConfig = { ...target.prompt, model: modelId || target.prompt.model, modelLabel: modelLabel || target.prompt.modelLabel };
     const headers = promptConfig.headers(apiKey);
     const method = promptConfig.method || 'POST';
     const bodyPayload = typeof promptConfig.body === 'function'
       ? promptConfig.body(promptText, promptConfig, target)
       : promptConfig.body;
-    const controller = createTimeoutSignal(12000);
-    const response = await fetch(target.prompt.endpoint, {
-      method,
-      headers,
-      body: method.toUpperCase() === 'GET' ? undefined : JSON.stringify(bodyPayload),
-      signal: controller ?? undefined
-    });
+    const timeout = createTimeoutController(promptTimeoutMs);
+    let response;
+
+    try {
+      response = await fetch(target.prompt.endpoint, {
+        method,
+        headers,
+        body: method.toUpperCase() === 'GET' ? undefined : JSON.stringify(bodyPayload),
+        signal: timeout?.signal ?? undefined
+      });
+    } catch (error) {
+      if (timeout?.cleanup) timeout.cleanup();
+      if (isAbortError(error)) {
+        error.stage = 'prompt';
+        error.timeout = promptTimeoutMs;
+      }
+      throw error;
+    }
+
+    if (timeout?.cleanup) timeout.cleanup();
     const { payload, detail } = await readResponseSnapshot(response);
     if (!response.ok) {
       const statusLabel = `${response.status} ${response.statusText || ''}`.trim();
@@ -2100,17 +2243,18 @@ function initCredentialManager() {
     }
     const parsed = typeof promptConfig.parse === 'function' ? promptConfig.parse(payload) : '';
     const answer = (typeof parsed === 'string' ? parsed : '')?.trim();
-    const modelId = promptConfig.model || null;
+    const resolvedModelId = promptConfig.model || null;
+    const resolvedModelLabel = promptConfig.modelLabel || null;
     if (answer) {
-      return { answer, model: modelId };
+      return { answer, model: resolvedModelId, modelLabel: resolvedModelLabel };
     }
     if (detail) {
-      return { answer: detail, model: modelId };
+      return { answer: detail, model: resolvedModelId, modelLabel: resolvedModelLabel };
     }
     if (typeof payload === 'string' && payload.trim()) {
-      return { answer: payload.trim(), model: modelId };
+      return { answer: payload.trim(), model: resolvedModelId, modelLabel: resolvedModelLabel };
     }
-    return { answer: 'No response text returned.', model: modelId };
+    return { answer: 'No response text returned.', model: resolvedModelId, modelLabel: resolvedModelLabel };
   };
 
   const applyLockedContent = (reason) => {
@@ -2208,7 +2352,7 @@ function initCredentialManager() {
     if (updatedEl) updatedEl.textContent = '—';
     ensurePromptValue();
     hideTestResponse();
-    updateTestHint();
+    refreshConnectionTestUi();
     suppressDirty = false;
     isDirty = false;
   };
@@ -2229,7 +2373,7 @@ function initCredentialManager() {
     if (updatedEl) updatedEl.textContent = formatTimestamp(record.updated_at);
     ensurePromptValue();
     hideTestResponse();
-    updateTestHint();
+    refreshConnectionTestUi();
     suppressDirty = false;
     isDirty = false;
   };
@@ -2543,7 +2687,8 @@ function initCredentialManager() {
     if (!allowed) return;
 
     const { provider, apiKey } = collectFormValues();
-    const normalizedProvider = (provider || '').trim().toLowerCase();
+    const rawProvider = (provider || '').trim();
+    const normalizedProvider = rawProvider.toLowerCase();
     if (!normalizedProvider) {
       setStatus('Add a provider id (e.g., openrouter) before testing the connection.', 'error');
       providerInput?.focus();
@@ -2556,10 +2701,9 @@ function initCredentialManager() {
       return;
     }
 
-    const key = normalizedProvider.replace(/[^a-z0-9]/g, '');
-    const target = connectionTargets[key] || connectionTargets[normalizedProvider];
+    const target = resolveTargetForProvider(rawProvider);
     if (!target) {
-      setStatus(`Connection test not configured for provider “${normalizedProvider}”.`, 'error');
+      setStatus(`Connection test not configured for provider “${rawProvider || normalizedProvider}”.`, 'error');
       return;
     }
 
@@ -2582,11 +2726,21 @@ function initCredentialManager() {
       }
 
       if (target.prompt) {
+        const models = getModelOptions(target);
+        const selectedModelId = (modelSelect?.value || '').trim() || target.prompt.model || models[0]?.value || '';
+        const selectedModel = models.find((option) => option.value === selectedModelId);
+        const selectedModelLabel = selectedModel?.label || target.prompt.modelLabel || selectedModelId || target.prompt.model;
         setStatus(`Sending test question to ${target.label}…`, 'info');
-        const result = await runPromptTest({ target, apiKey, promptText });
+        const result = await runPromptTest({
+          target,
+          apiKey,
+          promptText,
+          modelId: selectedModelId,
+          modelLabel: selectedModelLabel
+        });
         const answer = (result?.answer || '').toString();
-        const modelId = result?.model || target.prompt?.model || null;
-        const modelLabel = target.prompt?.modelLabel || modelId;
+        const modelId = result?.model || selectedModelId || target.prompt?.model || null;
+        const modelLabel = result?.modelLabel || selectedModelLabel || target.prompt?.modelLabel || modelId;
         showTestResponse(answer, target, { model: modelId, modelLabel });
         const successMessage = modelLabel
           ? `${target.label} responded successfully (${modelLabel}).`
@@ -2605,8 +2759,11 @@ function initCredentialManager() {
       }
     } catch (error) {
       let message = '';
-      if (error?.name === 'AbortError') {
-        message = 'Connection test timed out after 8 seconds.';
+      if (isAbortError(error)) {
+        const stageLabel = error?.stage === 'prompt' ? 'test question' : 'connection check';
+        const timeoutMs = error?.timeout ?? (error?.stage === 'prompt' ? promptTimeoutMs : pingTimeoutMs);
+        const secondsLabel = formatTimeoutSeconds(timeoutMs);
+        message = `The ${stageLabel} timed out after ${secondsLabel} seconds. Try again or confirm the provider is responsive.`;
       } else if (error?.authFailure) {
         const statusLabel = error.status || '401';
         message = `${target.label} rejected the key (${statusLabel}). Confirm the API key and scopes.`;
