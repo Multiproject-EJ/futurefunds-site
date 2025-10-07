@@ -111,6 +111,26 @@
     .guided-email-row input{flex:1}
     .guided-email-row button{white-space:nowrap}
     .guided-hint{font-size:12px; color:var(--muted)}
+    .guided-mode-selector{display:grid; gap:12px; margin-top:4px}
+    .guided-mode-selector[hidden]{display:none!important}
+    .guided-mode-card{display:grid; gap:6px; padding:14px 16px; border-radius:16px; border:1px solid var(--border); background:var(--panel); text-align:left; cursor:pointer; transition:transform .18s ease, box-shadow .18s ease, border-color .18s ease}
+    .guided-mode-card:hover{transform:translateY(-2px); box-shadow:0 18px 55px rgba(15,23,42,.18); border-color:var(--accent)}
+    .guided-mode-card h3{margin:0; font-size:1rem; color:var(--text)}
+    .guided-mode-card p{margin:0; font-size:.86rem; color:var(--muted); line-height:1.45}
+    @keyframes guided-wiggle{0%,100%{transform:rotate(-1.1deg) translateY(0)}50%{transform:rotate(1.1deg) translateY(-2px)}}
+    .guided-mode-card:nth-child(1){animation:guided-wiggle 2.6s ease-in-out infinite}
+    .guided-mode-card:nth-child(2){animation:guided-wiggle 2.6s ease-in-out infinite .3s}
+    .guided-content[hidden]{display:none!important}
+    .guided-assist{display:grid; gap:8px; padding:8px 0; font-size:.88rem; color:var(--muted)}
+    .guided-assist[hidden]{display:none!important}
+    .guided-assist__hint{margin:0; font-size:.88rem; line-height:1.45; color:var(--text)}
+    .guided-assist__feedback{margin:0; font-size:.76rem; color:var(--err)}
+    .guided-devbox{border:1px solid var(--border); border-radius:12px; padding:10px; background:var(--background); display:grid; gap:6px}
+    .guided-devbox[hidden]{display:none!important}
+    .guided-devbox__header{display:flex; align-items:center; justify-content:space-between; font-size:.72rem; text-transform:uppercase; letter-spacing:.08em; color:var(--muted)}
+    .guided-devbox__copy{border:none; border-radius:8px; padding:6px 10px; font-size:.72rem; font-weight:600; background:var(--accent-soft); color:var(--accent); cursor:pointer}
+    .guided-devbox__copy:focus-visible{outline:2px solid var(--accent); outline-offset:2px}
+    .guided-devbox pre{margin:0; font-family:ui-monospace,Monaco,monospace; font-size:.76rem; white-space:pre-wrap; word-break:break-word; color:var(--muted)}
     @media (max-width:768px){
       .guided-panel{left:24px; right:24px; bottom:24px; width:auto}
     }
@@ -315,19 +335,42 @@
   <div id="guided-overlay" class="guided-overlay" aria-hidden="true">
     <div class="guided-panel" role="dialog" aria-modal="true" aria-labelledby="guided-title">
       <button class="guided-close" id="guided-close" aria-label="Close guided setup">×</button>
-      <div class="guided-progress" id="guided-progress">Step 1 of 1</div>
-      <h2 id="guided-title">Guided setup</h2>
-      <div class="guided-body" id="guided-body">Follow the prompts to configure your analyst workspace.</div>
-      <div class="guided-summary" id="guided-summary" style="display:none">
-        <p><strong>You're ready to go!</strong> <span id="guided-summary-text">FutureFunds will remember your preferences for the next session.</span></p>
-        <label><input type="checkbox" id="guided-updates" /> Keep me updated with daily run reports via email.</label>
-        <div class="guided-email-row" id="guided-email-row" style="display:none">
-          <input type="email" id="guided-email" placeholder="you@example.com" />
-          <button class="btn primary" id="guided-email-save">Save</button>
-        </div>
-        <div class="guided-hint" id="guided-email-hint">We only store this preference locally so you control your notifications.</div>
+      <div class="guided-mode-selector" id="guided-mode-selector">
+        <button type="button" class="guided-mode-card" data-guided-mode="assisted">
+          <h3>Assisted fill-out</h3>
+          <p>Configure each control with inline tips and debug notes.</p>
+        </button>
+        <button type="button" class="guided-mode-card" data-guided-mode="passive">
+          <h3>Passive overview</h3>
+          <p>Skim the tour to understand the publisher before diving in.</p>
+        </button>
       </div>
-      <div class="guided-actions">
+      <div class="guided-content" id="guided-content" hidden>
+        <div class="guided-progress" id="guided-progress">Step 1 of 1</div>
+        <h2 id="guided-title">Guided setup</h2>
+        <div class="guided-body" id="guided-body">Follow the prompts to configure your analyst workspace.</div>
+        <div class="guided-assist" id="guided-assist" hidden>
+          <p class="guided-assist__hint" id="guided-assist-hint"></p>
+          <p class="guided-assist__feedback" id="guided-assist-feedback" hidden></p>
+          <div class="guided-devbox" id="guided-devbox" hidden>
+            <div class="guided-devbox__header">
+              <span>Developer debug</span>
+              <button type="button" class="guided-devbox__copy" id="guided-dev-copy">Copy</button>
+            </div>
+            <pre id="guided-dev-text"></pre>
+          </div>
+        </div>
+        <div class="guided-summary" id="guided-summary" style="display:none">
+          <p><strong>You're ready to go!</strong> <span id="guided-summary-text">FutureFunds will remember your preferences for the next session.</span></p>
+          <label><input type="checkbox" id="guided-updates" /> Keep me updated with daily run reports via email.</label>
+          <div class="guided-email-row" id="guided-email-row" style="display:none">
+            <input type="email" id="guided-email" placeholder="you@example.com" />
+            <button class="btn primary" id="guided-email-save">Save</button>
+          </div>
+          <div class="guided-hint" id="guided-email-hint">We only store this preference locally so you control your notifications.</div>
+        </div>
+      </div>
+      <div class="guided-actions" id="guided-actions" hidden>
         <button class="secondary" id="guided-prev">Back</button>
         <button class="primary" id="guided-next">Next</button>
       </div>
@@ -701,111 +744,347 @@ ${n ? "\n**Analyst notes to incorporate:**\n"+n+"\n" : ""}
       const emailSave=$('#guided-email-save');
       const emailHint=$('#guided-email-hint');
       const defaultHint=emailHint?.textContent||'';
+      const modeSelector=$('#guided-mode-selector');
+      const contentEl=$('#guided-content');
+      const assistEl=$('#guided-assist');
+      const assistHint=$('#guided-assist-hint');
+      const assistFeedback=$('#guided-assist-feedback');
+      const devBox=$('#guided-devbox');
+      const devText=$('#guided-dev-text');
+      const devCopy=$('#guided-dev-copy');
+      const actionsEl=$('#guided-actions');
 
-      const steps=[
-        {title:'Choose your provider', body:'Select which API provider powers your analyst. OpenRouter offers community models with free tiers when available.', selector:'#provider'},
-        {title:'Add your API key', body:'Paste your API key and press Save. Keys are only stored in this browser so you retain full control.', selector:'#api-key', canProceed:()=>{
-          const providerKey=api?.providers?.[api?.currentProvider||'']?.keyStorage;
-          const typed=$('#api-key')?.value.trim();
-          return !!typed || (providerKey && localStorage.getItem(providerKey));
-        }},
-        {title:'Pick a model', body:'Choose the model that will write your notes. Refresh the catalog, filter to free options, or star favourites for one-click reuse.', selector:'#model-select', canProceed:()=>{
-          return !!(api?.model && api.model());
-        }},
-        {title:'Describe the company', body:'Enter the ticker, company name, and exchange so we can craft a tailored analyst brief.', selector:'#sa-ticker', focus:true, canProceed:()=>{
-          const t=$('#sa-ticker')?.value.trim();
-          const c=$('#sa-company')?.value.trim();
-          return !!t && !!c;
-        }},
-        {title:'Build the prompt', body:'Click Build Prompt to assemble the Markdown instructions. Review or edit them before sending to the model.', selector:'#sa-build-prompt'},
-        {title:'Generate the writeup', body:'When ready, hit Generate. We will call the model, populate the raw Markdown, and show a live preview beside it.', selector:'#sa-generate'},
-        {title:'Publish or dry-run', body:'Connect your GitHub repo to publish instantly, or run a Dry-run to confirm the file path before committing.', selector:'#publish-btn'},
-        {title:'You’re ready to roll', body:'You can now generate analyst briefs end-to-end. Enable email updates below if you want daily run summaries.', selector:null, summary:true}
+      const highlightClass='guided-focus';
+
+      const passiveSteps=[
+        {title:'Choose your provider', body:'Select which API provider powers your analyst. OpenRouter offers community models with free tiers when available.', target:'#provider'},
+        {title:'Add your API key', body:'Paste your API key and press Save. Keys stay in this browser so you retain full control.', target:'#api-key'},
+        {title:'Pick a model', body:'Choose the model that will write your notes. Refresh the catalog, filter for free options, or star favourites for quick reuse.', target:'#model-select'},
+        {title:'Describe the company', body:'Enter the ticker, company name, and exchange so the brief is tailored to your subject.', target:'#sa-ticker'},
+        {title:'Build the prompt', body:'Click Build Prompt to assemble Markdown instructions. Edit them before sending if needed.', target:'#sa-build-prompt'},
+        {title:'Generate the writeup', body:'Press Generate to call the model, populate the Markdown, and preview the output.', target:'#sa-generate'},
+        {title:'Publish or dry-run', body:'Wire up your GitHub repo to publish instantly or run a dry-run to confirm the file path.', target:'#publish-btn'}
       ];
 
-      const actionableSteps=steps.filter(s=>!s.summary);
+      const assistedSteps=[
+        {
+          title:'Choose your provider',
+          body:'Decide which API backend powers this analyst session.',
+          target:'#provider',
+          assist:{
+            hint:'Pick the provider that matches your stored key. We remember the choice so you can swap quickly.',
+            focus:'#provider'
+          }
+        },
+        {
+          title:'Add your API key',
+          body:'Save an API key so calls authenticate without manual copy/paste.',
+          target:'#api-key',
+          assist:{
+            hint:'Paste the key and hit <strong>Save key</strong>. We keep it in localStorage only.',
+            focus:'#api-key',
+            validate:()=>{
+              const provider=api?.currentProvider || $('#provider')?.value;
+              const storage=provider && api?.providers?.[provider]?.keyStorage;
+              const typed=$('#api-key')?.value.trim();
+              return (typed || (storage && localStorage.getItem(storage))) ? true : 'Save a key before moving on so requests can authenticate.';
+            },
+            devSnippet:`const storageKey = apiManager.providers[apiManager.currentProvider].keyStorage;\nlocalStorage.setItem(storageKey, '<api_key_here>');`
+          }
+        },
+        {
+          title:'Pick a model',
+          body:'Select the model that will draft your analyst brief.',
+          target:'#model-select',
+          assist:{
+            hint:'Use the dropdown or type a model id. Refresh the catalog if you just saved a new key.',
+            focus:'#model-select',
+            validate:()=> (api?.model && api.model()) ? true : 'Choose a model so we know which weights to call.'
+          }
+        },
+        {
+          title:'Describe the company',
+          body:'Fill in ticker, company, and exchange details for context.',
+          target:'#sa-ticker',
+          assist:{
+            hint:'Set <strong>Ticker</strong> and <strong>Company</strong>. Add the exchange to keep prompts precise.',
+            focus:'#sa-ticker',
+            validate:()=>{
+              const ticker=$('#sa-ticker')?.value.trim();
+              const company=$('#sa-company')?.value.trim();
+              return ticker && company ? true : 'Add both a ticker and company name before continuing.';
+            }
+          }
+        },
+        {
+          title:'Build the prompt',
+          body:'Compose the Markdown instructions the model will follow.',
+          target:'#sa-build-prompt',
+          assist:{
+            hint:'Click <strong>Build Prompt</strong>. You can customise the Markdown before sending it downstream.',
+            focus:'#sa-build-prompt',
+            devSnippet:`const prompt = buildPrompt();\ndocument.getElementById('sa-prompt').value = prompt;`
+          }
+        },
+        {
+          title:'Generate the writeup',
+          body:'Call the model and review the generated analysis.',
+          target:'#sa-generate',
+          assist:{
+            hint:'Hit <strong>Generate</strong>. We stream the result into Markdown and the live preview.',
+            focus:'#sa-generate',
+            devSnippet:`const result = await api.callAPI(prompt);\ndocument.getElementById('sa-output').textContent = result;`
+          }
+        },
+        {
+          title:'Publish or dry-run',
+          body:'Push the brief to GitHub or test the workflow locally.',
+          target:'#publish-btn',
+          assist:{
+            hint:'Fill in owner, repo, branch, and token, then choose Publish or Dry-run.',
+            focus:'#publish-btn',
+            devSnippet:`await githubPutFile(owner, repo, filename, token, branch, content, commitMessage);`
+          }
+        }
+      ];
+
+      const modes={
+        passive:{
+          steps:passiveSteps,
+          summaryTitle:'Guided setup complete',
+          summaryBody:'You can now generate analyst briefs end-to-end. Enable email updates below if you want daily run summaries.'
+        },
+        assisted:{
+          steps:assistedSteps,
+          summaryTitle:'Workflow configured',
+          summaryBody:'Inputs are set and you\'ve seen every control. Run a dry-run or publish to GitHub when you\'re ready.'
+        }
+      };
+
+      let currentMode=null;
+      let steps=[];
       let index=0;
       let active=false;
       let highlightEl=null;
+      let showingSummary=false;
 
-      function removeHighlight(){
-        if(highlightEl){ highlightEl.classList.remove('guided-focus'); highlightEl=null; }
-      }
+      const removeHighlight=()=>{
+        if(highlightEl){ highlightEl.classList.remove(highlightClass); highlightEl=null; }
+      };
 
-      function ensureVisible(el){
+      const ensureVisible=el=>{
         if(!el) return;
         const rect=el.getBoundingClientRect();
         if(rect.top<72 || rect.bottom>window.innerHeight-72){
           el.scrollIntoView({behavior:'smooth', block:'center'});
         }
-      }
+      };
 
-      function applyStep(){
-        const step=steps[index];
-        const actionIndex=steps.slice(0,index+1).filter(s=>!s.summary).length;
-        if(step.summary){
-          progressEl.textContent='Complete';
-        }else{
-          progressEl.textContent=`Step ${actionIndex} of ${actionableSteps.length}`;
+      const showAssistFeedback=message=>{
+        if(!assistFeedback) return;
+        if(!message){
+          assistFeedback.textContent='';
+          assistFeedback.hidden=true;
+          return;
         }
-        titleEl.textContent=step.title;
-        bodyEl.textContent=step.body;
-        summaryEl.style.display=step.summary?'flex':'none';
-        if(step.summary && summaryText){ summaryText.textContent=step.body; }
-        bodyEl.style.display=step.summary?'none':'block';
-        nextBtn.textContent=step.summary?'Finish':'Next';
-        prevBtn.style.visibility=index===0?'hidden':'visible';
+        assistFeedback.textContent=message;
+        assistFeedback.hidden=false;
+        if(assistEl) assistEl.hidden=false;
+      };
 
+      const clearAssistFeedback=()=>showAssistFeedback('');
+
+      const hideSummary=()=>{
+        if(summaryEl){ summaryEl.style.display='none'; }
+        showingSummary=false;
+        if(bodyEl){ bodyEl.style.display='block'; }
+      };
+
+      const showSummary=()=>{
+        if(summaryEl){ summaryEl.style.display='flex'; }
+        showingSummary=true;
+        if(bodyEl){ bodyEl.style.display='none'; }
+      };
+
+      const applyAssist=step=>{
+        if(!assistEl) return;
+        if(currentMode!=='assisted'){
+          assistEl.hidden=true;
+          return;
+        }
+        const assist=step?.assist;
+        if(!assist){
+          assistEl.hidden=true;
+          return;
+        }
+        assistEl.hidden=false;
+        if(assistHint) assistHint.innerHTML=assist.hint||'';
+        clearAssistFeedback();
+        if(devBox){
+          if(assist.devSnippet){
+            devBox.hidden=false;
+            devText.textContent=assist.devSnippet;
+          }else{
+            devBox.hidden=true;
+            devText.textContent='';
+          }
+        }
+        const focusEl=typeof assist.focus==='function' ? assist.focus() : assist.focus ? document.querySelector(assist.focus) : null;
+        if(focusEl && typeof focusEl.focus==='function'){
+          try{ focusEl.focus({preventScroll:true}); }catch{ focusEl.focus(); }
+        }
+      };
+
+      const validateStep=step=>{
+        if(currentMode!=='assisted') return true;
+        const validator=step?.assist?.validate;
+        if(typeof validator!=='function'){
+          clearAssistFeedback();
+          return true;
+        }
+        const result=validator();
+        if(result===true){
+          clearAssistFeedback();
+          return true;
+        }
+        const message=typeof result==='string' ? result : result && typeof result==='object' && result.message ? result.message : 'Complete this step before moving on.';
+        showAssistFeedback(message);
+        return false;
+      };
+
+      const renderStep=()=>{
+        if(!Array.isArray(steps)||!steps.length) return;
+        const total=steps.length;
+        const step=steps[index];
+        hideSummary();
+        progressEl.textContent=`Step ${index+1} of ${total}`;
+        titleEl.textContent=step.title;
+        if(bodyEl) bodyEl.textContent=step.body;
+        nextBtn.textContent=index+1===total?'Finish':'Next';
+        prevBtn.style.visibility=index===0?'hidden':'visible';
         removeHighlight();
-        if(step.selector){
-          const target=document.querySelector(step.selector);
+        if(step.target){
+          const target=document.querySelector(step.target);
           if(target){
             highlightEl=target;
-            target.classList.add('guided-focus');
-            if(step.focus && typeof target.focus==='function'){ target.focus({preventScroll:true}); }
+            target.classList.add(highlightClass);
             ensureVisible(target);
           }
         }
-        updateControls();
-      }
+        applyAssist(step);
+      };
 
-      function open(){
-        active=true; index=0; overlay.classList.add('active'); overlay.setAttribute('aria-hidden','false');
+      const renderSummary=()=>{
+        const mode=modes[currentMode]||modes.passive;
+        progressEl.textContent='Complete';
+        titleEl.textContent=mode.summaryTitle;
+        if(summaryText){ summaryText.textContent=mode.summaryBody; }
+        showSummary();
+        if(assistEl) assistEl.hidden=true;
+        nextBtn.textContent='Close';
+        prevBtn.style.visibility='visible';
+        removeHighlight();
+      };
+
+      const resetToChooser=()=>{
+        currentMode=null;
+        steps=[];
+        index=0;
+        hideSummary();
+        removeHighlight();
+        clearAssistFeedback();
+        if(assistEl) assistEl.hidden=true;
+        if(actionsEl) actionsEl.hidden=true;
+        if(contentEl) contentEl.hidden=true;
+        if(modeSelector) modeSelector.hidden=false;
+        showingSummary=false;
+      };
+
+      const activateMode=key=>{
+        const mode=modes[key];
+        if(!mode) return;
+        currentMode=key;
+        steps=mode.steps;
+        index=0;
+        if(modeSelector) modeSelector.hidden=true;
+        if(contentEl) contentEl.hidden=false;
+        if(actionsEl) actionsEl.hidden=false;
+        renderStep();
+      };
+
+      const open=()=>{
+        active=true;
+        overlay.classList.add('active');
+        overlay.setAttribute('aria-hidden','false');
         document.body.classList.add('guided-active');
-        if(pref.enabled){
-          emailHint.textContent=`Daily reports will go to ${pref.email||'your saved address'}.`;
-        }else{
-          emailHint.textContent=defaultHint;
-        }
-        applyStep();
+        if(emailHint) emailHint.textContent=pref.enabled ? `Daily reports will go to ${pref.email||'your saved address'}.` : defaultHint;
+        resetToChooser();
         syncFab();
-      }
+      };
 
-      function close(){
-        active=false; overlay.classList.remove('active'); overlay.setAttribute('aria-hidden','true');
-        document.body.classList.remove('guided-active'); removeHighlight();
+      const close=()=>{
+        active=false;
+        overlay.classList.remove('active');
+        overlay.setAttribute('aria-hidden','true');
+        document.body.classList.remove('guided-active');
+        resetToChooser();
         syncFab();
-      }
-
-      function updateControls(){
-        if(!active) return;
-        const step=steps[index];
-        const canProceed = step.summary ? true : (typeof step.canProceed==='function' ? step.canProceed() : true);
-        nextBtn.disabled=!canProceed;
-      }
+      };
 
       launchers.forEach(btn=>btn.addEventListener('click',open));
-      closeBtn.addEventListener('click',close);
+      closeBtn?.addEventListener('click',close);
       overlay.addEventListener('click',e=>{ if(e.target===overlay) close(); });
-      prevBtn.addEventListener('click',()=>{ if(index>0){ index--; applyStep(); }});
-      nextBtn.addEventListener('click',()=>{
-        const step=steps[index];
-        if(step.summary){ close(); return; }
-        if(index<steps.length-1){ index++; applyStep(); }
-      });
       document.addEventListener('keydown',e=>{ if(active && e.key==='Escape'){ close(); }});
-      document.addEventListener('input',()=>updateControls(), true);
-      document.addEventListener('change',()=>updateControls(), true);
+
+      prevBtn?.addEventListener('click',()=>{
+        if(!Array.isArray(steps)||!steps.length){ resetToChooser(); return; }
+        if(showingSummary){ hideSummary(); renderStep(); return; }
+        if(index===0){ resetToChooser(); return; }
+        if(index>0){ index--; renderStep(); }
+      });
+
+      nextBtn?.addEventListener('click',()=>{
+        if(!Array.isArray(steps)||!steps.length){ resetToChooser(); return; }
+        if(showingSummary){ close(); return; }
+        const step=steps[index];
+        if(!validateStep(step)) return;
+        if(index+1<steps.length){ index++; renderStep(); }
+        else{ renderSummary(); }
+      });
+
+      modeSelector?.querySelectorAll('[data-guided-mode]')?.forEach(button=>{
+        button.addEventListener('click',()=>{
+          const modeKey=button.getAttribute('data-guided-mode');
+          activateMode(modeKey);
+        });
+      });
+
+      if(devCopy){
+        const defaultLabel=devCopy.textContent||'Copy';
+        let resetTimer=null;
+        devCopy.addEventListener('click',async()=>{
+          const text=devText?.textContent||'';
+          if(!text.trim()) return;
+          try{
+            await navigator.clipboard?.writeText(text);
+            devCopy.textContent='Copied!';
+          }catch(err){
+            devCopy.textContent='Press ⌘/Ctrl + C';
+            const selection=window.getSelection();
+            if(selection){
+              const range=document.createRange();
+              range.selectNodeContents(devText);
+              selection.removeAllRanges();
+              selection.addRange(range);
+            }
+          }
+          clearTimeout(resetTimer);
+          resetTimer=setTimeout(()=>{
+            devCopy.textContent=defaultLabel;
+            if(window.getSelection()?.rangeCount){ window.getSelection().removeAllRanges(); }
+          },1600);
+        });
+      }
 
       const prefRaw=localStorage.getItem('ff-guided-updates');
       let pref={enabled:false,email:''};
@@ -814,12 +1093,14 @@ ${n ? "\n**Analyst notes to incorporate:**\n"+n+"\n" : ""}
         updatesChk.checked=true;
         emailRow.style.display='flex';
         emailInput.value=pref.email||'';
+      }else{
+        emailRow.style.display='none';
       }
 
-      function savePref(newPref){
+      const savePref=newPref=>{
         pref={...pref,...newPref};
         localStorage.setItem('ff-guided-updates', JSON.stringify(pref));
-      }
+      };
 
       updatesChk.addEventListener('change',()=>{
         if(updatesChk.checked){
@@ -842,10 +1123,10 @@ ${n ? "\n**Analyst notes to incorporate:**\n"+n+"\n" : ""}
         emailHint.textContent=`Saved! We will send a digest to ${email}.`;
       });
 
-      function syncFab(){
+      const syncFab=()=>{
         if(!floating) return;
         floating.classList.toggle('hidden', active || overlay.classList.contains('active'));
-      }
+      };
 
       syncFab();
     }
