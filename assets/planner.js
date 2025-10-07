@@ -6017,25 +6017,70 @@ async function startRun() {
   if (!inputs.startBtn || !inputs.status) return;
   await syncAccess({ preserveStatus: true });
 
+  const launchSteps = [
+    { id: 'session', label: 'Check that you are signed in' },
+    { id: 'admin', label: 'Confirm admin permissions' },
+    { id: 'token', label: 'Validate session freshness' },
+    { id: 'scope', label: 'Validate planner scope inputs' },
+    { id: 'payload', label: 'Build automation payload' },
+    { id: 'submit', label: 'Send run request to automation service' }
+  ];
+  const totalSteps = launchSteps.length;
+  const logStep = (stepIndex, status, detail) => {
+    const step = launchSteps[stepIndex - 1];
+    if (!step) return;
+    const prefix = `[Step ${stepIndex}/${totalSteps}] ${step.label}`;
+    let message = prefix;
+    let level = 'info';
+
+    switch (status) {
+      case 'start':
+        message = `${prefix}…`;
+        break;
+      case 'pass':
+        message = `${prefix} — passed.`;
+        break;
+      case 'skip':
+        message = `${prefix} — skipped${detail ? `: ${detail}` : '.'}`;
+        break;
+      case 'fail':
+        message = `${prefix} — failed${detail ? `: ${detail}` : '.'}`;
+        level = 'error';
+        break;
+      default:
+        message = detail ? `${prefix} — ${detail}` : prefix;
+    }
+
+    const detailPayload = detail && status === 'fail' ? [detail] : undefined;
+    logStatus(message, { level, details: detailPayload });
+  };
+
+  logStep(1, 'start');
   if (!authContext.user) {
     inputs.status.textContent = 'Sign in required';
-    logStatus('Launch blocked: no active session.');
+    logStep(1, 'fail', 'Launch blocked: no active session.');
     return;
   }
+  logStep(1, 'pass');
 
+  logStep(2, 'start');
   if (!authContext.isAdmin) {
     inputs.status.textContent = 'Admin access required';
-    logStatus('Launch blocked: admin privileges needed.');
+    logStep(2, 'fail', 'Launch blocked: admin privileges needed.');
     return;
   }
+  logStep(2, 'pass');
 
+  logStep(3, 'start');
   if (!authContext.token) {
     inputs.status.textContent = 'Session expired';
-    logStatus('Launch blocked: refresh the page or sign in again to renew your session.');
+    logStep(3, 'fail', 'Launch blocked: refresh the page or sign in again to renew your session.');
     await syncAccess();
     return;
   }
+  logStep(3, 'pass');
 
+  logStep(4, 'start');
   const settings = getSettingsFromInputs();
   const scopePayload = buildScopePayload(settings.scope);
   const plannerPayload = cloneForTransport({ ...settings, scope: scopePayload });
@@ -6051,25 +6096,30 @@ async function startRun() {
   };
   inputs.startBtn.disabled = true;
   inputs.status.textContent = 'Launching…';
-  logStatus(`Submitting run to ${RUNS_CREATE_ENDPOINT}`);
 
   if (settings.scope?.mode === 'watchlist' && !settings.scope.watchlistId) {
     inputs.status.textContent = 'Choose a watchlist before launching.';
-    logStatus('Launch blocked: no watchlist selected.');
+    logStep(4, 'fail', 'Launch blocked: no watchlist selected.');
     inputs.startBtn.disabled = false;
     return;
   }
 
   if (settings.scope?.mode === 'custom' && (!settings.scope.customTickers || settings.scope.customTickers.length === 0)) {
     inputs.status.textContent = 'Add at least one custom ticker before launching.';
-    logStatus('Launch blocked: custom ticker list empty.');
+    logStep(4, 'fail', 'Launch blocked: custom ticker list empty.');
     inputs.startBtn.disabled = false;
     return;
   }
+  logStep(4, 'pass');
+
+  logStep(5, 'start');
+  logStatus(`Prepared request for ${RUNS_CREATE_ENDPOINT}`);
+  logStep(5, 'pass');
 
   const headers = buildFunctionHeaders();
 
   try {
+    logStep(6, 'start');
     const response = await fetch(RUNS_CREATE_ENDPOINT, {
       method: 'POST',
       headers,
@@ -6100,6 +6150,7 @@ async function startRun() {
     if (typeof data.budget_usd === 'number' && data.budget_usd > 0) {
       logStatus(`Budget guardrail set to ${formatCurrency(data.budget_usd)}.`);
     }
+    logStep(6, 'pass');
   } catch (error) {
     console.error('Automated run launch failed', error);
     const statusMessage = formatLaunchStatusMessage(error);
@@ -6115,6 +6166,7 @@ async function startRun() {
       online,
       headers
     });
+    logStep(6, 'fail', statusMessage);
     logStatus(`Launch failed: ${statusMessage}`, { level: 'error', details });
   } finally {
     applyAccessState({ preserveStatus: true });
