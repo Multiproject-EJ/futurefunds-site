@@ -1516,6 +1516,7 @@
       color: var(--workspace-muted);
     }
     .credential-form input[type="text"],
+    .credential-form select,
     .credential-form textarea {
       width: 100%;
       box-sizing: border-box;
@@ -1572,6 +1573,7 @@
       color: var(--workspace-text);
     }
     .credential-form input[type="text"]:focus,
+    .credential-form select:focus,
     .credential-form textarea:focus {
       outline: none;
       border-color: var(--workspace-accent);
@@ -3014,6 +3016,12 @@
                   placeholder="Return “Yes, I'm working.” if you are receiving this."
                 >Return “Yes, I'm working.” if you are receiving this.</textarea>
               </label>
+              <div class="credential-test__model" data-credential-model-field hidden>
+                <label for="credentialTestModel">
+                  Model
+                  <select id="credentialTestModel"></select>
+                </label>
+              </div>
               <p class="credential-test__hint" id="credentialTestHint">
                 Add a provider id above (for example, <code>openrouter</code>) to see how the connectivity check runs.
               </p>
