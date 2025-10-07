@@ -215,6 +215,26 @@
     .guided-switch{display:flex;flex-direction:column;gap:6px;font-size:.85rem;color:var(--workspace-muted)}
     .guided-switch a{color:var(--workspace-accent);font-weight:600;text-decoration:none}
     .guided-switch a:hover{text-decoration:underline}
+    .guided-mode-selector{display:grid;gap:14px;margin-top:6px}
+    .guided-mode-selector[hidden]{display:none!important}
+    .guided-mode-card{position:relative;display:grid;gap:6px;padding:16px 18px;border-radius:18px;border:1px solid var(--workspace-border);background:var(--workspace-panel);text-align:left;cursor:pointer;transition:transform .18s ease,box-shadow .18s ease,border-color .18s ease}
+    .guided-mode-card:hover{transform:translateY(-2px);box-shadow:0 24px 60px rgba(15,23,42,.16);border-color:var(--workspace-accent-border)}
+    .guided-mode-card h3{margin:0;font-size:1.06rem;color:var(--workspace-text)}
+    .guided-mode-card p{margin:0;font-size:.88rem;color:var(--workspace-muted);line-height:1.5}
+    @keyframes guided-wiggle{0%,100%{transform:rotate(-1.2deg) translateY(0)}50%{transform:rotate(1.2deg) translateY(-2px)}}
+    .guided-mode-card:nth-child(1){animation:guided-wiggle 2.8s ease-in-out infinite}
+    .guided-mode-card:nth-child(2){animation:guided-wiggle 2.8s ease-in-out infinite .35s}
+    .guided-content[hidden]{display:none!important}
+    .guided-assist{display:grid;gap:10px;padding:10px 0;font-size:.9rem;color:var(--workspace-muted)}
+    .guided-assist[hidden]{display:none!important}
+    .guided-assist__hint{margin:0;font-size:.9rem;line-height:1.5;color:var(--workspace-text)}
+    .guided-assist__feedback{margin:0;font-size:.78rem;color:var(--workspace-danger)}
+    .guided-devbox{border:1px solid var(--workspace-border);border-radius:14px;padding:12px;background:var(--workspace-surface);display:grid;gap:8px}
+    .guided-devbox[hidden]{display:none!important}
+    .guided-devbox__header{display:flex;align-items:center;justify-content:space-between;font-size:.78rem;text-transform:uppercase;letter-spacing:.08em;color:var(--workspace-muted)}
+    .guided-devbox__copy{border:none;border-radius:10px;padding:6px 10px;font-size:.75rem;font-weight:600;background:var(--workspace-accent-softer);color:var(--workspace-accent-strong);cursor:pointer}
+    .guided-devbox__copy:focus-visible{outline:2px solid var(--workspace-accent-border);outline-offset:2px}
+    .guided-devbox pre{margin:0;font-family:var(--workspace-mono);font-size:.78rem;white-space:pre-wrap;word-break:break-word;color:var(--workspace-text-soft)}
     body.guided-active{overflow:hidden}
     @media (max-width:720px){
       .guided-fab{left:16px;right:16px;width:calc(100% - 32px);justify-content:center}
@@ -507,26 +527,49 @@
   <div class="guided-overlay" id="guidedOverlay" aria-hidden="true">
     <div class="guided-panel" role="dialog" aria-modal="true" aria-labelledby="guidedTitle">
       <button class="guided-close" id="guidedClose" aria-label="Close guided helper">×</button>
-      <div class="guided-progress" id="guidedProgress">Step 1 of 1</div>
-      <h2 id="guidedTitle">Guided equity setup</h2>
-      <div class="guided-body" id="guidedBody">Follow the prompts to connect telemetry and start the automated analyst.</div>
-      <div class="guided-summary" id="guidedSummary" hidden>
-        <p><strong>All set!</strong> The dashboard will keep tracking your run in real time.</p>
-        <label>
-          <input type="checkbox" id="guidedUpdates" />
-          Keep me updated with daily run reports via email.
-        </label>
-        <div class="guided-email-row" id="guidedEmailRow" hidden>
-          <input type="email" id="guidedEmail" placeholder="you@example.com" autocomplete="email" />
-          <button type="button" id="guidedEmailSave">Save</button>
+      <div class="guided-mode-selector" id="guidedModeSelector">
+        <button type="button" class="guided-mode-card" data-guided-mode="assisted">
+          <h3>Assisted fill-out</h3>
+          <p>Step through each control and update telemetry in real time.</p>
+        </button>
+        <button type="button" class="guided-mode-card" data-guided-mode="passive">
+          <h3>Passive overview</h3>
+          <p>Follow the high-level tour to understand every dashboard module.</p>
+        </button>
+      </div>
+      <div class="guided-content" id="guidedContent" hidden>
+        <div class="guided-progress" id="guidedProgress">Step 1 of 1</div>
+        <h2 id="guidedTitle">Guided equity setup</h2>
+        <div class="guided-body" id="guidedBody">Follow the prompts to connect telemetry and start the automated analyst.</div>
+        <div class="guided-assist" id="guidedAssist" hidden>
+          <p class="guided-assist__hint" id="guidedAssistHint"></p>
+          <p class="guided-assist__feedback" id="guidedAssistFeedback" hidden></p>
+          <div class="guided-devbox" id="guidedDevbox" hidden>
+            <div class="guided-devbox__header">
+              <span>Developer debug</span>
+              <button type="button" class="guided-devbox__copy" id="guidedDevCopy">Copy</button>
+            </div>
+            <pre id="guidedDevText"></pre>
+          </div>
         </div>
-        <p class="guided-email-hint" id="guidedEmailHint">We only store this preference in your browser so you stay in control.</p>
-        <div class="guided-switch">
-          <span>Need to calibrate the market planner instead?</span>
-          <a href="planner.html#guided-helper">Jump to the planner walkthrough</a>
+        <div class="guided-summary" id="guidedSummary" hidden>
+          <p><strong>All set!</strong> The dashboard will keep tracking your run in real time.</p>
+          <label for="guidedUpdates">
+            <input type="checkbox" id="guidedUpdates" />
+            Keep me updated with daily run reports via email.
+          </label>
+          <div class="guided-email-row" id="guidedEmailRow" hidden>
+            <input type="email" id="guidedEmail" placeholder="you@example.com" autocomplete="email" />
+            <button type="button" id="guidedEmailSave">Save</button>
+          </div>
+          <p class="guided-email-hint" id="guidedEmailHint">We only store this preference in your browser so you stay in control.</p>
+          <div class="guided-switch">
+            <span>Need to calibrate the market planner instead?</span>
+            <a href="planner.html#guided-helper">Jump to the planner walkthrough</a>
+          </div>
         </div>
       </div>
-      <div class="guided-actions">
+      <div class="guided-actions" id="guidedActions" hidden>
         <button type="button" id="guidedPrev">Back</button>
         <button type="button" id="guidedNext" class="primary">Next</button>
       </div>
@@ -553,9 +596,18 @@
       const emailInput = doc.getElementById('guidedEmail');
       const emailSave = doc.getElementById('guidedEmailSave');
       const emailHint = doc.getElementById('guidedEmailHint');
+      const actionsEl = doc.getElementById('guidedActions');
+      const modeSelector = doc.getElementById('guidedModeSelector');
+      const contentEl = doc.getElementById('guidedContent');
+      const assistEl = doc.getElementById('guidedAssist');
+      const assistHint = doc.getElementById('guidedAssistHint');
+      const assistFeedback = doc.getElementById('guidedAssistFeedback');
+      const devBox = doc.getElementById('guidedDevbox');
+      const devText = doc.getElementById('guidedDevText');
+      const devCopy = doc.getElementById('guidedDevCopy');
       const highlightClass = 'guided-focus';
 
-      const steps = [
+      const passiveSteps = [
         {
           title: 'Sign in & refresh telemetry',
           body: 'Use your analyst credentials to sign in. Then hit <strong>Refresh</strong> so the latest Supabase run telemetry appears.',
@@ -583,6 +635,86 @@
         }
       ];
 
+      const assistedSteps = [
+        {
+          title: 'Confirm analyst access',
+          body: 'Log in with an analyst account, then press <strong>Refresh</strong> to hydrate run options.',
+          target: '#refreshRunsBtn',
+          assist: {
+            hint: 'If the refresh button is disabled, sign in via the top navigation first. Once enabled, click it to sync the latest run registry.',
+            focus: '#refreshRunsBtn',
+            devSnippet: `await Promise.all([\n  loadRuns(),\n  loadModelCatalog()\n]);`
+          }
+        },
+        {
+          title: 'Select the run to monitor',
+          body: 'Choose which automation batch to stream into the dashboard.',
+          target: '#runSelect',
+          assist: {
+            hint: 'Pick a run from the dropdown. We\'ll remember your choice and reload telemetry on focus.',
+            focus: '#runSelect',
+            validate: () => {
+              const select = doc.getElementById('runSelect');
+              return select && select.value ? true : 'Select an active run to keep the feed aligned with your operations.';
+            }
+          }
+        },
+        {
+          title: 'Check run vitals',
+          body: 'Review status, stop requests, spend, and queue depth before diving deeper.',
+          target: '.run-meta',
+          assist: {
+            hint: 'These metrics update after every refresh. If you need to clear them, choose a different run or hit refresh again.',
+            focus: '.run-meta'
+          }
+        },
+        {
+          title: 'Monitor pipeline health',
+          body: 'Use the stage cards to verify throughput and catch failures before they compound.',
+          target: '.pipeline-grid',
+          assist: {
+            hint: 'Hover over each card to see completion percentages. Stuck queues usually mean the corresponding worker needs attention.',
+            focus: '.pipeline-grid'
+          }
+        },
+        {
+          title: 'Audit the latest analyst answers',
+          body: 'Spot-check verdicts streaming in from each worker to verify quality.',
+          target: '.activity-table',
+          assist: {
+            hint: 'Click a row to open the underlying note. Keep an eye on timestamps to ensure telemetry is fresh.',
+            focus: '.activity-table',
+            devSnippet: `const { data } = await supabase\n  .from('automation_activity')\n  .select('*')\n  .eq('run_id', state.activeRunId)\n  .order('created_at', { ascending: false })\n  .limit(25);`
+          }
+        },
+        {
+          title: 'Track upcoming engineering work',
+          body: 'Use the operational checklist to communicate the roadmap back to the team.',
+          target: '.analysis-export__fields',
+          assist: {
+            hint: 'Capture notes or send the roadmap link to stakeholders so everyone stays aligned on next upgrades.',
+            focus: '.analysis-export__fields'
+          }
+        }
+      ];
+
+      const modes = {
+        passive: {
+          name: 'Passive overview',
+          steps: passiveSteps,
+          summaryTitle: 'Setup complete',
+          summaryBody: 'Great! Your analyst dashboard will continue updating as new data streams in. You can re-open this helper whenever you need a refresher.'
+        },
+        assisted: {
+          name: 'Assisted fill-out',
+          steps: assistedSteps,
+          summaryTitle: 'Telemetry is live',
+          summaryBody: 'You\'re connected to the latest run. Keep this page open to watch streaming updates and jump into the planner whenever you need fresh batches.'
+        }
+      };
+
+      let currentMode = null;
+      let steps = [];
       let stepIndex = 0;
       let previousTarget = null;
 
@@ -600,6 +732,20 @@
         }
       };
 
+      const showAssistFeedback = message => {
+        if (!assistFeedback) return;
+        if (!message) {
+          assistFeedback.textContent = '';
+          assistFeedback.hidden = true;
+          return;
+        }
+        assistFeedback.textContent = message;
+        assistFeedback.hidden = false;
+        if (assistEl) assistEl.hidden = false;
+      };
+
+      const clearAssistFeedback = () => showAssistFeedback('');
+
       const hideSummary = () => {
         summaryEl.hidden = true;
         summaryEl.setAttribute('hidden', '');
@@ -616,7 +762,66 @@
         }
       };
 
+      const applyAssist = step => {
+        if (!assistEl) return;
+        if (currentMode !== 'assisted') {
+          assistEl.hidden = true;
+          return;
+        }
+        const assist = step?.assist;
+        if (!assist) {
+          assistEl.hidden = true;
+          return;
+        }
+        assistEl.hidden = false;
+        if (assistHint) assistHint.innerHTML = assist.hint || '';
+        clearAssistFeedback();
+        if (devBox) {
+          if (assist.devSnippet) {
+            devBox.hidden = false;
+            devText.textContent = assist.devSnippet;
+          } else {
+            devBox.hidden = true;
+            devText.textContent = '';
+          }
+        }
+        const focusTargetEl = typeof assist.focus === 'function'
+          ? assist.focus()
+          : assist.focus
+            ? doc.querySelector(assist.focus)
+            : null;
+        if (focusTargetEl && typeof focusTargetEl.focus === 'function') {
+          try {
+            focusTargetEl.focus({ preventScroll: true });
+          } catch (error) {
+            focusTargetEl.focus();
+          }
+        }
+      };
+
+      const validateStep = step => {
+        if (currentMode !== 'assisted') return true;
+        const validator = step?.assist?.validate;
+        if (typeof validator !== 'function') {
+          clearAssistFeedback();
+          return true;
+        }
+        const result = validator();
+        if (result === true) {
+          clearAssistFeedback();
+          return true;
+        }
+        const message = typeof result === 'string'
+          ? result
+          : result && typeof result === 'object' && result.message
+            ? result.message
+            : 'Complete this action before moving on.';
+        showAssistFeedback(message);
+        return false;
+      };
+
       const renderStep = () => {
+        if (!Array.isArray(steps) || !steps.length) return;
         const total = steps.length;
         const step = steps[stepIndex];
         progressEl.textContent = `Step ${stepIndex + 1} of ${total}`;
@@ -626,16 +831,43 @@
         nextBtn.textContent = stepIndex + 1 === total ? 'Finish' : 'Next';
         prevBtn.disabled = stepIndex === 0;
         focusTarget(step.target);
+        applyAssist(step);
       };
 
       const renderSummary = () => {
         progressEl.textContent = 'Complete';
-        titleEl.textContent = 'Setup complete';
-        bodyEl.innerHTML = 'Great! Your analyst dashboard will continue updating as new data streams in. You can re-open this helper whenever you need a refresher.';
+        const mode = modes[currentMode] || modes.passive;
+        titleEl.textContent = mode.summaryTitle;
+        bodyEl.innerHTML = mode.summaryBody;
         showSummary();
+        if (assistEl) assistEl.hidden = true;
         focusTarget(null);
         nextBtn.textContent = 'Close';
         prevBtn.disabled = false;
+      };
+
+      const resetToChooser = () => {
+        currentMode = null;
+        steps = [];
+        stepIndex = 0;
+        hideSummary();
+        focusTarget(null);
+        if (assistEl) assistEl.hidden = true;
+        if (actionsEl) actionsEl.hidden = true;
+        if (contentEl) contentEl.hidden = true;
+        if (modeSelector) modeSelector.hidden = false;
+      };
+
+      const activateMode = key => {
+        const mode = modes[key];
+        if (!mode) return;
+        currentMode = key;
+        steps = mode.steps;
+        stepIndex = 0;
+        if (modeSelector) modeSelector.hidden = true;
+        if (contentEl) contentEl.hidden = false;
+        if (actionsEl) actionsEl.hidden = false;
+        renderStep();
       };
 
       const openOverlay = () => {
@@ -643,8 +875,7 @@
         overlay.setAttribute('aria-hidden', 'false');
         fab.classList.add('hidden');
         body.classList.add('guided-active');
-        stepIndex = 0;
-        renderStep();
+        resetToChooser();
       };
 
       const closeOverlay = () => {
@@ -652,8 +883,7 @@
         overlay.setAttribute('aria-hidden', 'true');
         fab.classList.remove('hidden');
         body.classList.remove('guided-active');
-        hideSummary();
-        focusTarget(null);
+        resetToChooser();
       };
 
       fab?.addEventListener('click', openOverlay);
@@ -668,6 +898,14 @@
       });
 
       nextBtn?.addEventListener('click', () => {
+        if (!Array.isArray(steps) || !steps.length) {
+          resetToChooser();
+          return;
+        }
+        const step = steps[stepIndex];
+        if (!validateStep(step)) {
+          return;
+        }
         if (summaryEl.hidden) {
           if (stepIndex + 1 < steps.length) {
             stepIndex += 1;
@@ -681,9 +919,17 @@
       });
 
       prevBtn?.addEventListener('click', () => {
+        if (!Array.isArray(steps) || !steps.length) {
+          resetToChooser();
+          return;
+        }
         if (!summaryEl.hidden) {
           hideSummary();
           renderStep();
+          return;
+        }
+        if (stepIndex === 0) {
+          resetToChooser();
           return;
         }
         if (stepIndex > 0) {
@@ -732,6 +978,40 @@
           : 'We only store this preference in your browser so you stay in control.';
         emailHint.style.color = 'var(--workspace-muted)';
       });
+      modeSelector?.querySelectorAll('[data-guided-mode]')?.forEach(button => {
+        button.addEventListener('click', () => {
+          const modeKey = button.getAttribute('data-guided-mode');
+          activateMode(modeKey);
+        });
+      });
+      if (devCopy) {
+        const defaultLabel = devCopy.textContent || 'Copy';
+        let resetTimer = null;
+        devCopy.addEventListener('click', async () => {
+          const text = devText?.textContent || '';
+          if (!text.trim()) return;
+          try {
+            await navigator.clipboard?.writeText(text);
+            devCopy.textContent = 'Copied!';
+          } catch (error) {
+            devCopy.textContent = 'Press ⌘/Ctrl + C';
+            const selection = window.getSelection();
+            if (selection) {
+              const range = document.createRange();
+              range.selectNodeContents(devText);
+              selection.removeAllRanges();
+              selection.addRange(range);
+            }
+          }
+          clearTimeout(resetTimer);
+          resetTimer = setTimeout(() => {
+            devCopy.textContent = defaultLabel;
+            if (window.getSelection()?.rangeCount) {
+              window.getSelection().removeAllRanges();
+            }
+          }, 1600);
+        });
+      }
       if (window.location.hash === '#guided-helper') {
         setTimeout(() => {
           openOverlay();
