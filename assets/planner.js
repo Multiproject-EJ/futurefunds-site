@@ -23,6 +23,43 @@ const defaults = {
   scope: { mode: 'universe', watchlistId: null, watchlistSlug: null, watchlistCount: null, customTickers: [] }
 };
 
+function buildScopePayload(scope) {
+  const source = scope && typeof scope === 'object' ? scope : defaults.scope;
+  const mode = source.mode === 'watchlist' || source.mode === 'custom' ? source.mode : 'universe';
+  const payload = { mode };
+
+  const limitValue = Number.isFinite(source.limit) ? Math.floor(Number(source.limit)) : null;
+  if (limitValue && limitValue > 0) {
+    payload.limit = limitValue;
+  }
+
+  if (typeof source.source === 'string' && source.source.trim()) {
+    payload.source = source.source.trim();
+  }
+
+  if (mode === 'watchlist') {
+    if (typeof source.watchlistId === 'string' && source.watchlistId.trim()) {
+      payload.watchlist_id = source.watchlistId.trim();
+    }
+    if (typeof source.watchlistSlug === 'string' && source.watchlistSlug.trim()) {
+      payload.watchlist_slug = source.watchlistSlug.trim();
+    }
+  } else if (mode === 'custom') {
+    payload.tickers = Array.isArray(source.customTickers)
+      ? source.customTickers.filter((ticker) => typeof ticker === 'string' && ticker.trim())
+      : [];
+  } else {
+    if (typeof source.exchange === 'string' && source.exchange.trim()) {
+      payload.exchange = source.exchange.trim().toUpperCase();
+    }
+    if (typeof source.includeDelisted === 'boolean') {
+      payload.include_delisted = source.includeDelisted;
+    }
+  }
+
+  return payload;
+}
+
 const $ = (id) => document.getElementById(id);
 
 const inputs = {
@@ -5922,10 +5959,12 @@ async function startRun() {
   }
 
   const settings = getSettingsFromInputs();
+  const scopePayload = buildScopePayload(settings.scope);
+  const plannerPayload = { ...settings, scope: scopePayload };
   const requestBody = {
-    planner: settings,
+    planner: plannerPayload,
     budget_usd: settings.budgetUsd,
-    scope: settings.scope,
+    scope: scopePayload,
     client_meta: {
       origin: window.location.origin,
       pathname: window.location.pathname,
