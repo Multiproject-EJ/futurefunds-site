@@ -43,6 +43,7 @@ const inputs = {
   stage3Out: $('stage3OutputTokens'),
   status: $('startRunStatus'),
   log: $('statusLog'),
+  logCopy: $('statusLogCopyBtn'),
   costOut: $('costOutput'),
   totalCost: $('totalCost'),
   survivorSummary: $('survivorSummary'),
@@ -232,6 +233,7 @@ let stage2RefreshTimer = null;
 let stage3RefreshTimer = null;
 let followupRefreshTimer = null;
 let focusRefreshTimer = null;
+let statusCopyResetTimer = null;
 
 const followupStatusLabels = {
   pending: 'Pending review',
@@ -5405,6 +5407,95 @@ function buildLaunchErrorDetails(error, context = {}) {
   return details;
 }
 
+async function copyStatusLog() {
+  if (!inputs.log) return;
+  const content = inputs.log.textContent ?? '';
+  const trimmed = content.trim();
+  if (!trimmed) {
+    if (inputs.status) {
+      inputs.status.textContent = 'Launch log is empty — nothing to copy yet.';
+      if (statusCopyResetTimer) {
+        clearTimeout(statusCopyResetTimer);
+        statusCopyResetTimer = null;
+      }
+    }
+    return;
+  }
+
+  const hasNavigator = typeof navigator !== 'undefined';
+  const useClipboardApi = hasNavigator && navigator.clipboard && typeof navigator.clipboard.writeText === 'function';
+
+  const restoreSelection = () => {
+    const selection = document.getSelection();
+    if (!selection) return () => {};
+    if (selection.rangeCount === 0) return () => {};
+    const ranges = [];
+    for (let i = 0; i < selection.rangeCount; i += 1) {
+      ranges.push(selection.getRangeAt(i));
+    }
+    return () => {
+      selection.removeAllRanges();
+      ranges.forEach((range) => selection.addRange(range));
+    };
+  };
+
+  try {
+    if (useClipboardApi) {
+      await navigator.clipboard.writeText(content);
+    } else {
+      const textarea = document.createElement('textarea');
+      textarea.value = content;
+      textarea.setAttribute('readonly', '');
+      textarea.style.position = 'absolute';
+      textarea.style.left = '-9999px';
+      const scrollY = typeof window !== 'undefined' ? window.scrollY : 0;
+      textarea.style.top = `${scrollY}px`;
+      document.body.appendChild(textarea);
+      const undoSelection = restoreSelection();
+      textarea.focus();
+      textarea.select();
+      textarea.setSelectionRange(0, textarea.value.length);
+      const succeeded = document.execCommand('copy');
+      undoSelection();
+      document.body.removeChild(textarea);
+      if (!succeeded) {
+        throw new Error('Clipboard copy is not supported in this browser.');
+      }
+    }
+
+    if (inputs.logCopy) {
+      const button = inputs.logCopy;
+      const originalLabel = button.dataset.originalLabel ?? button.textContent ?? 'Copy log';
+      button.dataset.originalLabel = originalLabel;
+      button.disabled = true;
+      button.textContent = 'Copied!';
+      window.setTimeout(() => {
+        button.disabled = false;
+        button.textContent = button.dataset.originalLabel || originalLabel;
+      }, 1500);
+    }
+
+    if (inputs.status) {
+      const previousMessage = inputs.status.textContent ?? '';
+      const successMessage = 'Launch log copied to clipboard.';
+      inputs.status.textContent = successMessage;
+      if (statusCopyResetTimer) window.clearTimeout(statusCopyResetTimer);
+      statusCopyResetTimer = window.setTimeout(() => {
+        if (inputs.status && inputs.status.textContent === successMessage) {
+          inputs.status.textContent = previousMessage;
+        }
+        statusCopyResetTimer = null;
+      }, 2500);
+    }
+  } catch (error) {
+    if (inputs.status) {
+      const message = error instanceof Error ? error.message : String(error);
+      inputs.status.textContent = `Copy failed: ${message}`;
+    }
+    throw error;
+  }
+}
+
 function logStatus(message, options = {}) {
   if (!inputs.log) return;
   const { level = 'info', details } = typeof options === 'object' && options !== null ? options : {};
@@ -6166,6 +6257,15 @@ function bindEvents() {
     updateCostOutput();
     logStatus('Registry refreshed.');
     inputs.status.textContent = 'Registry updated';
+  });
+  inputs.logCopy?.addEventListener('click', () => {
+    copyStatusLog().catch((error) => {
+      console.error('Failed to copy launch status log', error);
+      if (inputs.status) {
+        const message = error instanceof Error ? error.message : String(error);
+        inputs.status.textContent = `Copy failed: ${message}`;
+      }
+    });
   });
   scopeRadios.forEach((radio) => radio.addEventListener('change', handleScopeChange));
   inputs.watchlistSelect?.addEventListener('change', handleWatchlistSelect);
