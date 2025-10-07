@@ -5301,11 +5301,134 @@ function updateCostOutput() {
   updateScopeStatusMessage(plannerScope.mode, getWatchlistById(plannerScope.watchlistId), plannerScope.customTickers);
 }
 
-function logStatus(message) {
+function truncateDetail(text, limit = 2000) {
+  if (typeof text !== 'string') return '';
+  if (text.length <= limit) return text;
+  return `${text.slice(0, limit)}… [truncated]`;
+}
+
+function safeStringify(value, space = 2) {
+  if (value === undefined) return 'undefined';
+  if (typeof value === 'string') return value;
+  const seen = new WeakSet();
+  try {
+    const result = JSON.stringify(
+      value,
+      (key, val) => {
+        if (typeof val === 'bigint') return val.toString();
+        if (val instanceof Error) {
+          return {
+            name: val.name,
+            message: val.message,
+            stack: val.stack
+          };
+        }
+        if (typeof val === 'object' && val !== null) {
+          if (seen.has(val)) return '[Circular]';
+          seen.add(val);
+        }
+        return val;
+      },
+      space
+    );
+    return typeof result === 'string' ? result : String(value);
+  } catch (error) {
+    return String(value);
+  }
+}
+
+function describeError(error) {
+  if (!error) return ['No error object was provided.'];
+
+  const details = [];
+  const name = error.name || error.constructor?.name || null;
+  if (name) details.push(`Error type: ${name}`);
+
+  const statusLike = error.status ?? error.statusCode ?? error.code ?? null;
+  if (statusLike) details.push(`Status / code: ${statusLike}`);
+
+  if (typeof error.statusText === 'string' && error.statusText.trim()) {
+    details.push(`Status text: ${error.statusText.trim()}`);
+  }
+
+  if (typeof error.details === 'string' && error.details.trim()) {
+    details.push(`Details: ${error.details.trim()}`);
+  } else if (error.details && typeof error.details === 'object') {
+    const serialized = safeStringify(error.details, 2);
+    if (serialized && serialized !== '{}') {
+      details.push(`Details: \n${serialized}`);
+    }
+  }
+
+  if (typeof error === 'object' || typeof error === 'function') {
+    const extraEntries = Object.getOwnPropertyNames(error)
+      .filter((key) => !['name', 'message', 'stack', 'cause', 'details', 'status', 'statusCode', 'code', 'statusText'].includes(key))
+      .map((key) => {
+        const value = error[key];
+        const serialized = typeof value === 'string' ? value : safeStringify(value, 2);
+        return `${key}: ${serialized}`;
+      });
+    if (extraEntries.length) details.push(...extraEntries);
+  }
+
+  if (error.cause) {
+    const causeValue = typeof error.cause === 'string' ? error.cause : safeStringify(error.cause, 2);
+    details.push(`Cause: \n${causeValue}`);
+  }
+
+  if (typeof error.stack === 'string' && error.stack.trim()) {
+    details.push(`Stack trace: \n${error.stack.trim()}`);
+  }
+
+  return details.length ? details : ['No additional error metadata available.'];
+}
+
+function buildLaunchErrorDetails(error, context = {}) {
+  const details = [];
+  if (context.endpoint) {
+    details.push(`Endpoint: ${context.endpoint}`);
+  }
+
+  if (context.online !== null) {
+    details.push(`Network online: ${context.online ? 'yes' : 'no'}`);
+  }
+
+  if (context.payload) {
+    const serializedPayload = safeStringify(context.payload, 2);
+    if (serializedPayload) {
+      details.push(`Request payload: \n${truncateDetail(serializedPayload)}`);
+    }
+  }
+
+  const errorDetails = describeError(error);
+  details.push(...errorDetails);
+  return details;
+}
+
+function logStatus(message, options = {}) {
   if (!inputs.log) return;
+  const { level = 'info', details } = typeof options === 'object' && options !== null ? options : {};
   const now = new Date();
   const timestamp = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-  inputs.log.textContent = `[${timestamp}] ${message}\n\n${inputs.log.textContent}`.trim();
+  const label = level === 'error' ? 'ERROR' : level === 'warn' ? 'WARN' : 'INFO';
+  const lines = [`[${timestamp}] [${label}] ${message}`];
+
+  if (details) {
+    const entries = Array.isArray(details) ? details : [details];
+    entries
+      .filter((entry) => entry !== undefined && entry !== null && String(entry).trim().length > 0)
+      .forEach((entry) => {
+        const text = typeof entry === 'string' ? entry : safeStringify(entry, 2);
+        text.split('\n').forEach((line, index) => {
+          const formattedLine = line.trimEnd();
+          lines.push(`${index === 0 ? '  • ' : '    '}${formattedLine}`);
+        });
+      });
+  }
+
+  const entry = lines.join('\n').trim();
+  const previous = inputs.log.textContent || '';
+  inputs.log.textContent = previous ? `${entry}\n\n${previous}` : entry;
 }
 
 const defaultSectorEmptyText = inputs.sectorNotesEmpty?.textContent ??
@@ -5708,6 +5831,16 @@ async function startRun() {
   }
 
   const settings = getSettingsFromInputs();
+  const requestBody = {
+    planner: settings,
+    budget_usd: settings.budgetUsd,
+    scope: settings.scope,
+    client_meta: {
+      origin: window.location.origin,
+      pathname: window.location.pathname,
+      triggered_at: new Date().toISOString()
+    }
+  };
   inputs.startBtn.disabled = true;
   inputs.status.textContent = 'Launching…';
   logStatus(`Submitting run to ${RUNS_CREATE_ENDPOINT}`);
@@ -5730,21 +5863,19 @@ async function startRun() {
     const response = await fetch(RUNS_CREATE_ENDPOINT, {
       method: 'POST',
       headers: buildFunctionHeaders(),
-      body: JSON.stringify({
-        planner: settings,
-        budget_usd: settings.budgetUsd,
-        scope: settings.scope,
-        client_meta: {
-          origin: window.location.origin,
-          pathname: window.location.pathname,
-          triggered_at: new Date().toISOString()
-        }
-      })
+      body: JSON.stringify(requestBody)
     });
 
     if (!response.ok) {
       const text = await response.text();
-      throw new Error(`API responded ${response.status}: ${text}`);
+      const error = new Error(`API responded ${response.status}: ${text || response.statusText || 'No response body'}`);
+      error.name = 'RunsCreateRequestError';
+      error.status = response.status;
+      error.statusText = response.statusText;
+      error.details = {
+        responseBody: truncateDetail(text, 2000)
+      };
+      throw error;
     }
 
     const data = await response.json();
@@ -5765,7 +5896,16 @@ async function startRun() {
       ? error.message
       : 'Launch failed: unexpected error (see console for details).';
     inputs.status.textContent = message;
-    logStatus(`Launch failed: ${message}`);
+    inputs.startBtn.disabled = false;
+    const online = typeof navigator !== 'undefined' && Object.prototype.hasOwnProperty.call(navigator, 'onLine')
+      ? navigator.onLine
+      : null;
+    const details = buildLaunchErrorDetails(error, {
+      endpoint: RUNS_CREATE_ENDPOINT,
+      payload: requestBody,
+      online
+    });
+    logStatus(`Launch failed: ${message}`, { level: 'error', details });
   } finally {
     applyAccessState({ preserveStatus: true });
   }
