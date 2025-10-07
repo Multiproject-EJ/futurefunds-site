@@ -2243,18 +2243,18 @@ function initCredentialManager() {
     }
     const parsed = typeof promptConfig.parse === 'function' ? promptConfig.parse(payload) : '';
     const answer = (typeof parsed === 'string' ? parsed : '')?.trim();
-    const modelId = promptConfig.model || null;
-    const modelLabelValue = promptConfig.modelLabel || null;
+    const resolvedModelId = promptConfig.model || null;
+    const resolvedModelLabel = promptConfig.modelLabel || null;
     if (answer) {
-      return { answer, model: modelId, modelLabel: modelLabelValue };
+      return { answer, model: resolvedModelId, modelLabel: resolvedModelLabel };
     }
     if (detail) {
-      return { answer: detail, model: modelId, modelLabel: modelLabelValue };
+      return { answer: detail, model: resolvedModelId, modelLabel: resolvedModelLabel };
     }
     if (typeof payload === 'string' && payload.trim()) {
-      return { answer: payload.trim(), model: modelId, modelLabel: modelLabelValue };
+      return { answer: payload.trim(), model: resolvedModelId, modelLabel: resolvedModelLabel };
     }
-    return { answer: 'No response text returned.', model: modelId, modelLabel: modelLabelValue };
+    return { answer: 'No response text returned.', model: resolvedModelId, modelLabel: resolvedModelLabel };
   };
 
   const applyLockedContent = (reason) => {
