@@ -121,16 +121,16 @@ as $$
         'name', dim.name,
         'verdict', score.verdict,
         'score', score.score,
-        'ensemble_score', score.ensemble_score,
-        'llm_score', score.llm_score,
-        'factor_score', score.factor_score,
+        'ensemble_score', (to_jsonb(score) ->> 'ensemble_score')::numeric,
+        'llm_score', (to_jsonb(score) ->> 'llm_score')::numeric,
+        'factor_score', (to_jsonb(score) ->> 'factor_score')::numeric,
         'weight', score.weight,
-        'llm_weight', score.llm_weight,
-        'factor_weight', score.factor_weight,
+        'llm_weight', (to_jsonb(score) ->> 'llm_weight')::numeric,
+        'factor_weight', (to_jsonb(score) ->> 'factor_weight')::numeric,
         'color', score.color,
         'summary', score.summary,
         'tags', score.tags,
-        'factor_breakdown', score.factor_breakdown
+        'factor_breakdown', coalesce(to_jsonb(score) -> 'factor_breakdown', '[]'::jsonb)
       ) order by dim.order_index asc), '[]'::jsonb) as dimension_scores
       from public.analysis_dimension_scores score
       join public.analysis_dimensions dim on dim.id = score.dimension_id
@@ -296,17 +296,17 @@ as $$
         'name', dim.name,
         'verdict', score.verdict,
         'score', score.score,
-        'ensemble_score', score.ensemble_score,
-        'llm_score', score.llm_score,
-        'factor_score', score.factor_score,
+        'ensemble_score', (to_jsonb(score) ->> 'ensemble_score')::numeric,
+        'llm_score', (to_jsonb(score) ->> 'llm_score')::numeric,
+        'factor_score', (to_jsonb(score) ->> 'factor_score')::numeric,
         'weight', score.weight,
-        'llm_weight', score.llm_weight,
-        'factor_weight', score.factor_weight,
+        'llm_weight', (to_jsonb(score) ->> 'llm_weight')::numeric,
+        'factor_weight', (to_jsonb(score) ->> 'factor_weight')::numeric,
         'color', score.color,
         'summary', score.summary,
         'tags', score.tags,
         'details', score.details,
-        'factor_breakdown', score.factor_breakdown
+        'factor_breakdown', coalesce(to_jsonb(score) -> 'factor_breakdown', '[]'::jsonb)
       ) order by dim.order_index asc), '[]'::jsonb) as rows
       from public.analysis_dimension_scores score
       join public.analysis_dimensions dim on dim.id = score.dimension_id
