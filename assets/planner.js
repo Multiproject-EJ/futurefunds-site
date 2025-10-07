@@ -267,7 +267,7 @@ const FUNCTION_NAMES = {
 };
 
 const FUNCTION_BASE_CANDIDATES = (() => {
-  const trimmed = (SUPABASE_URL || '').trim().replace(/\/+$, '');
+  const trimmed = (SUPABASE_URL || '').trim().replace(/\/+$/, '');
   const candidates = new Set();
   if (trimmed) {
     candidates.add(`${trimmed}/functions/v1`);
