@@ -5346,6 +5346,21 @@ function truncateDetail(text, limit = 2000) {
   return `${text.slice(0, limit)}… [truncated]`;
 }
 
+function cloneForTransport(value) {
+  if (typeof structuredClone === 'function') {
+    try {
+      return structuredClone(value);
+    } catch (error) {
+      // Fall back to JSON cloning below.
+    }
+  }
+  try {
+    return JSON.parse(JSON.stringify(value));
+  } catch (error) {
+    return value;
+  }
+}
+
 function safeStringify(value, space = 2) {
   if (value === undefined) return 'undefined';
   if (typeof value === 'string') return value;
@@ -5382,6 +5397,11 @@ function describeError(error) {
   const details = [];
   const name = error.name || error.constructor?.name || null;
   if (name) details.push(`Error type: ${name}`);
+
+  const message = typeof error.message === 'string' && error.message.trim();
+  if (message) {
+    details.push(`Message: ${message}`);
+  }
 
   const statusLike = error.status ?? error.statusCode ?? error.code ?? null;
   if (statusLike) details.push(`Status / code: ${statusLike}`);
@@ -5428,8 +5448,20 @@ function buildLaunchErrorDetails(error, context = {}) {
     details.push(`Endpoint: ${context.endpoint}`);
   }
 
+  if (context.method) {
+    details.push(`Method: ${context.method}`);
+  }
+
   if (context.online !== null) {
     details.push(`Network online: ${context.online ? 'yes' : 'no'}`);
+  }
+
+  if (context.headers) {
+    const sanitizedHeaders = sanitizeHeadersForLog(context.headers);
+    const serializedHeaders = safeStringify(sanitizedHeaders, 2);
+    if (serializedHeaders && serializedHeaders !== '{}') {
+      details.push(`Request headers: \n${serializedHeaders}`);
+    }
   }
 
   if (context.payload) {
@@ -5441,7 +5473,53 @@ function buildLaunchErrorDetails(error, context = {}) {
 
   const errorDetails = describeError(error);
   details.push(...errorDetails);
+  if (error && error.name === 'TypeError') {
+    const message = typeof error.message === 'string' ? error.message : '';
+    if (/Failed to fetch/i.test(message)) {
+      details.push('Hint: The browser blocked the request before a response was received. Inspect the Network tab for CORS errors, confirm the Supabase edge function URL is correct, and verify the function is deployed.');
+    }
+  }
   return details;
+}
+
+function sanitizeHeadersForLog(headers) {
+  if (!headers || typeof headers !== 'object') return null;
+  const sanitized = {};
+  for (const [key, value] of Object.entries(headers)) {
+    if (value === undefined || value === null) continue;
+    const normalizedKey = key.toString();
+    let stringValue = typeof value === 'string' ? value : String(value);
+    if (/authorization/i.test(normalizedKey)) {
+      stringValue = stringValue.startsWith('Bearer ')
+        ? 'Bearer [redacted]'
+        : '[redacted]';
+    } else if (/api[-]?key/i.test(normalizedKey) || /apikey/i.test(normalizedKey)) {
+      stringValue = '[redacted]';
+    }
+    sanitized[normalizedKey] = stringValue;
+  }
+  return sanitized;
+}
+
+function formatLaunchStatusMessage(error) {
+  if (!error) {
+    return 'Launch failed: unexpected error (see console for details).';
+  }
+
+  const rawMessage = typeof error.message === 'string' ? error.message.trim() : '';
+  if (error.name === 'RunsCreateRequestError' && rawMessage) {
+    return rawMessage;
+  }
+
+  if (error.name === 'TypeError' && /Failed to fetch/i.test(rawMessage)) {
+    return 'Network error: the run request never reached the automation service. Check CORS, Supabase function availability, or browser network policies.';
+  }
+
+  if (rawMessage) {
+    return `Launch failed: ${rawMessage}`;
+  }
+
+  return 'Launch failed: unexpected error (see console for details).';
 }
 
 async function copyStatusLog() {
@@ -5960,11 +6038,11 @@ async function startRun() {
 
   const settings = getSettingsFromInputs();
   const scopePayload = buildScopePayload(settings.scope);
-  const plannerPayload = { ...settings, scope: scopePayload };
+  const plannerPayload = cloneForTransport({ ...settings, scope: scopePayload });
   const requestBody = {
     planner: plannerPayload,
     budget_usd: settings.budgetUsd,
-    scope: scopePayload,
+    scope: cloneForTransport(scopePayload),
     client_meta: {
       origin: window.location.origin,
       pathname: window.location.pathname,
@@ -5989,10 +6067,12 @@ async function startRun() {
     return;
   }
 
+  const headers = buildFunctionHeaders();
+
   try {
     const response = await fetch(RUNS_CREATE_ENDPOINT, {
       method: 'POST',
-      headers: buildFunctionHeaders(),
+      headers,
       body: JSON.stringify(requestBody)
     });
 
@@ -6022,20 +6102,20 @@ async function startRun() {
     }
   } catch (error) {
     console.error('Automated run launch failed', error);
-    const message = typeof error?.message === 'string' && error.message.trim().length > 0
-      ? error.message
-      : 'Launch failed: unexpected error (see console for details).';
-    inputs.status.textContent = message;
+    const statusMessage = formatLaunchStatusMessage(error);
+    inputs.status.textContent = statusMessage;
     inputs.startBtn.disabled = false;
     const online = typeof navigator !== 'undefined' && Object.prototype.hasOwnProperty.call(navigator, 'onLine')
       ? navigator.onLine
       : null;
     const details = buildLaunchErrorDetails(error, {
       endpoint: RUNS_CREATE_ENDPOINT,
+      method: 'POST',
       payload: requestBody,
-      online
+      online,
+      headers
     });
-    logStatus(`Launch failed: ${message}`, { level: 'error', details });
+    logStatus(`Launch failed: ${statusMessage}`, { level: 'error', details });
   } finally {
     applyAccessState({ preserveStatus: true });
   }
