@@ -239,6 +239,19 @@ const notices = {
 };
 
 const scopeRadios = Array.from(document.querySelectorAll('input[name="runScope"]'));
+const scopeBodies = {
+  watchlist: document.querySelector('.scope-option--watchlist .scope-option__body'),
+  custom: document.querySelector('.scope-option--custom .scope-option__body')
+};
+
+function focusElement(element) {
+  if (!element || typeof element.focus !== 'function' || element.disabled) return;
+  try {
+    element.focus({ preventScroll: true });
+  } catch (error) {
+    element.focus();
+  }
+}
 
 const FUNCTION_NAMES = {
   runsCreate: 'runs-create',
@@ -519,6 +532,38 @@ function getSelectedScopeMode() {
   return plannerScope.mode ?? defaults.scope.mode;
 }
 
+function ensureScopeMode(mode, { focusTarget = null, openTarget = false } = {}) {
+  if (!mode) return;
+  const radio = scopeRadios.find((input) => input.value === mode);
+  if (!radio) return;
+  const wasChecked = radio.checked;
+  if (!wasChecked) {
+    radio.checked = true;
+    handleScopeChange();
+  } else {
+    updateScopeUI();
+  }
+  if (focusTarget) {
+    requestAnimationFrame(() => {
+      if (focusTarget.disabled) return;
+      focusElement(focusTarget);
+      if (openTarget && focusTarget === inputs.watchlistSelect) {
+        if (typeof focusTarget.showPicker === 'function') {
+          focusTarget.showPicker();
+        } else {
+          focusTarget.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+          focusTarget.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+          focusTarget.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        }
+      }
+      if (focusTarget === inputs.customTickers && typeof focusTarget.setSelectionRange === 'function') {
+        const length = focusTarget.value.length;
+        focusTarget.setSelectionRange(length, length);
+      }
+    });
+  }
+}
+
 function getWatchlistById(id) {
   if (!id) return null;
   return watchlistMap.get(id) ?? null;
@@ -641,7 +686,19 @@ function updateScopeUI({ fromSettings = false } = {}) {
   const watchlist = plannerScope.watchlistId ? getWatchlistById(plannerScope.watchlistId) : null;
 
   if (inputs.watchlistSelect) {
-    inputs.watchlistSelect.disabled = mode !== 'watchlist' || watchlistLoading;
+    const shouldEnableWatchlist = mode === 'watchlist' && !watchlistLoading;
+    if (shouldEnableWatchlist) {
+      inputs.watchlistSelect.disabled = false;
+      inputs.watchlistSelect.removeAttribute('disabled');
+      inputs.watchlistSelect.removeAttribute('aria-disabled');
+      if (!fromSettings && document.activeElement !== inputs.watchlistSelect) {
+        focusElement(inputs.watchlistSelect);
+      }
+    } else {
+      inputs.watchlistSelect.disabled = true;
+      inputs.watchlistSelect.setAttribute('disabled', '');
+      inputs.watchlistSelect.setAttribute('aria-disabled', 'true');
+    }
   }
   if (inputs.refreshWatchlistsBtn) {
     inputs.refreshWatchlistsBtn.disabled = watchlistLoading;
@@ -653,16 +710,15 @@ function updateScopeUI({ fromSettings = false } = {}) {
       inputs.customTickers.removeAttribute('disabled');
       inputs.customTickers.removeAttribute('aria-disabled');
       if (!fromSettings) {
-        try {
-          inputs.customTickers.focus({ preventScroll: true });
-        } catch (error) {
-          inputs.customTickers.focus();
-        }
+        focusElement(inputs.customTickers);
       }
     } else {
       inputs.customTickers.disabled = true;
       inputs.customTickers.setAttribute('disabled', '');
       inputs.customTickers.setAttribute('aria-disabled', 'true');
+      if (document.activeElement === inputs.customTickers) {
+        inputs.customTickers.blur();
+      }
     }
   }
 
@@ -6571,7 +6627,49 @@ function bindEvents() {
   });
   scopeRadios.forEach((radio) => radio.addEventListener('change', handleScopeChange));
   inputs.watchlistSelect?.addEventListener('change', handleWatchlistSelect);
+  inputs.watchlistSelect?.addEventListener('focus', () => {
+    if (plannerScope.mode !== 'watchlist') {
+      ensureScopeMode('watchlist', { focusTarget: inputs.watchlistSelect });
+    }
+  });
   inputs.customTickers?.addEventListener('input', handleCustomTickerInput);
+  inputs.customTickers?.addEventListener('focus', () => {
+    if (plannerScope.mode !== 'custom') {
+      ensureScopeMode('custom', { focusTarget: inputs.customTickers });
+    }
+  });
+  if (scopeBodies.watchlist) {
+    scopeBodies.watchlist.addEventListener(
+      'pointerdown',
+      (event) => {
+        const target = event.target instanceof HTMLElement ? event.target : null;
+        if (target?.closest('input[type="radio"][name="runScope"]')) return;
+        const clickedButton = target?.closest('button');
+        const wantsPicker = target === inputs.watchlistSelect;
+        if (plannerScope.mode === 'watchlist') return;
+        const focusTarget = clickedButton ? null : inputs.watchlistSelect;
+        ensureScopeMode('watchlist', {
+          focusTarget,
+          openTarget: wantsPicker
+        });
+      },
+      { capture: true }
+    );
+  }
+  if (scopeBodies.custom) {
+    scopeBodies.custom.addEventListener(
+      'pointerdown',
+      (event) => {
+        const target = event.target instanceof HTMLElement ? event.target : null;
+        if (target?.closest('input[type="radio"][name="runScope"]')) return;
+        if (plannerScope.mode === 'custom') return;
+        const clickedButton = target?.closest('button');
+        const focusTarget = clickedButton ? null : inputs.customTickers;
+        ensureScopeMode('custom', { focusTarget });
+      },
+      { capture: true }
+    );
+  }
   inputs.refreshWatchlistsBtn?.addEventListener('click', () => {
     loadWatchlists({ silent: false }).catch((error) => {
       console.error('Failed to refresh watchlists', error);
