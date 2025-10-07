@@ -50,8 +50,13 @@ a:hover{text-decoration:underline}
   justify-content:space-between;
   padding:1rem 2rem;
   border-bottom:1px solid #1a2147;
-  position:relative;
-  z-index:40;
+  position:sticky;
+  top:0;
+  width:100%;
+  background:rgba(11,16,32,.92);
+  background:color-mix(in srgb, var(--card) 88%, #050a1a 12%);
+  backdrop-filter:blur(10px);
+  z-index:60;
 }
 .site-footer{
   margin-top:auto;
