@@ -532,7 +532,7 @@ function getSelectedScopeMode() {
   return plannerScope.mode ?? defaults.scope.mode;
 }
 
-function ensureScopeMode(mode, { focusTarget = null } = {}) {
+function ensureScopeMode(mode, { focusTarget = null, openTarget = false } = {}) {
   if (!mode) return;
   const radio = scopeRadios.find((input) => input.value === mode);
   if (!radio) return;
@@ -543,8 +543,24 @@ function ensureScopeMode(mode, { focusTarget = null } = {}) {
   } else {
     updateScopeUI();
   }
-  if (focusTarget && !focusTarget.disabled) {
-    requestAnimationFrame(() => focusElement(focusTarget));
+  if (focusTarget) {
+    requestAnimationFrame(() => {
+      if (focusTarget.disabled) return;
+      focusElement(focusTarget);
+      if (openTarget && focusTarget === inputs.watchlistSelect) {
+        if (typeof focusTarget.showPicker === 'function') {
+          focusTarget.showPicker();
+        } else {
+          focusTarget.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+          focusTarget.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+          focusTarget.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        }
+      }
+      if (focusTarget === inputs.customTickers && typeof focusTarget.setSelectionRange === 'function') {
+        const length = focusTarget.value.length;
+        focusTarget.setSelectionRange(length, length);
+      }
+    });
   }
 }
 
@@ -6626,11 +6642,16 @@ function bindEvents() {
     scopeBodies.watchlist.addEventListener(
       'pointerdown',
       (event) => {
-        if (event.target.closest('input[type="radio"][name="runScope"]')) return;
-        if (event.target.closest('button')) return;
+        const target = event.target instanceof HTMLElement ? event.target : null;
+        if (target?.closest('input[type="radio"][name="runScope"]')) return;
+        const clickedButton = target?.closest('button');
+        const wantsPicker = target === inputs.watchlistSelect;
         if (plannerScope.mode === 'watchlist') return;
-        event.preventDefault();
-        ensureScopeMode('watchlist', { focusTarget: inputs.watchlistSelect });
+        const focusTarget = clickedButton ? null : inputs.watchlistSelect;
+        ensureScopeMode('watchlist', {
+          focusTarget,
+          openTarget: wantsPicker
+        });
       },
       { capture: true }
     );
@@ -6639,11 +6660,12 @@ function bindEvents() {
     scopeBodies.custom.addEventListener(
       'pointerdown',
       (event) => {
-        if (event.target.closest('input[type="radio"][name="runScope"]')) return;
-        if (event.target.closest('button')) return;
+        const target = event.target instanceof HTMLElement ? event.target : null;
+        if (target?.closest('input[type="radio"][name="runScope"]')) return;
         if (plannerScope.mode === 'custom') return;
-        event.preventDefault();
-        ensureScopeMode('custom', { focusTarget: inputs.customTickers });
+        const clickedButton = target?.closest('button');
+        const focusTarget = clickedButton ? null : inputs.customTickers;
+        ensureScopeMode('custom', { focusTarget });
       },
       { capture: true }
     );
