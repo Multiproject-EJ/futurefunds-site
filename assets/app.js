@@ -361,11 +361,11 @@ document.addEventListener('DOMContentLoaded', renderAiArticle);
 (function themeInit(){
   const KEY = 'ff_theme';
   const body = document.body;
-  const order = ['theme-dark','theme-light']; // add 'theme-earth' if you want to cycle 3
+  const order = ['theme-light','theme-dark']; // add 'theme-earth' if you want to cycle 3
 
   // Ensure exactly one theme class is present at start
   const saved = localStorage.getItem(KEY);
-  const start = order.includes(saved) ? saved : 'theme-dark';
+  const start = order.includes(saved) ? saved : 'theme-light';
   order.forEach(t => body.classList.remove(t));
   body.classList.add(start);
 

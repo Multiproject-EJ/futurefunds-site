@@ -206,17 +206,16 @@
   </style>
 </head>
 <body>
-  <header class="site-header">
+<header class="site-header">
+  <div class="site-header__inner">
     <a class="brand" href="/">
       <img src="/images/logo.webp" alt="FutureFunds.ai logo" class="logo" />
       <span>FutureFunds.ai</span>
     </a>
-
     <button class="nav-toggle" id="navToggle" type="button" aria-expanded="false" aria-controls="siteNav">
       <span class="sr-only">Menu</span>
       <span class="nav-toggle__bar"></span>
     </button>
-
     <nav class="nav" id="siteNav" aria-label="Primary navigation">
       <div class="nav-links">
         <div class="nav-item nav-item--team">
@@ -288,11 +287,22 @@
           </div>
         </div>
       </div>
-      <div class="nav-cta">
-        <a class="btn secondary" href="/login.html">Sign in</a>
+
+      <div class="nav-actions">
+        <div class="nav-actions__group" role="group" aria-label="Display preferences">
+          <button id="langBtn" class="btn small ghost nav-actions__btn" type="button">EN ▾</button>
+          <button id="themeToggle" class="btn small ghost theme-toggle nav-actions__btn" type="button" aria-label="Toggle theme">
+            <span class="theme-toggle__icon" aria-hidden="true">🌗</span>
+            <span class="theme-toggle__label" data-i18n="nav.themeToggle">Theme</span>
+          </button>
+        </div>
+        <button id="accountBtn" class="btn primary nav-actions__btn nav-actions__btn--cta" type="button" data-open-auth="signin" aria-haspopup="dialog" aria-expanded="false" aria-label="Members Area">
+          <span data-account-label data-i18n="nav.account">Members Area</span>
+        </button>
       </div>
     </nav>
-  </header>
+  </div>
+</header>
 
   <main>
     <section class="hero">
