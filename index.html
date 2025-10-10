@@ -10,7 +10,10 @@
   <meta property="og:image" content="/images/og-card.png" />
 
   <!-- Styles -->
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@1,600&family=Manrope:wght@700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/assets/styles.css" />
+  <link rel="stylesheet" href="/assets/css/ff-notebook-hero.css" />
 
   <!-- Favicon / Icons -->
   <link rel="icon" href="/favicon.ico">
@@ -98,88 +101,36 @@
 
 
   <main>
-    <!-- HERO: Experiment-first question -->
-    <section class="hero hero--experiment">
-      <div class="badge">EXPERIMENT</div>
+    <!-- Hero -->
+    <section class="ff-hero" id="hero">
+      <div class="ff-hero__wrap">
+        <aside class="ff-sticky">Note <b>#01</b><br/>Scholarly • friendly • annotated</aside>
 
-      <div class="hero-divider">
-        <span class="kicker">A simple question</span>
-      </div>
+        <span class="ff-pill">EXPERIMENT</span>
+        <div class="ff-sub">A simple question</div>
 
-      <div class="hero-layout">
-        <div class="hero-copy">
-          <h1 class="hero-question">
-            What happens if AI runs the investment process?
-          </h1>
+        <h1 class="ff-h1">What happens if <span class="ff-dotted">AI</span> runs the investment process?</h1>
 
-          <p class="muted hero-sub">
-            FutureFunds.ai is a live research project: we codify the playbooks of legendary investors,
-            wire them into tireless AI copilots, and publish the outcomes in public.
-          </p>
+        <p class="ff-lede">
+          FutureFunds.ai is a live research project: we codify the playbooks of legendary investors,
+          wire them into tireless AI copilots, and publish the outcomes in public. Members follow every experiment,
+          see the real results, and access whole-market coverage for just a few dollars a month—no massive AI build or upkeep required.
+          <br><br><b>Observation 01:</b> Treat markets as a learning system; track hypotheses like textbook notes.
+        </p>
 
-          <p class="muted hero-sub">
-            Members follow every experiment, see the real results, and access whole-market coverage
-            for just a few dollars a month—no massive AI build or upkeep required.
-          </p>
-
-          <div class="chips">
-            <span class="chip">Live research lab</span>
-            <span class="chip">AI eyes on every ticker</span>
-            <span class="chip">Retail-first pricing</span>
-          </div>
-
-          <div class="hero-ctas">
-            <a class="btn primary" href="/portfolio.html">See the Portfolios</a>
-            <a class="btn" href="/tools.html">Explore the Tools</a>
-          </div>
+        <div class="ff-notes">
+          <div class="ff-chip">Live research lab</div>
+          <div class="ff-chip">AI eyes on every ticker</div>
+          <div class="ff-chip">Retail-first pricing</div>
         </div>
-        <div class="hero-insights" aria-label="Highlights and membership snapshot">
-          <div class="hero-highlight">
-            <span class="hero-highlight__icon" aria-hidden="true">🧠</span>
-            <div class="hero-highlight__text">
-              <h3>Super-investor intelligence</h3>
-              <p class="muted">Decades of letters, filings, and trades distilled into rules an AI can execute—without
-                emotion or fatigue.</p>
-            </div>
-          </div>
-          <div class="hero-highlight">
-            <span class="hero-highlight__icon" aria-hidden="true">📡</span>
-            <div class="hero-highlight__text">
-              <h3>Always-on market coverage</h3>
-              <p class="muted">Copilots watch earnings, filings, and price action across the entire universe so nothing
-                slips through.</p>
-            </div>
-          </div>
-          <div class="hero-highlight">
-            <span class="hero-highlight__icon" aria-hidden="true">💡</span>
-            <div class="hero-highlight__text">
-              <h3>Membership beats DIY</h3>
-              <p class="muted">Skip the six-figure infrastructure. Follow the experiments, learn from the playbooks, and
-                level the playing field.</p>
-            </div>
-          </div>
 
-          <aside class="hero-panel card" aria-label="Membership snapshot">
-            <h3>Inside the membership lab</h3>
-            <p class="muted">Tap into the research stream while we run the experiment in public.</p>
-            <ul class="hero-panel__list">
-              <li><strong>Live rebalance logs:</strong> Track every move and the why behind it.</li>
-              <li><strong>Strategy briefs:</strong> Get the AI screeners, thesis notes, and checklists.</li>
-              <li><strong>Member signal sessions:</strong> Help steer the roadmap and request deep dives.</li>
-            </ul>
-            <div class="hero-price">
-              <span class="hero-price__value">$5/mo</span>
-              <span class="hero-price__label">Founding membership</span>
-            </div>
-            <a class="btn primary" href="/membership.html">Become a member</a>
-          </aside>
+        <div class="ff-cta">
+          <a class="ff-btn ff-btn--primary" href="/portfolio.html">Create a Portfolio</a>
+          <a class="ff-btn" href="/tools.html">Explore the Tools</a>
         </div>
-      </div>
 
-      <small class="hero-note">
-        Educational experiment. Not investment advice.
-        <span class="gating-note">Some live data is gated for supporters while we build safely.</span>
-      </small>
+        <div class="ff-foot">Footnote: notebook grid, dotted annotations, and sticky micro-notes.</div>
+      </div>
     </section>
 
     <!-- HOW IT WORKS -->
