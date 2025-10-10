@@ -50,7 +50,8 @@
   </style>
 </head>
 <body>
-  <header class="site-header">
+<header class="site-header">
+  <div class="site-header__inner">
     <a class="brand" href="/">
       <img src="/images/logo.webp" alt="FutureFunds.ai logo" class="logo" />
       <span>FutureFunds.ai</span>
@@ -94,11 +95,22 @@
           <a href="/universe.html" class="nav-link" data-i18n="nav.research">Research</a>
         </div>
       </div>
+
       <div class="nav-actions">
-        <button class="btn" type="button" data-open-auth="signin">Sign in</button>
+        <div class="nav-actions__group" role="group" aria-label="Display preferences">
+          <button id="langBtn" class="btn small ghost nav-actions__btn" type="button">EN ▾</button>
+          <button id="themeToggle" class="btn small ghost theme-toggle nav-actions__btn" type="button" aria-label="Toggle theme">
+            <span class="theme-toggle__icon" aria-hidden="true">🌗</span>
+            <span class="theme-toggle__label" data-i18n="nav.themeToggle">Theme</span>
+          </button>
+        </div>
+        <button id="accountBtn" class="btn primary nav-actions__btn nav-actions__btn--cta" type="button" data-open-auth="signin" aria-haspopup="dialog" aria-expanded="false" aria-label="Members Area">
+          <span data-account-label data-i18n="nav.account">Members Area</span>
+        </button>
       </div>
     </nav>
-  </header>
+  </div>
+</header>
 
   <main class="docs-wrap" id="docsRoot">
     <section class="docs-headline">
