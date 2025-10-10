@@ -1,0 +1,44 @@
+:root{
+  --ff-bg:#F9FAFB; --ff-grid:#ECEEF2; --ff-rule:#D7DCE4;
+  --ff-ink:#111827; --ff-pencil:#6B7280; --ff-cta:#D9534F;
+  --ff-cta-text:#fff; --ff-link:#3B82F6; --ff-card:#D1D5DB; --ff-hi:#FEF08A;
+}
+
+/* scope to the hero only */
+.ff-hero{position:relative; overflow:hidden; background:var(--ff-bg);}
+.ff-hero::before{
+  content:""; position:absolute; inset:0; pointer-events:none;
+  background-image:
+    linear-gradient(to right, var(--ff-grid) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--ff-grid) 1px, transparent 1px);
+  background-size:28px 28px; opacity:.55;
+}
+.ff-hero::after{
+  content:""; position:absolute; top:0; bottom:0; left:72px; width:2px;
+  background:linear-gradient(to bottom, transparent 0, var(--ff-rule) 15%, var(--ff-rule) 85%, transparent 100%);
+  opacity:.9; pointer-events:none;
+}
+
+.ff-hero__wrap{max-width:1120px; margin:0 auto; padding:64px 24px 120px; text-align:center; position:relative; z-index:1; color:var(--ff-ink); font-family:Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;}
+.ff-pill{display:inline-flex; gap:8px; align-items:center; padding:8px 14px; border:1.5px solid var(--ff-card); border-radius:999px; background:#fff; font-weight:700; font-size:12px; letter-spacing:.08em; text-transform:uppercase; box-shadow:0 2px 0 rgba(0,0,0,.04);}
+.ff-sub{margin-top:10px; display:inline-block; font-family:"Cormorant Garamond", Georgia, serif; font-style:italic; font-size:16px; color:var(--ff-pencil);}
+.ff-h1{font-family:Manrope, Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; font-weight:800; font-size:clamp(28px,4.7vw,56px); line-height:1.14; letter-spacing:-.02em; max-width:980px; margin:22px auto 10px;}
+.ff-dotted{position:relative; white-space:nowrap;}
+.ff-dotted::after{content:""; position:absolute; left:0; right:0; bottom:-6px; border-bottom:2px dotted var(--ff-ink); opacity:.9;}
+.ff-lede{max-width:900px; margin:16px auto 22px; color:var(--ff-pencil); font-size:18px;}
+.ff-lede b{font-family:"IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New", monospace; color:var(--ff-ink);}
+
+.ff-notes{display:flex; gap:10px; justify-content:center; flex-wrap:wrap; margin-top:18px;}
+.ff-chip{background:#fff; border:1px dashed var(--ff-card); border-radius:12px; padding:8px 12px; font-size:13px;}
+.ff-chip::before{content:"→ "; color:var(--ff-pencil);}
+
+.ff-cta{margin-top:28px; display:flex; gap:14px; justify-content:center; flex-wrap:wrap;}
+.ff-btn{border-radius:12px; padding:12px 18px; border:1.5px solid var(--ff-ink); background:#fff; text-decoration:none; color:var(--ff-ink); font-weight:700; box-shadow:0 4px 0 rgba(0,0,0,.06); transition:transform .15s ease, box-shadow .15s ease;}
+.ff-btn:hover{transform:translateY(-1px); box-shadow:0 7px 0 rgba(0,0,0,.08);}
+.ff-btn--primary{background:var(--ff-cta); border-color:#b23b37; color:var(--ff-cta-text); box-shadow:0 6px 14px rgba(217,83,79,.25);}
+.ff-btn--primary:hover{box-shadow:0 10px 18px rgba(217,83,79,.28);}
+
+.ff-sticky{position:absolute; right:38px; top:120px; background:var(--ff-hi); padding:10px 12px; transform:rotate(-2.2deg); border:1px solid #E5DE7D; border-bottom-right-radius:6px; box-shadow:0 12px 24px rgba(0,0,0,.06); font-size:13px;}
+.ff-sticky b{font-family:"IBM Plex Mono", ui-monospace, monospace;}
+@media (max-width:900px){ .ff-sticky{display:none;} }
+.ff-foot{margin-top:20px; font-family:"Cormorant Garamond", Georgia, serif; font-style:italic; color:var(--ff-pencil);}
