@@ -147,9 +147,20 @@ function queryElements() {
   els.subtitle = document.getElementById('authSubtitle');
   els.msg = document.getElementById('authMsg');
   els.views = document.getElementById('authViews');
-  els.headerMembershipBtn = document.getElementById('membershipLogin') || document.getElementById('membershipBtn');
-  if (els.headerMembershipBtn && !els.headerMembershipBtn.hasAttribute('data-open-auth')) {
-    els.headerMembershipBtn.setAttribute('data-open-auth', 'signin');
+  els.headerMembershipBtn =
+    document.getElementById('accountBtn') ||
+    document.getElementById('membershipLogin') ||
+    document.getElementById('membershipBtn');
+  if (els.headerMembershipBtn) {
+    if (!els.headerMembershipBtn.hasAttribute('data-open-auth')) {
+      els.headerMembershipBtn.setAttribute('data-open-auth', 'signin');
+    }
+    if (!els.headerMembershipBtn.hasAttribute('aria-haspopup')) {
+      els.headerMembershipBtn.setAttribute('aria-haspopup', 'dialog');
+    }
+    if (!els.headerMembershipBtn.hasAttribute('aria-expanded')) {
+      els.headerMembershipBtn.setAttribute('aria-expanded', 'false');
+    }
   }
   els.signInForm = document.getElementById('authSignInForm');
   els.signInEmail = document.getElementById('authSignInEmail');
@@ -201,12 +212,18 @@ function openAuth(view = null) {
     els.modal.classList.add('open');
     els.modal.setAttribute('aria-hidden', 'false');
   }
+  if (els.headerMembershipBtn) {
+    els.headerMembershipBtn.setAttribute('aria-expanded', 'true');
+  }
 }
 
 function closeAuth() {
   if (els.modal) {
     els.modal.classList.remove('open');
     els.modal.setAttribute('aria-hidden', 'true');
+  }
+  if (els.headerMembershipBtn) {
+    els.headerMembershipBtn.setAttribute('aria-expanded', 'false');
   }
 }
 
@@ -249,6 +266,35 @@ function applyStateToUI() {
 function updateHeaderButton() {
   if (!els.headerMembershipBtn) return;
   const btn = els.headerMembershipBtn;
+  const accountLabel = btn.querySelector('[data-account-label]');
+  if (accountLabel) {
+    if (!accountLabel.dataset.defaultLabel) {
+      accountLabel.dataset.defaultLabel = accountLabel.textContent?.trim() || 'Account';
+    }
+    const baseLabel = accountLabel.dataset.defaultLabel;
+    if (!state.user) {
+      accountLabel.textContent = baseLabel;
+      btn.dataset.status = 'signed-out';
+      btn.setAttribute('aria-label', baseLabel);
+      btn.setAttribute('title', baseLabel);
+      btn.setAttribute('data-open-auth', 'signin');
+    } else {
+      const membershipActive = isMembershipActive(state.membership, { profile: state.profile, user: state.user });
+      accountLabel.textContent = baseLabel;
+      btn.dataset.status = membershipActive ? 'member' : 'account';
+      const ariaLabel = membershipActive ? `${baseLabel} – membership active` : baseLabel;
+      btn.setAttribute('aria-label', ariaLabel);
+      btn.setAttribute('title', membershipActive ? 'Membership active' : baseLabel);
+      btn.setAttribute('data-open-auth', 'profile');
+    }
+    if (!btn.hasAttribute('aria-haspopup')) {
+      btn.setAttribute('aria-haspopup', 'dialog');
+    }
+    if (!btn.hasAttribute('aria-expanded')) {
+      btn.setAttribute('aria-expanded', 'false');
+    }
+    return;
+  }
   if (!btn.dataset.originalLabel) {
     btn.dataset.originalLabel = btn.textContent?.trim() || 'Membership';
   }
