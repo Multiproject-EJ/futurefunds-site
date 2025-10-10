@@ -13,6 +13,20 @@ async function loadLang(lang){
     const key = el.getAttribute('data-i18n');
     if (dict[key]) el.innerHTML = dict[key];
   });
+  document.querySelectorAll('[data-account-label]').forEach(el=>{
+    const text = el.textContent ? el.textContent.trim() : '';
+    if (text) el.dataset.defaultLabel = text;
+  });
+  document.querySelectorAll('#accountBtn').forEach(btn=>{
+    const label = btn.querySelector('[data-account-label]');
+    if (!label) return;
+    const base = label.dataset.defaultLabel || (label.textContent ? label.textContent.trim() : '');
+    if (!base) return;
+    if (!btn.dataset.status || btn.dataset.status === 'signed-out') {
+      btn.setAttribute('aria-label', base);
+      btn.setAttribute('title', base);
+    }
+  });
   document.documentElement.setAttribute('lang', lang);
   const btn = document.getElementById('langBtn');
   if (btn) btn.textContent = lang.toUpperCase()+' ▾';
