@@ -717,6 +717,150 @@ body.theme-dark .btn.theme-toggle:hover{
 }
 .card h3{margin:.2rem 0 .35rem}
 
+.member-tools{
+  display:grid;
+  gap:2.5rem;
+  padding-block:3rem;
+}
+
+.member-tools__header{
+  display:grid;
+  gap:.75rem;
+  text-align:center;
+  margin:0 auto;
+  max-width:720px;
+}
+
+.member-tools__header h2{
+  margin:0;
+  font-size:2.25rem;
+  letter-spacing:.01em;
+}
+
+.member-tools__header .muted{
+  margin:0;
+  font-size:1.05rem;
+  color:color-mix(in srgb, var(--muted) 85%, #fff 15%);
+}
+
+.member-tools__grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(280px,1fr));
+  gap:1.75rem;
+  align-items:stretch;
+}
+
+.tool-card{
+  position:relative;
+  display:grid;
+  gap:1.1rem;
+  padding:2.1rem 1.9rem;
+  border-radius:calc(var(--radius) + 6px);
+  background:linear-gradient(150deg, rgba(90,170,255,.22) 0%, rgba(22,30,68,.92) 45%, rgba(12,18,44,.96) 100%);
+  border:1px solid color-mix(in srgb, var(--accent) 32%, #151b3a 68%);
+  box-shadow:0 28px 70px rgba(8,12,32,.55);
+  overflow:hidden;
+  isolation:isolate;
+}
+
+.tool-card::before{
+  content:"";
+  position:absolute;
+  inset:-20% -35% auto;
+  height:65%;
+  background:radial-gradient(circle at top left, rgba(120,170,255,.45), transparent 55%);
+  filter:blur(0px);
+  opacity:.75;
+  z-index:-1;
+}
+
+.tool-card__badge{
+  align-self:start;
+  justify-self:start;
+  padding:.3rem .7rem;
+  border-radius:999px;
+  font-size:.72rem;
+  letter-spacing:.18em;
+  text-transform:uppercase;
+  color:color-mix(in srgb, var(--text) 90%, #fff 10%);
+  background:color-mix(in srgb, var(--accent) 28%, rgba(255,255,255,.12) 72%);
+  border:1px solid color-mix(in srgb, var(--accent) 45%, transparent 55%);
+  box-shadow:0 18px 36px rgba(46,100,255,.35);
+}
+
+.tool-card h3{
+  margin:0;
+  font-size:1.55rem;
+  letter-spacing:.01em;
+}
+
+.tool-card p{
+  margin:0;
+  font-size:1.02rem;
+  color:color-mix(in srgb, var(--text) 92%, rgba(160,180,220,.65) 8%);
+}
+
+.tool-card__features{
+  margin:0;
+  padding:0;
+  list-style:none;
+  display:grid;
+  gap:.65rem;
+}
+
+.tool-card__features li{
+  position:relative;
+  padding-left:1.6rem;
+  color:color-mix(in srgb, var(--muted) 78%, #fff 22%);
+}
+
+.tool-card__features li::before{
+  content:"";
+  position:absolute;
+  left:0;
+  top:.4rem;
+  width:.55rem;
+  height:.55rem;
+  border-radius:2px;
+  background:linear-gradient(130deg, rgba(90,255,215,.9), rgba(90,160,255,.9));
+  box-shadow:0 0 14px rgba(90,200,255,.6);
+}
+
+.tool-card__link{
+  position:relative;
+  display:inline-flex;
+  align-items:center;
+  gap:.4rem;
+  font-weight:600;
+  color:color-mix(in srgb, var(--text) 92%, var(--accent) 8%);
+  padding:.5rem 0;
+}
+
+.tool-card__link::after{
+  content:"→";
+  font-size:1rem;
+  transition:transform .2s ease;
+}
+
+.tool-card__link:hover::after,
+.tool-card__link:focus-visible::after{
+  transform:translateX(.25rem);
+}
+
+@media (max-width:640px){
+  .member-tools{
+    padding-block:2.5rem;
+  }
+
+  .member-tools__header h2{
+    font-size:2rem;
+  }
+
+  .tool-card{
+    padding:1.8rem 1.6rem;
+  }
+}
+
 .perks-list{
   list-style:none;
   margin:1rem 0;
@@ -1625,10 +1769,29 @@ body.theme-light .tag {
 }
 
 /* “Support & Access” cards feel like real cards */
-body.theme-light .grid .card {
-  background: var(--card);
-  border-color: var(--border);
-  box-shadow: var(--shadow);
+body.theme-light .member-tools__header .muted{
+  color:color-mix(in srgb, var(--muted) 80%, #000 20%);
+}
+
+body.theme-light .tool-card{
+  background:linear-gradient(150deg, color-mix(in srgb, var(--card) 92%, #fff 8%) 0%, color-mix(in srgb, var(--card) 80%, #fff 20%) 55%, color-mix(in srgb, var(--card) 86%, #000 14%) 100%);
+  border-color:color-mix(in srgb, var(--accent) 25%, var(--border) 75%);
+  box-shadow:0 22px 55px rgba(15,23,42,.18);
+}
+
+body.theme-light .tool-card::before{
+  background:radial-gradient(circle at top left, color-mix(in srgb, var(--accent) 40%, rgba(255,255,255,.8) 60%), transparent 55%);
+}
+
+body.theme-light .tool-card__badge{
+  color:color-mix(in srgb, var(--text) 82%, #000 18%);
+  background:color-mix(in srgb, var(--accent) 24%, rgba(255,255,255,.85) 76%);
+  border-color:color-mix(in srgb, var(--accent) 40%, rgba(0,0,0,.1) 60%);
+  box-shadow:0 12px 24px rgba(84,120,255,.25);
+}
+
+body.theme-light .tool-card__features li{
+  color:color-mix(in srgb, var(--muted) 75%, #000 25%);
 }
 
 /* Misc borders previously hardcoded for dark */
