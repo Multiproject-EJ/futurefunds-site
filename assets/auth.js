@@ -63,77 +63,85 @@ function ensureModalMounted() {
           <h3 id="authTitle">Welcome back</h3>
           <p id="authSubtitle" class="auth-sub muted">Sign in to access member-only research and tools.</p>
         </header>
-        <div class="auth-views" id="authViews">
-          <section class="auth-view" data-view="signin" aria-labelledby="authTitle">
-            <form id="authSignInForm" class="auth-form">
-              <label class="auth-label">
-                <span>Email</span>
-                <input id="authSignInEmail" type="email" autocomplete="email" required />
-              </label>
-              <label class="auth-label">
-                <span>Password</span>
-                <input id="authSignInPassword" type="password" autocomplete="current-password" required />
-              </label>
-              <button class="btn primary auth-submit" type="submit">Sign in</button>
-            </form>
-            <button id="authMagicLink" class="btn ghost auth-secondary" type="button">Email me a magic link</button>
-            <p class="auth-switch">New here? <a href="#" data-auth-switch="signup">Create an account</a></p>
-            <p class="auth-switch"><a href="#" data-auth-switch="forgot">Forgot password</a></p>
-          </section>
-          <section class="auth-view" data-view="signup">
-            <form id="authSignUpForm" class="auth-form">
-              <label class="auth-label">
-                <span>Email</span>
-                <input id="authSignUpEmail" type="email" autocomplete="email" required />
-              </label>
-              <label class="auth-label">
-                <span>Password</span>
-                <input id="authSignUpPassword" type="password" autocomplete="new-password" minlength="6" required />
-              </label>
-              <button class="btn primary auth-submit" type="submit">Create account</button>
-            </form>
-            <p class="auth-switch">Already have an account? <a href="#" data-auth-switch="signin">Sign in</a></p>
-          </section>
-          <section class="auth-view" data-view="forgot">
-            <form id="authResetForm" class="auth-form">
-              <label class="auth-label">
-                <span>Email</span>
-                <input id="authResetEmail" type="email" autocomplete="email" required />
-              </label>
-              <button class="btn primary auth-submit" type="submit">Send reset link</button>
-            </form>
-            <p class="auth-switch"><a href="#" data-auth-switch="signin">Back to sign in</a></p>
-          </section>
-          <section class="auth-view" data-view="profile">
-            <div class="auth-profile">
-              <p id="authWelcome" class="auth-welcome"></p>
-              <div class="auth-membership" id="authMembership"></div>
-              <div class="auth-profile-actions">
-                <a class="btn primary" href="/universe.html">Universe</a>
-                <a class="btn" href="/portfolio.html">Portfolios</a>
-              </div>
-              <button id="authLogout" class="btn ghost" type="button">Sign out</button>
+        <div class="auth-body">
+          <div class="auth-main">
+            <div class="auth-views" id="authViews">
+              <section class="auth-view" data-view="signin" aria-labelledby="authTitle">
+                <form id="authSignInForm" class="auth-form">
+                  <label class="auth-label">
+                    <span>Email</span>
+                    <input id="authSignInEmail" type="email" autocomplete="email" required />
+                  </label>
+                  <label class="auth-label">
+                    <span>Password</span>
+                    <input id="authSignInPassword" type="password" autocomplete="current-password" required />
+                  </label>
+                  <button class="btn primary auth-submit" type="submit">Sign in</button>
+                </form>
+                <button id="authMagicLink" class="btn ghost auth-secondary" type="button">Email me a magic link</button>
+                <p class="auth-switch">New here? <a href="#" data-auth-switch="signup">Create an account</a></p>
+                <p class="auth-switch"><a href="#" data-auth-switch="forgot">Forgot password</a></p>
+              </section>
+              <section class="auth-view" data-view="signup">
+                <form id="authSignUpForm" class="auth-form">
+                  <label class="auth-label">
+                    <span>Email</span>
+                    <input id="authSignUpEmail" type="email" autocomplete="email" required />
+                  </label>
+                  <label class="auth-label">
+                    <span>Password</span>
+                    <input id="authSignUpPassword" type="password" autocomplete="new-password" minlength="6" required />
+                  </label>
+                  <button class="btn primary auth-submit" type="submit">Create account</button>
+                </form>
+                <p class="auth-switch">Already have an account? <a href="#" data-auth-switch="signin">Sign in</a></p>
+              </section>
+              <section class="auth-view" data-view="forgot">
+                <form id="authResetForm" class="auth-form">
+                  <label class="auth-label">
+                    <span>Email</span>
+                    <input id="authResetEmail" type="email" autocomplete="email" required />
+                  </label>
+                  <button class="btn primary auth-submit" type="submit">Send reset link</button>
+                </form>
+                <p class="auth-switch"><a href="#" data-auth-switch="signin">Back to sign in</a></p>
+              </section>
+              <section class="auth-view" data-view="profile">
+                <div class="auth-profile">
+                  <p id="authWelcome" class="auth-welcome"></p>
+                  <div class="auth-membership" id="authMembership"></div>
+                  <div class="auth-profile-actions">
+                    <a class="btn primary" href="/universe.html">Universe</a>
+                    <a class="btn" href="/portfolio.html">Portfolios</a>
+                  </div>
+                  <button id="authLogout" class="btn ghost" type="button">Sign out</button>
+                </div>
+              </section>
             </div>
-          </section>
-        </div>
-        <aside class="auth-benefits">
-          <h4 class="auth-benefits__title" data-i18n="membership.perks.title">Member perks &amp; pricing</h4>
-          <p class="auth-benefits__intro muted" data-i18n="membership.perks.subhead">Support the experiment and unlock every research drop.</p>
-          <ul class="perks-list">
-            <li data-i18n="membership.perks.list.analysis">Full Universe AI analysis library (deep research).</li>
-            <li data-i18n="membership.perks.list.portfolios">See every live portfolio and rebalance log.</li>
-            <li data-i18n="membership.perks.list.updates">Receive detailed quarterly strategy updates.</li>
-            <li data-i18n="membership.perks.list.tools">Use the Smart Watchlist and other investor tools for free.</li>
-            <li data-i18n="membership.perks.list.discount">50% off future investor tool bundles.</li>
-            <li data-i18n="membership.perks.list.feedback">Shape the roadmap via the member Strategy Document.</li>
-          </ul>
-          <p class="auth-benefits__price" data-i18n="membership.perks.price">Membership starts at $5/mo.</p>
-          <div class="auth-benefits__actions">
-            <button class="btn primary" type="button" data-open-auth="signup" data-i18n="membership.perks.ctaJoin">Join now</button>
-            <button class="btn ghost" type="button" data-open-auth="signin" data-i18n="membership.perks.ctaSignIn">Already a member? Sign in</button>
+            <p id="authMsg" class="auth-msg" role="status"></p>
           </div>
-        </aside>
-        <p id="authMsg" class="auth-msg" role="status"></p>
+          <aside class="auth-aside" aria-labelledby="authBenefitsHeading">
+            <article class="card membership-callout auth-benefits">
+              <h3 id="authBenefitsHeading" data-i18n="membership.perks.title">Member perks &amp; pricing</h3>
+              <p class="muted" data-i18n="membership.perks.subhead">Support the experiment and unlock every research drop.</p>
+              <ul class="perks-list">
+                <li data-i18n="membership.perks.list.analysis">Full Universe AI analysis library (deep research).</li>
+                <li data-i18n="membership.perks.list.portfolios">See every live portfolio and rebalance log.</li>
+                <li data-i18n="membership.perks.list.updates">Receive detailed quarterly strategy updates.</li>
+                <li data-i18n="membership.perks.list.tools">Use the Smart Watchlist and other investor tools for free.</li>
+                <li data-i18n="membership.perks.list.discount">50% off future investor tool bundles.</li>
+                <li data-i18n="membership.perks.list.feedback">Shape the roadmap via the member Strategy Document.</li>
+              </ul>
+              <div class="membership-footer">
+                <p class="membership-price" data-i18n="membership.perks.price">Membership starts at $5/mo.</p>
+                <div class="membership-ctas">
+                  <button class="btn primary" type="button" data-auth-switch="signup" data-i18n="membership.perks.ctaJoin">Join now</button>
+                  <button class="btn ghost" type="button" data-auth-switch="signin" data-i18n="membership.perks.ctaSignIn">Already a member? Sign in</button>
+                </div>
+              </div>
+            </article>
+          </aside>
+        </div>
       </div>
     </div>
   `;
