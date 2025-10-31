@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-labelledby="title desc">
+  <title id="title">Site under construction</title>
+  <desc id="desc">Stylized warning sign with sparkles.</desc>
+  <defs>
+    <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FFEA8A" />
+      <stop offset="100%" stop-color="#F5B544" />
+    </linearGradient>
+    <linearGradient id="beam" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#9DBAFF" stop-opacity="0.85" />
+      <stop offset="100%" stop-color="#5A7BFF" stop-opacity="0.65" />
+    </linearGradient>
+  </defs>
+  <rect x="18" y="26" width="92" height="76" rx="14" fill="url(#beam)" opacity="0.4" />
+  <path d="M64 14a8 8 0 0 1 7 4l45 78a8 8 0 0 1-7 12H19a8 8 0 0 1-7-12l45-78a8 8 0 0 1 7-4z" fill="url(#grad)" stroke="#A16A00" stroke-width="4" />
+  <path d="M64 42c2.5 0 4.5 2 4.4 4.5l-1.2 24c-0.1 2.3-2 4.1-4.4 4.1s-4.3-1.8-4.4-4.1l-1.2-24C57 44 59 42 61.5 42h5.0z" fill="#1E293B" />
+  <circle cx="64" cy="92" r="6" fill="#1E293B" />
+  <g fill="#F8F9FF" opacity="0.85">
+    <circle cx="32" cy="30" r="4" />
+    <circle cx="104" cy="44" r="3" />
+    <circle cx="92" cy="24" r="2" />
+    <circle cx="24" cy="92" r="2.5" />
+  </g>
+</svg>
