@@ -2423,14 +2423,16 @@ body.theme-light table.grid pre{
   font-size:.95rem;
   letter-spacing:.08em;
   text-transform:uppercase;
-  color:var(--text);
-  opacity:.28;
-  transition:opacity .2s ease, transform .2s ease;
+  color:color-mix(in srgb, #fff 75%, var(--accent) 25%);
+  font-weight:600;
+  text-decoration:none;
+  text-shadow:0 2px 12px rgba(0,0,0,.45);
+  transition:transform .2s ease, color .2s ease;
 }
 
 .construction-overlay__continue:hover,
 .construction-overlay__continue:focus-visible{
-  opacity:.7;
+  color:#fff;
   transform:translateY(-1px);
 }
 
