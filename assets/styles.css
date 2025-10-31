@@ -23,6 +23,10 @@ body{
   overflow-x:hidden;
 }
 
+body.has-construction-overlay {
+  overflow: hidden;
+}
+
 main{flex:1 0 auto;width:100%;}
 a{color:var(--accent);text-decoration:none}
 a:hover{text-decoration:underline}
@@ -2357,4 +2361,86 @@ body.theme-light table.grid pre{
   overflow:auto;
   white-space:pre-wrap;
   word-break:break-word;
+}
+
+/* ==============================
+   First-visit construction gate
+   ============================== */
+.construction-overlay{
+  position:fixed;
+  inset:0;
+  z-index:2000;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:clamp(1.5rem, 6vw, 3.5rem);
+  background:color-mix(in srgb, rgba(6,11,25,.82) 90%, rgba(12,18,40,.78) 10%);
+  backdrop-filter:blur(22px);
+  transition:opacity .2s ease, visibility .2s ease;
+}
+
+.construction-overlay.is-dismissed{
+  opacity:0;
+  visibility:hidden;
+}
+
+.construction-overlay__dialog{
+  max-width:460px;
+  width:min(420px, 92vw);
+  padding:2.4rem clamp(1.5rem, 4vw, 2.75rem);
+  border-radius:22px;
+  background:color-mix(in srgb, rgba(13,19,39,.82) 88%, rgba(80,120,255,.12) 12%);
+  border:1px solid color-mix(in srgb, rgba(90,140,255,.4) 60%, transparent 40%);
+  box-shadow:0 28px 65px rgba(5,10,28,.35);
+  text-align:center;
+  display:flex;
+  flex-direction:column;
+  gap:1.25rem;
+}
+
+.construction-overlay__icon{
+  width:72px;
+  height:72px;
+  margin:0 auto -.35rem;
+  filter:drop-shadow(0 6px 24px rgba(90,140,255,.25));
+}
+
+.construction-overlay__dialog h2{
+  margin:0;
+  font-size:1.65rem;
+  font-weight:700;
+  letter-spacing:.01em;
+}
+
+.construction-overlay__dialog p{
+  margin:0;
+  color:color-mix(in srgb, var(--muted,#a7b0d0) 80%, #fff 20%);
+  line-height:1.7;
+}
+
+.construction-overlay__continue{
+  align-self:center;
+  font-size:.95rem;
+  letter-spacing:.08em;
+  text-transform:uppercase;
+  color:var(--text);
+  opacity:.28;
+  transition:opacity .2s ease, transform .2s ease;
+}
+
+.construction-overlay__continue:hover,
+.construction-overlay__continue:focus-visible{
+  opacity:.7;
+  transform:translateY(-1px);
+}
+
+@media (max-width: 520px){
+  .construction-overlay__dialog{
+    gap:1rem;
+    padding:2rem 1.5rem;
+  }
+
+  .construction-overlay__dialog h2{
+    font-size:1.45rem;
+  }
 }

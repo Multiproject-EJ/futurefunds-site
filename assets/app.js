@@ -9,6 +9,7 @@ const fmt = {
 
 document.addEventListener('DOMContentLoaded', () => {
   ensureFavicon();
+  initConstructionOverlay();
   initResponsiveNav();
   initNewsletterCapture();
   const y = $('#year'); if (y) y.textContent = new Date().getFullYear();
@@ -28,6 +29,84 @@ function ensureFavicon() {
   link.type = 'image/webp';
   link.href = '/images/logo.webp';
   head.appendChild(link);
+}
+
+function initConstructionOverlay() {
+  const storageKey = 'ff.constructionAck';
+  let hasSeenOverlay = false;
+
+  try {
+    hasSeenOverlay = window.localStorage && localStorage.getItem(storageKey) === '1';
+  } catch (error) {
+    hasSeenOverlay = false;
+  }
+
+  if (hasSeenOverlay) return;
+
+  const overlay = document.createElement('div');
+  overlay.className = 'construction-overlay';
+  overlay.innerHTML = `
+    <div class="construction-overlay__dialog" role="dialog" aria-modal="true" aria-labelledby="constructionOverlayTitle" aria-describedby="constructionOverlayCopy">
+      <img src="/images/logo.png" alt="" class="construction-overlay__icon" />
+      <h2 id="constructionOverlayTitle">We&apos;re still under construction</h2>
+      <p id="constructionOverlayCopy">FutureFunds.ai is being polished in the open. You&apos;re seeing an early build while we wire up the rest of the experience.</p>
+      <a href="#" class="construction-overlay__continue">Continue to site</a>
+    </div>
+  `;
+
+  const continueLink = overlay.querySelector('.construction-overlay__continue');
+  let isClosing = false;
+
+  function closeOverlay() {
+    if (isClosing) return;
+    isClosing = true;
+
+    overlay.classList.add('is-dismissed');
+    const removeOverlay = () => {
+      overlay.removeEventListener('transitionend', removeOverlay);
+      overlay.remove();
+    };
+    overlay.addEventListener('transitionend', removeOverlay);
+    setTimeout(removeOverlay, 220);
+    document.body.classList.remove('has-construction-overlay');
+    document.removeEventListener('keydown', handleKey);
+
+    try {
+      if (window.localStorage) localStorage.setItem(storageKey, '1');
+    } catch (error) {
+      // Ignore storage errors (Safari private mode, etc.)
+    }
+  }
+
+  function handleKey(event) {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      closeOverlay();
+    }
+  }
+
+  overlay.addEventListener('click', (event) => {
+    if (event.target === overlay) {
+      event.preventDefault();
+      closeOverlay();
+    }
+  });
+
+  if (continueLink) {
+    continueLink.addEventListener('click', (event) => {
+      event.preventDefault();
+      closeOverlay();
+    });
+  }
+
+  document.addEventListener('keydown', handleKey);
+
+  document.body.classList.add('has-construction-overlay');
+  document.body.appendChild(overlay);
+
+  if (continueLink && typeof continueLink.focus === 'function') {
+    setTimeout(() => continueLink.focus(), 0);
+  }
 }
 
 function initResponsiveNav() {
