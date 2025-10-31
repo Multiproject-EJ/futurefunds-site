@@ -50,7 +50,7 @@ function initConstructionOverlay() {
   overlay.className = 'construction-overlay';
   overlay.innerHTML = `
     <div class="construction-overlay__dialog" role="dialog" aria-modal="true" aria-labelledby="constructionOverlayTitle" aria-describedby="constructionOverlayCopy">
-      <img src="/images/logo.png" alt="" class="construction-overlay__icon" />
+      <img src="/images/under-construction.svg" alt="Stylized under construction illustration" class="construction-overlay__icon" />
       <h2 id="constructionOverlayTitle">We&apos;re still under construction</h2>
       <p id="constructionOverlayCopy">FutureFunds.ai is being polished in the open. You&apos;re seeing an early build while we wire up the rest of the experience.</p>
       <a href="#" class="construction-overlay__continue">Continue to site</a>
