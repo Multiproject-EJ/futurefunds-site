@@ -43,6 +43,9 @@ function initConstructionOverlay() {
 
   if (hasSeenOverlay) return;
 
+  const body = document.body;
+  if (!body) return;
+
   const overlay = document.createElement('div');
   overlay.className = 'construction-overlay';
   overlay.innerHTML = `
@@ -56,6 +59,10 @@ function initConstructionOverlay() {
 
   const continueLink = overlay.querySelector('.construction-overlay__continue');
   let isClosing = false;
+  const prevFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+  const focusableSelector = 'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])';
+  let trappedFocusables = [];
+  const ariaHiddenSiblings = [];
 
   function closeOverlay() {
     if (isClosing) return;
@@ -68,8 +75,19 @@ function initConstructionOverlay() {
     };
     overlay.addEventListener('transitionend', removeOverlay);
     setTimeout(removeOverlay, 220);
-    document.body.classList.remove('has-construction-overlay');
+    body.classList.remove('has-construction-overlay');
     document.removeEventListener('keydown', handleKey);
+    document.removeEventListener('focusin', enforceFocus);
+
+    ariaHiddenSiblings.forEach(({ element, previous }) => {
+      if (previous === null) element.removeAttribute('aria-hidden');
+      else element.setAttribute('aria-hidden', previous);
+    });
+    ariaHiddenSiblings.length = 0;
+
+    if (prevFocus && typeof prevFocus.focus === 'function') {
+      prevFocus.focus();
+    }
 
     try {
       if (window.localStorage) localStorage.setItem(storageKey, '1');
@@ -82,6 +100,22 @@ function initConstructionOverlay() {
     if (event.key === 'Escape') {
       event.preventDefault();
       closeOverlay();
+      return;
+    }
+
+    if (event.key === 'Tab' && trappedFocusables.length) {
+      const first = trappedFocusables[0];
+      const last = trappedFocusables[trappedFocusables.length - 1];
+      if (!first || !last) return;
+
+      const current = document.activeElement;
+      if (event.shiftKey && current === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && current === last) {
+        event.preventDefault();
+        first.focus();
+      }
     }
   }
 
@@ -101,11 +135,33 @@ function initConstructionOverlay() {
 
   document.addEventListener('keydown', handleKey);
 
-  document.body.classList.add('has-construction-overlay');
-  document.body.appendChild(overlay);
+  body.classList.add('has-construction-overlay');
+  body.appendChild(overlay);
+
+  trappedFocusables = [...overlay.querySelectorAll(focusableSelector)].filter((el) => !el.hasAttribute('inert'));
+  if (!trappedFocusables.length && continueLink) trappedFocusables = [continueLink];
+
+  const siblings = [...body.children];
+  siblings.forEach((element) => {
+    if (element === overlay) return;
+    ariaHiddenSiblings.push({ element, previous: element.hasAttribute('aria-hidden') ? element.getAttribute('aria-hidden') : null });
+    element.setAttribute('aria-hidden', 'true');
+  });
+
+  document.addEventListener('focusin', enforceFocus);
 
   if (continueLink && typeof continueLink.focus === 'function') {
     setTimeout(() => continueLink.focus(), 0);
+  }
+
+  function enforceFocus(event) {
+    if (!overlay.contains(event.target)) {
+      const target = trappedFocusables[0];
+      if (target && typeof target.focus === 'function') {
+        event.stopPropagation();
+        target.focus();
+      }
+    }
   }
 }
 
