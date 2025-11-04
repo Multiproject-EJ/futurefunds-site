@@ -39,6 +39,18 @@ universe, and internal tooling.
    once migrations are applied. Add email or Slack channels, set conviction
    thresholds, and verify alerts arrive when finalists are promoted.
 
+## Project status
+
+- The full [automation roadmap](docs/equity-analyst-roadmap.md) is now checked off,
+  including the stretch features for cached completions, scoring ensembles, focus
+  questions, and automated notifications.
+- All migrations through `sql/017_notifications.sql`, Supabase Edge functions, and
+  planner dashboards ship in this repository; running through the
+  [first run checklist](docs/first-run-checklist.md) will prepare an environment for
+  end-to-end validation.
+- After completing the checklist, schedule an hourly run from the planner or
+  dispatcher to begin acceptance testing of the unattended equity-analysis loop.
+
 ## Developer docs
 
 - [Supabase database reference](docs/supabase-schema.md) — canonical contract for the
