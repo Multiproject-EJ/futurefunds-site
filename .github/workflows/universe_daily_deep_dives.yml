@@ -1,0 +1,20 @@
+# Disabling Universe — Daily Deep Dives workflow
+#
+# on:
+#   schedule:
+#   - cron: '0 0 * * *'  # This is just an example of a cron schedule
+
+name: Universe — Daily Deep Dives
+
+# Uncomment the below line to re-enable this workflow
+# on:
+#   schedule:
+#   - cron: '0 0 * * *' 
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+        # Additional steps here...
